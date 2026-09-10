@@ -6,8 +6,6 @@ import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
 import { cn } from "@/lib/utils"
 
-
-
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
   subsets: ["latin"],
