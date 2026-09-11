@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { DM_Serif_Display, Inter_Tight } from "next/font/google";
 import "./globals.css";
 
-import Header from "./components/layout/Header";
-import Footer from "./components/layout/Footer";
+import Header from "../components/layout/Header";
+import Footer from "../components/layout/Footer";
+import { cn } from "@/lib/utils"
 
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${dmSerif.variable} ${inter.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", dmSerif.variable, "font-sans", inter.variable)}
     >
       <body className="min-h-full flex flex-col">
         <Header />

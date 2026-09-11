@@ -1,4 +1,4 @@
-import Button from "../ui/Button";
+import Button from "../../app/components/ui/Button";
 
 export default function Footer() {
     return (

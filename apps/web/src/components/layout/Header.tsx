@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import Button from "@/app/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Logo from "@/app/assets/logo.png"
 
