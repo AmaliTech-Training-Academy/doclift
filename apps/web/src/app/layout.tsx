@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, Inter_Tight } from "next/font/google";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+import { Toaster } from "sonner";
 
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: '400',
+  weight: "400",
 });
 
 const inter = Inter_Tight({
   variable: "--font-body",
   subsets: ["latin"],
 });
-
-
 
 export const metadata: Metadata = {
   title: "DocLift",
@@ -24,9 +24,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${dmSerif.variable} ${inter.variable} h-full antialiased`}
+      className={cn(
+        "h-full",
+        "antialiased",
+        dmSerif.variable,
+        "font-sans",
+        inter.variable,
+      )}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Toaster richColors position="top-right"
+        toastOptions={{
+          classNames: {
+            toast: "font-sans"
+          }
+        }} />
+      </body>
     </html>
   );
 }
