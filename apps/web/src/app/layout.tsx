@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Inter_Tight } from "next/font/google";
+import { DM_Serif_Display, Inter_Tight, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
+
+
 
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
