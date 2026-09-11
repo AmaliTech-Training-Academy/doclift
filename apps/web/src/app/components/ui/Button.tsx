@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import {cn} from "@/lib/utils";
 
 type ButtonVariant =
   | "primary"
@@ -51,21 +52,10 @@ export default function Button({
       type={type}
       disabled={disabled || loading}
       onClick={onClick}
-      className={`
-        inline-flex
-        items-center
-        justify-center
-        gap-2
-        rounded-lg
-        font-medium
-        transition-colors
-        cursor-pointer
-        disabled:cursor-not-allowed
-        disabled:opacity-50
-        ${variants[variant]}
-        ${sizes[size]}
-        ${className}
-      `}
+      className={cn
+        ("inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+        className, sizes[size], variants[variant])
+      }
     >
       {loading ? (
         <span>Loading...</span>
