@@ -1,19 +1,22 @@
 "use client";
 
 import DropZone from "@/components/upload/dropZone";
-import { Card,
-    CardAction,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle, } from "@/components/ui/card";
-import {FileText, ArrowLeftRight} from "lucide-react"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { FileText, ArrowLeftRight } from "lucide-react";
+import HeaderBar from "@/components/progress/headerBar";
 
 export default function MainSection() {
-    return (
-        <div className="min-h-dvh flex flex-col">
-            <div className="flex-1">
+  return (
+    <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-4 py-8">
+      {/* <div className="flex-1">
                 <DropZone>
                     <div className="">
                         <div className="p-4 bg-blue-100 rounded-2xl">
@@ -39,7 +42,12 @@ export default function MainSection() {
                     </CardFooter>
                 </Card>
 
-            </div>
-        </div>
-    );
+            </div> */}
+
+      {/* Progress component */}
+        <HeaderBar />
+
+     
+    </div>
+  );
 }
