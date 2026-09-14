@@ -4,8 +4,8 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 
-import Header from "../components/layout/Header";
-import Footer from "../components/layout/Footer";
+import Header from "../components/layout/header";
+import Footer from "../components/layout/footer";
 
 // const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
