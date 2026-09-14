@@ -6,7 +6,11 @@ import { Toaster } from "sonner";
 
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-im;
+
+// const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+
+
+
 
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
