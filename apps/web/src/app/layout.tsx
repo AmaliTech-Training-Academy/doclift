@@ -4,13 +4,8 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 
-import Header from "../components/layout/header";
-import Footer from "../components/layout/footer";
-
-// const inter = Inter({subsets:['latin'],variable:'--font-sans'});
-
-
-
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
 
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
