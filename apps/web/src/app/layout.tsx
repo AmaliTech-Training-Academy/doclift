@@ -4,16 +4,14 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 
-
-
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-import { cn } from "@/lib/utils"
+im;
 
 const dmSerif = DM_Serif_Display({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: '400',
+  weight: "400",
 });
 
 const inter = Inter_Tight({
@@ -39,19 +37,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       )}
     >
       <body className="min-h-full flex flex-col">
-        
         <Header />
-          <main>
-            {children}
-          </main>
+        <main>{children}</main>
         <Footer />
-      
-        <Toaster richColors position="top-right"
-        toastOptions={{
-          classNames: {
-            toast: "font-sans"
-          }
-        }} />
+
+        <Toaster
+          richColors
+          position="top-right"
+          toastOptions={{
+            classNames: {
+              toast: "font-sans",
+            },
+          }}
+        />
       </body>
     </html>
   );
