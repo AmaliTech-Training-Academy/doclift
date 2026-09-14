@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MainSection from "@/components/layout/mainSection";
+import MainSection from "@/components/layout/MainSection";
 
 
 export const metadata: Metadata = {
@@ -8,8 +8,8 @@ export const metadata: Metadata = {
 
 export default function Home() {
     return (
-        <main>
-            <MainSection/>
-        </main>
+      <main className="min-h-dvh flex flex-col">
+        <MainSection/>
+      </main>
     );
 }

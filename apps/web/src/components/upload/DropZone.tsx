@@ -1,12 +1,13 @@
 "use client";
 
 import { ReactNode, useState, useRef } from "react";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner"
 
 interface DropZoneProps {
     children?: ReactNode;
-    onDrop?: (files: FileList) => void;
+    onDrop?: (files: File) => void;
     onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
     onDragEnter?: (e: React.DragEvent<HTMLDivElement>) => void;
     onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -19,6 +20,25 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
     const dragCounter = useRef(0);
 
     const isDragActive = externalIsDragActive ?? internalIsDragActive;
+
+    const handleFile = (file: File) => {
+        if (
+            file.type !== "application/pdf" &&
+            !file.name.toLowerCase().endsWith(".pdf")
+        ) {
+            toast.error("Invalid file", {
+                description: "Only PDF files are allowed.",
+            });
+
+            return;
+        }
+
+        toast.success("File selected", {
+            description: `${file.name} is ready for conversion.`,
+        });
+
+        onDrop?.(file);
+    };
 
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -53,8 +73,16 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
         dragCounter.current = 0;
         setInternalIsDragActive(false);
 
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            onDrop?.(e.dataTransfer.files);
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+
+        handleFile(file);
+
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+
+        if (fileInputRef.current) {
+            fileInputRef.current.files = dataTransfer.files;
         }
     };
 
@@ -70,8 +98,8 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-                "max-w-4xl p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-white border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all duration-200 ease-in-out select-none",
-                isDragActive && "border-blue-500 bg-blue-50 scale-[1.01] shadow-xl"
+                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none",
+                isDragActive && "border-blue-500 bg-blue-100 scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">
@@ -81,10 +109,9 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
                 ref={fileInputRef}
                 type="file" 
                 accept="application/pdf"
-                multiple={true} 
                 onChange={(e) => {
-                    if (e.target.files) {
-                        onDrop?.(e.target.files);
+                    if (e.target.files && e.target.files.length > 0) {
+                        handleFile(e.target.files[0]);
                     }
                 }}
                 onClick={(e) => e.stopPropagation()}
