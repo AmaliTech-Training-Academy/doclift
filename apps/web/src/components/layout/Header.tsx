@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Button from "@/components/ui/Button";
 import Image from "next/image";
 import Logo from "@/app/assets/logo.png"
 
@@ -9,7 +9,7 @@ export default function Header() {
             <div className="max-w-7xl mx-auto px-4">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                        <Image src={Logo} alt="Logo" height={60}/>
+                        <Image priority src={Logo} alt="Logo" height={60}/>
                         <p className="text-lg font-semibold text-gray-900">Convert PDF to Word</p>
                     </div>
                     <div className="flex items-center space-x-4">

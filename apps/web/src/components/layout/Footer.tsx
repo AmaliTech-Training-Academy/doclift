@@ -1,4 +1,4 @@
-import Button from "../../app/components/ui/Button";
+import Button from "../ui/Button";
 
 export default function Footer() {
     return (
@@ -11,7 +11,7 @@ export default function Footer() {
                             Format Support
                         </Button>
                         <Button variant="ghost">
-                            Documentaion
+                            Documentation
                         </Button>
                         <Button variant="ghost">
                             Integrity & Privacy
