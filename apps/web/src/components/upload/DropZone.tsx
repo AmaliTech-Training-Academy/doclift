@@ -58,10 +58,10 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
     const handleFile = async (file: File): Promise<boolean> => {
-        if (
-            file.type !== "application/pdf" &&
-            !file.name.toLowerCase().endsWith(".pdf")
-        ) {
+        const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
+        const hasPdfMime = file.type === "application/pdf" || file.type === "";
+
+        if (!hasPdfExtension || !hasPdfMime) {
             toast.error("Invalid file", {
                 description: "Only PDF files are allowed.",
             });
