@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MainSection from "@/components/layout/mainSection";
+import MainSection from "@/components/layout/MainSection";
 
 
 export const metadata: Metadata = {
