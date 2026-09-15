@@ -18,6 +18,7 @@ export interface DropZoneHandle {
     clearFile: () => void;
 }
 
+// validating if the file is a pdf (checks for the %PDF- header)
 async function validatePdfHeader(file: File): Promise<boolean> {
     try {
         const slice = file.slice(0, 5);
@@ -32,6 +33,18 @@ async function validatePdfHeader(file: File): Promise<boolean> {
             header[3] === 0x46 &&
             header[4] === 0x2D
         );
+    } catch {
+        return false;
+    }
+}
+
+// checking if the file is encrypted (checks for the /Encrypt keyword)
+async function checkPdfEncrypted(file: File): Promise<boolean> {
+    try {
+        const maxBytes = Math.min(file.size, 2 * 1024 * 1024);
+        const slice = file.slice(0, maxBytes);
+        const text = await slice.text();
+        return /\/Encrypt\b/.test(text);
     } catch {
         return false;
     }
@@ -68,6 +81,13 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             return false;
         }
 
+        if (file.size === 0) {
+            toast.error("Empty file", {
+                description: "The selected PDF file is empty.",
+            });
+            return false;
+        }
+
         if (file.size > MAX_FILE_SIZE_BYTES) {
             toast.error("File too large", {
                 description: "File size exceeds the 50 MB limit.",
@@ -79,6 +99,14 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         if (!isHeaderValid) {
             toast.error("Invalid PDF file", {
                 description: "File content is not a valid PDF document.",
+            });
+            return false;
+        }
+
+        const isEncrypted = await checkPdfEncrypted(file);
+        if (isEncrypted) {
+            toast.error("Encrypted PDF", {
+                description: "Password-protected or encrypted PDF files are not supported.",
             });
             return false;
         }
