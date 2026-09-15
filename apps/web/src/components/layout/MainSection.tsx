@@ -1,22 +1,40 @@
 "use client";
 
-import DropZone from "@/components/upload/DropZone";
-import {FileText, ArrowLeftRight} from "lucide-react"
+import { useRef, useState } from "react";
+import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
+import { FileText, ArrowLeftRight, Trash } from "lucide-react";
 import Button from "@/components/ui/Button";
 
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function MainSection() {
+    const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+    const dropZoneRef = useRef<DropZoneHandle>(null);
+
+    const handleFileDrop = (file: File) => {
+        setUploadedFile(file);
+    };
+
+    const handleRemoveFile = () => {
+        setUploadedFile(null);
+        dropZoneRef.current?.clearFile();
+    };
+
     return (
         <div className="flex-1 space-y-4 p-4">
-            <div className="bg-white w-full mx-auto max-w-3xl flex flex-col space-y-4 p-4 rounded-lg">
+            <div className="bg-white w-full mx-auto max-w-3xl flex flex-col space-y-4 p-4 rounded-xl">
                 <div className="mt-8 max-w-2xl text-center mx-auto space-y-4">
-                    <p className="text-4xl font-bold">
+                    <h1 className="text-4xl font-bold">
                         TRANSFORM YOUR PDF INTO EDITABLE WORD DOCUMENT
-                    </p>
+                    </h1>
                     <p>
                         Convert digital PDFs into editable Word documents while preserving text, structure, formatting, images, tables, and reading order.
                     </p>
                 </div>
-                <DropZone>
+                <DropZone ref={dropZoneRef} onDrop={handleFileDrop}>
                     <div>
                         <div className="p-4 bg-blue-200 rounded-2xl">
                             <FileText className="size-15 text-blue-600"/>
@@ -36,17 +54,30 @@ export default function MainSection() {
                     <div><p>Source: <span className="font-semibold">Digital text layer</span></p></div>
                 </div>
 
-                <div>
-                    {/* Todo: Uploaded file details */}
-                </div>
+                {uploadedFile && (
+                    <div className="w-full flex flex-row items-center space-x-4 p-4 border border-gray-200 rounded-xl">
+                        <FileText className="size-15 text-blue-600 shrink-0"/>
+                        <div className="flex-1 flex flex-col space-y-2 min-w-0">
+                            <p className="text-xl font-semibold truncate">{uploadedFile.name}</p>
+                            <div className="text-sm bg-green-100 rounded-full w-fit px-2 py-1 space-x-2 text-green-500 flex items-center">
+                                <span>Text layer verified</span>
+                                <div className="rounded-full bg-green-500 p-0.5 w-fit h-fit"></div>
+                                <span>Ready to reconstruct</span>
+                            </div>
+                            <div className="flex items-center space-x-2 text-sm text-gray-500">
+                                <p>{formatFileSize(uploadedFile.size)}</p>
+                            </div>
+                        </div>
+                        <Button variant="danger" onClick={handleRemoveFile}>
+                            <Trash/>
+                            Remove File
+                        </Button>
+                    </div>
+                )}
 
-                <Button>
+                <Button disabled={!uploadedFile}>
                     <p className="text-xl">Convert to Word (.docx)</p>
                 </Button>
-            </div>
-
-            <div>
-
             </div>
         </div>
     );

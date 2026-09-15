@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { DM_Serif_Display, Inter_Tight } from "next/font/google";
 import "./globals.css";
 
-import Header from "../components/layout/Header";
-import Footer from "../components/layout/Footer";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/Toaster";
+import { ConversionProvider } from "@/context/ConversionContext";
 
 const dmSerif = DM_Serif_Display({
-  variable: "--font-heading",
+  variable: "--font-heading-serif",
   subsets: ["latin"],
   weight: '400',
 });
@@ -35,10 +36,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <Header />
-        {children}
-        <Footer />
-        <Toaster />
+        <ConversionProvider>
+          <Header />
+          {children}
+          <Footer />
+          <Toaster />
+        </ConversionProvider>
       </body>
     </html>
   );
