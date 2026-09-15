@@ -1,11 +1,11 @@
 import React from "react";
-import { Card, CardContent, CardDescription } from "../ui/card";
+import { Card, CardContent, CardDescription } from "../ui/Card";
 import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
 
 const headerBar = () => {
   return (
-    <div>
-      <Card className="w-full m-2">
+    <div className="mb-8">
+      <Card className="w-full m-2 -mt-10">
         <CardContent className="flex items-center justify-between gap-4 mt-6 ">
           {/* Header Bar */}
           <div className="flex items-center justify-between gap-4 w-full">

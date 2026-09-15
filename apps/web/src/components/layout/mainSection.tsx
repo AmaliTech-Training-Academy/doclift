@@ -9,13 +9,15 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/Card";
 import { FileText, ArrowLeftRight } from "lucide-react";
-import HeaderBar from "@/components/progress/headerBar";
+import ProgressCard from "@/components/progress/ProgressCard";
+import HeaderBar from "../progress/HeaderBar";
+import ErrorStateCard from "../progress/ErrorStateCard";
 
 export default function MainSection() {
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-4 py-8">
+    <div className="min-h-dvh flex flex-col items-center mt-50">
       {/* <div className="flex-1">
                 <DropZone>
                     <div className="">
@@ -45,9 +47,8 @@ export default function MainSection() {
             </div> */}
 
       {/* Progress component */}
-        <HeaderBar />
-
-     
+      <HeaderBar />
+      <ProgressCard />
     </div>
   );
 }
