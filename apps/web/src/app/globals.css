@@ -56,7 +56,7 @@
   --color-ring: var(--ring);
 
   --font-sans: var(--font-body);
-  --font-heading: var(--font-heading);
+  --font-heading: var(--font-heading-serif);
 }
 
 body {

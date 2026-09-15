@@ -1,27 +1,44 @@
 "use client";
 
-import { ReactNode, useState, useRef } from "react";
+import { ReactNode, useState, useRef, forwardRef, useImperativeHandle } from "react";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner"
+import { toast } from "sonner";
 
 interface DropZoneProps {
     children?: ReactNode;
-    onDrop?: (files: File) => void;
+    onDrop?: (file: File) => void;
     onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
     onDragEnter?: (e: React.DragEvent<HTMLDivElement>) => void;
     onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void;
     isDragActive?: boolean;
 }
 
-export default function DropZone ({children, onDrop, onDragOver, onDragEnter, onDragLeave, isDragActive: externalIsDragActive}: DropZoneProps) {
+export interface DropZoneHandle {
+    clearFile: () => void;
+}
+
+const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
+    {children, onDrop, onDragOver, onDragEnter, onDragLeave, isDragActive: externalIsDragActive}: DropZoneProps,
+    ref
+) {
     const [internalIsDragActive, setInternalIsDragActive] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dragCounter = useRef(0);
 
     const isDragActive = externalIsDragActive ?? internalIsDragActive;
 
-    const handleFile = (file: File) => {
+    useImperativeHandle(ref, () => ({
+        clearFile() {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        },
+    }));
+
+    const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
+    const handleFile = (file: File): boolean => {
         if (
             file.type !== "application/pdf" &&
             !file.name.toLowerCase().endsWith(".pdf")
@@ -29,8 +46,14 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
             toast.error("Invalid file", {
                 description: "Only PDF files are allowed.",
             });
+            return false;
+        }
 
-            return;
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            toast.error("File too large", {
+                description: "File size exceeds the 50 MB limit.",
+            });
+            return false;
         }
 
         toast.success("File selected", {
@@ -38,6 +61,7 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
         });
 
         onDrop?.(file);
+        return true;
     };
 
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -76,7 +100,8 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
         const file = e.dataTransfer.files[0];
         if (!file) return;
 
-        handleFile(file);
+        const isValid = handleFile(file);
+        if (!isValid) return;
 
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
@@ -111,7 +136,10 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
                 accept="application/pdf"
                 onChange={(e) => {
                     if (e.target.files && e.target.files.length > 0) {
-                        handleFile(e.target.files[0]);
+                        const isValid = handleFile(e.target.files[0]);
+                        if (!isValid && fileInputRef.current) {
+                            fileInputRef.current.value = "";
+                        }
                     }
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -119,4 +147,6 @@ export default function DropZone ({children, onDrop, onDragOver, onDragEnter, on
             />
         </div>
     );
-}
+});
+
+export default DropZone;
