@@ -18,6 +18,25 @@ export interface DropZoneHandle {
     clearFile: () => void;
 }
 
+async function validatePdfHeader(file: File): Promise<boolean> {
+    try {
+        const slice = file.slice(0, 5);
+        const buffer = await slice.arrayBuffer();
+        const header = new Uint8Array(buffer);
+        // %PDF- header magic bytes: 0x25 ('%'), 0x50 ('P'), 0x44 ('D'), 0x46 ('F'), 0x2D ('-')
+        return (
+            header.length >= 5 &&
+            header[0] === 0x25 &&
+            header[1] === 0x50 &&
+            header[2] === 0x44 &&
+            header[3] === 0x46 &&
+            header[4] === 0x2D
+        );
+    } catch {
+        return false;
+    }
+}
+
 const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     {children, onDrop, onDragOver, onDragEnter, onDragLeave, isDragActive: externalIsDragActive}: DropZoneProps,
     ref
@@ -38,7 +57,7 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
 
     const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
-    const handleFile = (file: File): boolean => {
+    const handleFile = async (file: File): Promise<boolean> => {
         if (
             file.type !== "application/pdf" &&
             !file.name.toLowerCase().endsWith(".pdf")
@@ -52,6 +71,14 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         if (file.size > MAX_FILE_SIZE_BYTES) {
             toast.error("File too large", {
                 description: "File size exceeds the 50 MB limit.",
+            });
+            return false;
+        }
+
+        const isHeaderValid = await validatePdfHeader(file);
+        if (!isHeaderValid) {
+            toast.error("Invalid PDF file", {
+                description: "File content is not a valid PDF document.",
             });
             return false;
         }
@@ -91,7 +118,7 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         onDragLeave?.(e);
     };
 
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current = 0;
@@ -100,7 +127,7 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         const file = e.dataTransfer.files[0];
         if (!file) return;
 
-        const isValid = handleFile(file);
+        const isValid = await handleFile(file);
         if (!isValid) return;
 
         const dataTransfer = new DataTransfer();
@@ -115,15 +142,26 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         fileInputRef.current?.click();
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleClick();
+        }
+    };
+
     return (
         <div 
+            role="button"
+            tabIndex={0}
+            aria-label="Upload PDF file"
             onClick={handleClick}
+            onKeyDown={handleKeyDown}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none",
+                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 isDragActive && "border-blue-500 bg-blue-100 scale-[1.01] shadow-lg"
             )}
         >
@@ -134,9 +172,9 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
                 ref={fileInputRef}
                 type="file" 
                 accept="application/pdf"
-                onChange={(e) => {
+                onChange={async (e) => {
                     if (e.target.files && e.target.files.length > 0) {
-                        const isValid = handleFile(e.target.files[0]);
+                        const isValid = await handleFile(e.target.files[0]);
                         if (!isValid && fileInputRef.current) {
                             fileInputRef.current.value = "";
                         }
