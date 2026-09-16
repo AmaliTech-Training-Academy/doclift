@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
 import { FileText, ArrowLeftRight, Trash, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -21,21 +21,25 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function MainSection() {
-  // const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  // const dropZoneRef = useRef<DropZoneHandle>(null);
+  const { file } = useConversion();
 
-  // const handleFileDrop = (file: File) => {
-  //     setUploadedFile(file);
-  // };
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const dropZoneRef = useRef<DropZoneHandle>(null);
 
-  // const handleRemoveFile = () => {
-  //     setUploadedFile(null);
-  //     dropZoneRef.current?.clearFile();
-  // };
+  const handleFileDrop = (file: File) => {
+      setUploadedFile(file);
+  };
+
+  const handleRemoveFile = () => {
+      setUploadedFile(null);
+      dropZoneRef.current?.clearFile();
+  };
 
   return (
     <>
-      <HeaderBar />
+      <HeaderBar file={file} timeElapsed={timeElapsed} timeRemaining={timeRemaining} />
       <ProgressCard />
     </>
     // <div className="flex-1 space-y-4 p-4">
