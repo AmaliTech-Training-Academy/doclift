@@ -1,15 +1,15 @@
-import React, { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Card } from "../ui/Card";
 import { Progress } from "../ui/Progress";
 import { Spinner } from "../ui/Spinner";
-import { CheckIcon, LoaderCircleIcon, BadgeCheck, X } from "lucide-react";
-import VerticalStepper, {
+import { CheckIcon, BadgeCheck, X } from "lucide-react";
+import {
   VerticalStepperDemo,
   type VerticalStepperDemoHandle,
   type PipelineProgress,
 } from "../ui/Stepper";
-import {Button} from "../ui/Button";
+import { Button } from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 
 const progressCard = () => {
@@ -135,9 +135,7 @@ const progressCard = () => {
         </div>
       </Card>
       {/* Error State Card */}
-      {progress?.error && (
-        <ErrorStateCard/>
-      )}
+      {progress?.error && <ErrorStateCard />}
     </div>
   );
 };

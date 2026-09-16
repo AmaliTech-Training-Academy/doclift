@@ -1,4 +1,3 @@
-import React from "react";
 import { Card, CardContent, CardDescription } from "../ui/Card";
 import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
 
