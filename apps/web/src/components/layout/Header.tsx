@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import Button from "@/components/ui/Button";
+import {Button} from "@/components/ui/Button";
 import Image from "next/image";
 import Logo from "@/app/assets/logo.png";
 import { useConversion } from "@/context/ConversionContext";

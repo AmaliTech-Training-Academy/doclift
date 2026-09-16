@@ -178,7 +178,7 @@ function StepRow({ step }: { step: Step }) {
   const muted = step.status === "pending";
 
   return (
-    <div className="flex items-start justify-between md:w-240">
+    <div className="flex items-start justify-between md:w-200">
       <div className="min-w-0">
         <p
           className={`text-sm md:text-2xl font-semibold ${muted ? "text-slate-400" : "text-slate-900"}`}
@@ -214,7 +214,7 @@ function StepRow({ step }: { step: Step }) {
       </div>
 
       {step.meta && (
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs  text-slate-500">
           {step.meta}
         </span>
       )}
@@ -232,7 +232,7 @@ function ActiveStepCard({ step }: { step: Step }) {
 
   return (
     <div
-      className={`rounded-xl border md:w-240 p-4 ${
+      className={`rounded-xl border md:w-200 p-4 ${
         cancelled
           ? "border-slate-200 bg-slate-50"
           : "border-brand-secondary bg-brand-secondary"
@@ -241,15 +241,15 @@ function ActiveStepCard({ step }: { step: Step }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p
-            className={`text-lg font-semibold md:text-2xl ${cancelled ? "text-slate-600" : "text-brand-primary"}`}
+            className={`text-base font-semibold md:text-3xl ${cancelled ? "text-slate-600" : "text-brand-primary"}`}
           >
             {title}
           </p>
           <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            className={`rounded-full px-2 py-0.5 text-xs truncate font-medium ${
               cancelled
                 ? "bg-slate-200 text-slate-600"
-                : "bg-indigo-100 text-indigo-700"
+                : "bg-indigo-100 text-brand-primary"
             }`}
           >
             {cancelled ? "Cancelled" : "In Progress"}

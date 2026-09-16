@@ -1,7 +1,8 @@
 "use client";
 
-import MainSection from "@/components/layout/MainSection";
+
 import { useConversion } from "@/context/ConversionContext";
+import MainSection from "@/components/layout/MainSection";
 
 export default function Home() {
     const { resetKey } = useConversion();

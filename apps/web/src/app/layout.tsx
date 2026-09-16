@@ -3,11 +3,8 @@ import { DM_Serif_Display, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
-
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { cn } from "@/lib/utils";
-import { Toaster } from "@/components/ui/Toaster";
 import { ConversionProvider } from "@/context/ConversionContext";
 
 const dmSerif = DM_Serif_Display({

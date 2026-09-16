@@ -9,7 +9,7 @@ import VerticalStepper, {
   type VerticalStepperDemoHandle,
   type PipelineProgress,
 } from "../ui/Stepper";
-import Button from "../ui/Button";
+import {Button} from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 
 const progressCard = () => {
@@ -62,7 +62,7 @@ const progressCard = () => {
   return (
     <div>
       {/* Main card */}
-      <Card className="ml-8 flex flex-col p-4">
+      <Card className="m-8 flex flex-col p-4 md:mx-auto md:w-250">
         {/* Header and Percentage */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
           <h1 className="text-lg md:text-3xl font-semibold">
@@ -97,11 +97,11 @@ const progressCard = () => {
           </p>
         </div>
         {/* Timeline Stepper */}
-        <div>
+        <div className="-mx-4">
           <VerticalStepperDemo ref={stepperRef} onProgress={handleProgress} />
         </div>
         {/* Pipeline Footer */}
-        <Card className="mx-2 my-4  bg-[#EFF4FF]">
+        <Card className="mx-2 my-6  bg-[#EFF4FF]">
           <div className="flex flex-row items-start items-center gap-4 p-4">
             <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
               <BadgeCheck className="text-blue-500" />
@@ -121,7 +121,7 @@ const progressCard = () => {
         <div className="flex items-center gap-4 p-4">
           <Button
             variant="secondary"
-            className="hover:text-red-700 disabled:hover:text-inherit"
+            className="hover:text-red-700 disabled:hover:text-inherit w-80"
             onClick={handleCancel}
             disabled={cancelled || done}
           >
