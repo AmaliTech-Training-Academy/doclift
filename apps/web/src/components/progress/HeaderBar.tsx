@@ -26,7 +26,8 @@ const HeaderBar = () => {
               </div>
               {/* Arrow Indicator  */}
               <div className="flex flex-col items-center justify-center gap-2 rounded-lg p-2">
-                <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90" />
+                <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90 md:rotate-0" />
+                <p className="text-xs hidden md:block tracking-widest">DOCX</p>
               </div>
               {/* Target File */}
               <div className="flex md:items-center md:justify-center gap-2 bg-[#EFF4FF] rounded-lg p-2  sm:p-3">
