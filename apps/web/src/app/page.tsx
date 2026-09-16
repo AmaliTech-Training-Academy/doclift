@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
+"use client";
+
 import MainSection from "@/components/layout/MainSection";
-
-
-export const metadata: Metadata = {
-  title: "DocLift - Convert",
-};
+import { useConversion } from "@/context/ConversionContext";
 
 export default function Home() {
+    const { resetKey } = useConversion();
+
     return (
-        <main>
-            <MainSection/>
+        <main className="min-h-dvh flex flex-col">
+            <MainSection key={resetKey} />
         </main>
     );
 }

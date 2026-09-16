@@ -6,9 +6,12 @@ import { Toaster } from "sonner";
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/Toaster";
+import { ConversionProvider } from "@/context/ConversionContext";
 
 const dmSerif = DM_Serif_Display({
-  variable: "--font-heading",
+  variable: "--font-heading-serif",
   subsets: ["latin"],
   weight: "400",
 });
@@ -23,7 +26,11 @@ export const metadata: Metadata = {
   description: "Convert your PDF files to Word documents",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="en"
@@ -34,21 +41,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         "font-sans",
         inter.variable,
       )}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
-        <Header />
-        <main>{children}</main>
-        <Footer />
-
-        <Toaster
-          richColors
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <ConversionProvider>
+          <Header />
+          {children}
+          <Footer />
+          <Toaster richColors
           position="top-right"
           toastOptions={{
             classNames: {
               toast: "font-sans",
             },
-          }}
-        />
+          }} />
+        </ConversionProvider>
       </body>
     </html>
   );
