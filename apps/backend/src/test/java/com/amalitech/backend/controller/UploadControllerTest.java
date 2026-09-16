@@ -1,5 +1,8 @@
 package com.amalitech.backend.controller;
 
+import com.amalitech.backend.exception.EncryptedPdfException;
+import com.amalitech.backend.exception.FileTooLargeException;
+import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.service.UploadService;
 import org.junit.jupiter.api.Test;
@@ -48,5 +51,92 @@ class UploadControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType("application/json"))
                 .andExpect(jsonPath("$.jobId").value(42));
+    }
+
+    // =========================================================
+// INVALID PDF RESPONSE
+// =========================================================
+
+    @Test
+    void shouldReturnBadRequestForInvalidPdf() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "fake.pdf",
+                "application/pdf",
+                "fake-content".getBytes()
+        );
+
+        when(uploadService.handleUpload(file))
+                .thenThrow(new InvalidPdfException(
+                        "Only PDF files are supported."
+                ));
+
+        mockMvc.perform(
+                        multipart("/upload")
+                                .file(file)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType("application/json"))
+                .andExpect(jsonPath("$.error").value("INVALID_PDF"))
+                .andExpect(jsonPath("$.message")
+                        .value("Only PDF files are supported."));
+    }
+
+    // =========================================================
+// ENCRYPTED PDF RESPONSE
+// =========================================================
+
+    @Test
+    void shouldReturnBadRequestForEncryptedPdf() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "protected.pdf",
+                "application/pdf",
+                "encrypted-content".getBytes()
+        );
+
+        when(uploadService.handleUpload(file))
+                .thenThrow(new EncryptedPdfException(
+                        "Encrypted or password-protected PDFs are not supported."
+                ));
+
+        mockMvc.perform(
+                        multipart("/upload")
+                                .file(file)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType("application/json"))
+                .andExpect(jsonPath("$.error").value("ENCRYPTED_PDF"))
+                .andExpect(jsonPath("$.message")
+                        .value("Encrypted or password-protected PDFs are not supported."));
+    }
+
+    // =========================================================
+// OVERSIZED FILE RESPONSE
+// =========================================================
+
+    @Test
+    void shouldReturnPayloadTooLargeForOversizedPdf() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "large.pdf",
+                "application/pdf",
+                "large-content".getBytes()
+        );
+
+        when(uploadService.handleUpload(file))
+                .thenThrow(new FileTooLargeException(
+                        "The uploaded PDF exceeds the maximum allowed size."
+                ));
+
+        mockMvc.perform(
+                        multipart("/upload")
+                                .file(file)
+                )
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(content().contentType("application/json"))
+                .andExpect(jsonPath("$.error").value("FILE_TOO_LARGE"))
+                .andExpect(jsonPath("$.message")
+                        .value("The uploaded PDF exceeds the maximum allowed size."));
     }
 }
