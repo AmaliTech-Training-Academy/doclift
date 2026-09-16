@@ -41,14 +41,14 @@ public class JobService {
 
     /**
      * This is called when the .docx has been written to disk or storage. It attaches the
-     * output file record and sets the job status to COMPLETED in one transaction.
+     * output file record and sets the job status to DONE in one transaction.
      */
     @Transactional
     public Job markCompleted(Long jobId, String outputPath, long sizeBytes) {
         Job job = getJobOrThrow(jobId);
         JobFile file = new JobFile(job, outputPath, sizeBytes);
         job.setFile(file); // cascades the insert via Job's OneToOne mapping
-        job.setStatus(JobStatus.COMPLETED);
+        job.setStatus(JobStatus.DONE);
         return job;
     }
 
