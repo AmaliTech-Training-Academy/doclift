@@ -29,8 +29,13 @@ public class UploadService {
                 pageCount
         );
 
-        fileStorageService.storeSourcePdf(file, job.getId());
+        try {
+            fileStorageService.storeSourcePdf(file, job.getId());
+            return job;
 
-        return job;
+        } catch (RuntimeException e) {
+            jobService.markFailed(job.getId());
+            throw e;
+        }
     }
 }
