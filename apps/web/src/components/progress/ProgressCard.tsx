@@ -57,17 +57,18 @@ const progressCard = () => {
 
   const totalSteps = progress?.totalSteps ?? steps.length;
   const currentStepIndex = Math.min(progress?.activeIndex ?? 0, totalSteps - 1);
+  const isFinalPhase = currentStepIndex + 1 === totalSteps;
 
   return (
     <div>
       {/* Main card */}
-      <Card className="m-2 flex flex-col px-2 py-6">
+      <Card className="ml-8 flex flex-col p-4">
         {/* Header and Percentage */}
-        <div className="flex items-center justify-between gap-10 p-4">
-          <h1 className="text-2xl font-semibold pr-26">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
+          <h1 className="text-lg md:text-3xl font-semibold">
             Reconstructing Document Structures
           </h1>
-          <h1 className="text-3xl font-bold text-gray-900 pl-10">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
             {overallPercent}%{" "}
             <span className="text-sm text-[#434655]">completed</span>
           </h1>
@@ -80,9 +81,13 @@ const progressCard = () => {
           />
         </div>
         {/* Current Stage Callout */}
-        <div className="flex items-center gap-1 p-4">
-          <div className="flex items-center gap-1">
-            <Spinner className="w-4 h-4 text-[#004AC6]" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 p-4">
+          <div className="flex items-center gap-1 shrink-0">
+            {isFinalPhase ? (
+              <CheckIcon className="w-4 h-4 text-[#004AC6]" />
+            ) : (
+              <Spinner className="w-4 h-4 text-[#004AC6]" />
+            )}
             <p className="font-bold text-xs">
               Phase {currentStepIndex + 1} of {totalSteps}:
             </p>
@@ -96,12 +101,12 @@ const progressCard = () => {
           <VerticalStepperDemo ref={stepperRef} onProgress={handleProgress} />
         </div>
         {/* Pipeline Footer */}
-        <Card className="m-4 bg-[#EFF4FF]">
-          <div className="flex items-center gap-4 p-4">
-            <div className="rounded-full bg-[#E5EEFF] p-2">
+        <Card className="mx-2 my-4  bg-[#EFF4FF]">
+          <div className="flex flex-row items-start items-center gap-4 p-4">
+            <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
               <BadgeCheck className="text-blue-500" />
             </div>
-            <div className="flex flex-col w-150">
+            <div className="flex flex-col">
               <p className="font-bold">Native Flow Fidelity Guarantee</p>
               <p className="text-xs ">
                 DocLift reconstructs actual Word document objects (tables,
