@@ -220,21 +220,26 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">
                 {children}
             </div>
-            <Input 
-                ref={fileInputRef}
-                type="file" 
-                accept="application/pdf"
-                onChange={async (e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                        const isValid = await handleFile(e.target.files[0]);
-                        if (!isValid && fileInputRef.current) {
-                            fileInputRef.current.value = "";
+            <div>
+                <div className="inline-block sm:hidden bg-blue-100 shadow-md text-blue-600 p-2 rounded-md border border-blue-400 cursor-pointer mt-4">
+                    <p className="">Click to choose a file</p>
+                </div>
+                <Input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="application/pdf"
+                    onChange={async (e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            const isValid = await handleFile(e.target.files[0]);
+                            if (!isValid && fileInputRef.current) {
+                                fileInputRef.current.value = "";
+                            }
                         }
-                    }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
-            />
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hidden sm:inline-block w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
+                />
+            </div>
         </div>
     );
 });
