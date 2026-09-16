@@ -161,28 +161,33 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center text-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 isDragActive && "border-blue-500 bg-blue-100 scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">
                 {children}
             </div>
-            <Input 
-                ref={fileInputRef}
-                type="file" 
-                accept="application/pdf"
-                onChange={async (e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                        const isValid = await handleFile(e.target.files[0]);
+            <div>
+                <div className="inline-block sm:hidden bg-blue-100 shadow-md text-blue-600 p-2 rounded-md border border-blue-400 cursor-pointer mt-4">
+                    <p className="">Click to choose a file</p>
+                </div>
+                <Input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="application/pdf"
+                    onChange={async (e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            const isValid = await handleFile(e.target.files[0]);
                         if (!isValid && fileInputRef.current) {
                             fileInputRef.current.value = "";
                         }
                     }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
-            />
+                className="hidden sm:inline-block w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
+                />
+            </div>
         </div>
     );
 });

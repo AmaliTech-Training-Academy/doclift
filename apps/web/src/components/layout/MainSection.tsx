@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
-import { FileText, ArrowLeftRight, Trash, CheckCircle } from "lucide-react";
+import { FileText, ArrowLeftRight, Trash, CheckCircle, Grid3x2, List, Bold, Image as ImageIcon } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/Card";
 
 function formatFileSize(bytes: number): string {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -44,14 +44,13 @@ export default function MainSection() {
                             <ArrowLeftRight className="size-4 text-white"/>
                         </div>
                     </div>
-                    <h1 className="flex justify-center text-2xl">Drag & drop your PDF here</h1>
-                    <p className="flex justify-center">Drop files here</p>
+                    <h1 className="text-2xl">Drag & drop your PDF here</h1>
                 </DropZone>
-                <div className="w-full flex justify-around p-2 items-center bg-blue-100 rounded-xl max-w-4xl mx-auto">
+                <div className="w-full flex flex-col sm:flex-row justify-around items-center gap-2 sm:gap-0 p-3 sm:p-2 text-xs sm:text-sm text-center bg-blue-100 rounded-xl max-w-4xl mx-auto">
                     <div> <p>Supported format: <span className="font-semibold">PDF only (.pdf)</span></p></div>
-                    <div className="rounded-full bg-black p-1 w-fit h-fit"></div>
+                    <div className="hidden sm:block rounded-full bg-black p-1 w-fit h-fit"></div>
                     <div><p>Limit: <span className="font-semibold">Up to 50 MB</span></p></div>
-                    <div className="rounded-full bg-black p-1 w-fit h-fit"></div>
+                    <div className="hidden sm:block rounded-full bg-black p-1 w-fit h-fit"></div>
                     <div><p>Source: <span className="font-semibold">Digital text layer</span></p></div>
                 </div>
 
@@ -80,23 +79,23 @@ export default function MainSection() {
                 
             </div>
             {/* Bottom Section*/}
-                <div className="w-full flex flex-col space-y-4 px-8 py-4 bg-blue-100">
-                    <div className="flex flex-row justify-between">
+                <div className="w-full flex flex-col space-y-4 sm:px-8 px-2 py-4 bg-blue-100 rounded-xl">
+                    <div className="flex sm:flex-row flex-col justify-between gap-2">
                         <div className="flex flex-col">
-                            <h1 className="text-2xl font-bold">What DocLift Preserves</h1>
+                            <h1 className="text-2xl">What DocLift Preserves</h1>
                             <p className="text-sm">Unlike generic OCR or naive converters that dump arbitrary text frames, DocLift reconstructs the logical semantic tree of your document.</p>
 
                         </div>
-                        <div className="inline-flex items-center space-x-2">
+                        <div className="w-fit h-fit inline-flex items-start space-x-2 bg-white p-1 rounded-lg">
                             <CheckCircle className="size-4 text-green-500"/>
                             <p className="text-sm">99.8% Word Style Parity</p>
                         </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                         <Card className="mx-auto w-full">
+                    <div className="grid sm:grid-cols-3 grid-cols-1 gap-4">
+                         <Card className="group hover:shadow-lg hover:scale-[1.01] transition-all mx-auto w-full">
                             <CardHeader>
-                                <CardDescription className="rounded-xl bg-blue-100 p-2 w-fit h-fit flex">
-                                    <FileText className="size-10 text-blue-600"/>
+                                <CardDescription className="rounded-xl bg-blue-100 p-4 w-fit h-fit flex">
+                                    <FileText className="size-8 text-blue-600"/>
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -106,10 +105,115 @@ export default function MainSection() {
                                 <div className="bg-blue-100 flex flex-col rounded-lg p-4">
                                     <div className="flex flex-row justify-between mb-2">
                                         <p className="text-sm">Column Flow</p>
-                                        <p className="text-sm">Contiguous Flow</p>
+                                        <p className="text-sm text-blue-600">Contiguous Flow</p>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <p className="text-sm">Rebuilds multi-column & asymmetric column flows naturally.</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                         <Card className="group hover:shadow-lg hover:scale-[1.01] transition-all mx-auto w-full">
+                            <CardHeader>
+                                <CardDescription className="rounded-xl bg-blue-100 p-3 px-5 w-fit h-fit flex">
+                                    <p className="text-3xl font-bold text-blue-600">A</p>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xl font-semibold mb-2">Headings & Paragraphs</p>
+                                <p className="mb-2">Maps typography into native Word heading styles (H1–H4).</p>
+
+                                <div className="bg-blue-100 flex flex-col rounded-lg p-4">
+                                    <div className="flex flex-row justify-between mb-2">
+                                        <p className="text-sm">Original Text</p>
+                                        <p className="text-sm text-blue-600">Semantic Heading Styles</p>
                                     </div>
                                     <div className="flex flex-row">
-                                        <p className="text-sm">Rebuilds multi-column & asymmetric column flows naturally.</p>
+                                        <p className="text-sm">Maps all heading styles into native word heading styles.</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                         <Card className="group hover:shadow-lg hover:scale-[1.01] transition-all mx-auto w-full">
+                            <CardHeader>
+                                <CardDescription className="rounded-xl bg-blue-100 p-4 w-fit h-fit flex">
+                                    <Grid3x2 className="size-8 text-blue-600"/>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xl font-semibold mb-2">Editable Data Tables</p>
+                                <p className="mb-2">Converted to native Word tables with structured rows, columns, and borders.</p>
+
+                                <div className="bg-blue-100 flex flex-col rounded-lg p-4">
+                                    <div className="flex flex-row justify-between mb-2">
+                                        <p className="text-sm">Original Table</p>
+                                        <p className="text-sm text-blue-600">Word Table</p>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <p className="text-sm">Converted to native Word tables with structured rows, columns, and borders.</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                         <Card className="group hover:shadow-lg hover:scale-[1.01] transition-all mx-auto w-full">
+                            <CardHeader>
+                                <CardDescription className="rounded-xl bg-blue-100 p-4 w-fit h-fit flex">
+                                    <List className="size-8 text-blue-600"/>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xl font-semibold mb-2">Bulleted & Numbered Lists</p>
+                                <p className="mb-2">Recreates true hierarchical lists, not raw bullet characters.</p>
+
+                                <div className="bg-blue-100 flex flex-col rounded-lg p-4">
+                                    <div className="flex flex-row justify-between mb-2">
+                                        <p className="text-sm">List Engine</p>
+                                        <p className="text-sm text-blue-600">Bulleting style Managed</p>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <p className="text-sm">Tier 1 Operational Node • Nested verification child</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                         <Card className="group hover:shadow-lg hover:scale-[1.01] transition-all mx-auto w-full">
+                            <CardHeader>
+                                <CardDescription className="rounded-xl bg-blue-100 p-4 w-fit h-fit flex">
+                                    <Bold strokeWidth={3} className="size-8 text-blue-600"/>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xl font-semibold mb-2">Bold, Italic & Underline</p>
+                                <p className="mb-2">Character formatting and inline spans fully retained.</p>
+
+                                <div className="bg-blue-100 flex flex-col rounded-lg p-4">
+                                    <div className="flex flex-row justify-between mb-2">
+                                        <p className="text-sm">Inline Spans</p>
+                                        <p className="text-sm text-blue-600">100% Retained</p>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <p className="text-sm">Standard text with <b>bold weight</b> and <i>slanted emphasis</i></p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                         <Card className="group hover:shadow-lg hover:scale-[1.01] transition-all mx-auto w-full">
+                            <CardHeader>
+                                <CardDescription className="rounded-xl bg-blue-100 p-4 w-fit h-fit flex">
+                                    <ImageIcon className="size-8 text-blue-600"/>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xl font-semibold mb-2">Embedded Images</p>
+                                <p className="mb-2">Preserved at native resolution in their exact reading context.</p>
+
+                                <div className="bg-blue-100 flex flex-col rounded-lg p-4">
+                                    <div className="flex flex-row justify-between mb-2">
+                                        <p className="text-sm">Raster & Vectors</p>
+                                        <p className="text-sm text-blue-600">Lossless Wrap</p>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <p className="text-sm">Lossless Extraction • 300 DPI preserved</p>
                                     </div>
                                 </div>
                             </CardContent>
