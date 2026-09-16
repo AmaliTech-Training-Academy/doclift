@@ -38,13 +38,23 @@ async function validatePdfHeader(file: File): Promise<boolean> {
     }
 }
 
-// checking if the file is encrypted (checks for the /Encrypt keyword)
+// checking if the file is encrypted (scans head and tail of file for /Encrypt keyword)
 async function checkPdfEncrypted(file: File): Promise<boolean> {
     try {
-        const maxBytes = Math.min(file.size, 2 * 1024 * 1024);
-        const slice = file.slice(0, maxBytes);
-        const text = await slice.text();
-        return /\/Encrypt\b/.test(text);
+        const size = file.size;
+        const chunkSize = 1024 * 1024; // 1 MB
+
+        // For small files (<= 2MB), scan the entire file text
+        if (size <= 2 * chunkSize) {
+            const text = await file.text();
+            return /\/Encrypt\b/.test(text);
+        }
+
+        // For larger files, scan both head (first 1MB) and tail (last 1MB where trailer sits)
+        const headText = await file.slice(0, chunkSize).text();
+        const tailText = await file.slice(size - chunkSize, size).text();
+
+        return /\/Encrypt\b/.test(headText) || /\/Encrypt\b/.test(tailText);
     } catch {
         return false;
     }
@@ -57,11 +67,13 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     const [internalIsDragActive, setInternalIsDragActive] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dragCounter = useRef(0);
+    const validationIdRef = useRef(0);
 
     const isDragActive = externalIsDragActive ?? internalIsDragActive;
 
     useImperativeHandle(ref, () => ({
         clearFile() {
+            validationIdRef.current += 1;
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
@@ -71,31 +83,41 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
     const handleFile = async (file: File): Promise<boolean> => {
+        const currentValidationId = ++validationIdRef.current;
+
         const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
         const hasPdfMime = file.type === "application/pdf" || file.type === "";
 
         if (!hasPdfExtension || !hasPdfMime) {
-            toast.error("Invalid file", {
-                description: "Only PDF files are allowed.",
-            });
+            if (currentValidationId === validationIdRef.current) {
+                toast.error("Invalid file", {
+                    description: "Only PDF files are allowed.",
+                });
+            }
             return false;
         }
 
         if (file.size === 0) {
-            toast.error("Empty file", {
-                description: "The selected PDF file is empty.",
-            });
+            if (currentValidationId === validationIdRef.current) {
+                toast.error("Empty file", {
+                    description: "The selected PDF file is empty.",
+                });
+            }
             return false;
         }
 
         if (file.size > MAX_FILE_SIZE_BYTES) {
-            toast.error("File too large", {
-                description: "File size exceeds the 50 MB limit.",
-            });
+            if (currentValidationId === validationIdRef.current) {
+                toast.error("File too large", {
+                    description: "File size exceeds the 50 MB limit.",
+                });
+            }
             return false;
         }
 
         const isHeaderValid = await validatePdfHeader(file);
+        if (currentValidationId !== validationIdRef.current) return false;
+
         if (!isHeaderValid) {
             toast.error("Invalid PDF file", {
                 description: "File content is not a valid PDF document.",
@@ -104,6 +126,8 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         }
 
         const isEncrypted = await checkPdfEncrypted(file);
+        if (currentValidationId !== validationIdRef.current) return false;
+
         if (isEncrypted) {
             toast.error("Encrypted PDF", {
                 description: "Password-protected or encrypted PDF files are not supported.",
