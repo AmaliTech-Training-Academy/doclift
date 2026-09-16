@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardHeader } from "../ui/Card";
 import { TriangleAlert } from "lucide-react";
-import Button from "../ui/Button";
+import {Button} from "../ui/Button";
 
 const errorStateCard = () => {
   return (
@@ -17,7 +17,7 @@ const errorStateCard = () => {
             An error has occurred. Please try again later.
           </p>
         </div>
-        <Button variant="danger" className="self-center">
+        <Button variant="destructive" className="self-center">
           Retry
         </Button>
       </Card>

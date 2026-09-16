@@ -5,16 +5,16 @@ import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
 const headerBar = () => {
   return (
     <div className="mb-8">
-      <Card className="w-full m-2 -mt-10 ml-4">
+      <Card className="mt-10 mx-4 md:w-350 md:mx-auto">
         <CardContent className="flex items-center justify-between gap-4 mt-6">
           {/* Header Bar */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6 lg:gap-4 w-full">
+          <div className="flex flex-col lg:flex-row  gap-6 lg:gap-4 md:items-center md:justify-between w-full">
             {/* Left: Document Pair */}
-            <div className="flex items-center justify-center gap-2 sm:gap-4 lg:pr-8">
+            <div className="flex flex-col md:flex-row gap-2 sm:gap-4 lg:pr-8">
               {/* Source File */}
-              <div className="flex items-center justify-center gap-2 bg-[#EFF4FF] rounded-lg p-2 sm:p-3">
-                <div className="flex items-center justify-center gap-2 bg-red-100 rounded-lg p-2">
-                  <FileInput className="size-3 sm:size-6 text-red-600" />
+              <div className="flex md:items-center md:justify-center gap-2 bg-[#EFF4FF] rounded-lg p-4 sm:p-3">
+                <div className="flex items-center justify-center gap-2 bg-red-100 rounded-lg p-4">
+                  <FileInput className="size-6 text-red-600" />
                 </div>
                 <div className="flex flex-col">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 mt-2">
@@ -27,15 +27,12 @@ const headerBar = () => {
               </div>
               {/* Arrow Indicator  */}
               <div className="flex flex-col items-center justify-center gap-2 rounded-lg p-2">
-                <ArrowRight className="size-5 sm:size-6 text-blue-400" />
-                <p className="text-xs sm:text-sm text-[#434655] tracking-widest">
-                  DOCX
-                </p>
+                <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90" />
               </div>
               {/* Target File */}
-              <div className="flex items-center justify-center gap-2 bg-[#EFF4FF] rounded-lg p-2  sm:p-3">
-                <div className="flex items-center justify-center gap-2 bg-blue-200 rounded-lg p-2 ml-2">
-                  <FileTypeCorner className="size-3 sm:size-6 text-blue-600" />
+              <div className="flex md:items-center md:justify-center gap-2 bg-[#EFF4FF] rounded-lg p-2  sm:p-3">
+                <div className="flex items-center justify-center gap-2 bg-blue-200 rounded-lg p-4 ml-2">
+                  <FileTypeCorner className="size-6 text-blue-600" />
                 </div>
                 <div className="flex flex-col">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 mt-2">

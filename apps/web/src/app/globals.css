@@ -59,7 +59,7 @@
   --color-ring: var(--ring);
 
   --font-sans: var(--font-body);
-  --font-heading: var(--font-heading);
+  --font-heading: var(--font-heading-serif);
   --color-brand-primary: var(--brand-primary);
   --color-brand-secondary: var(--brand-secondary);
 }
