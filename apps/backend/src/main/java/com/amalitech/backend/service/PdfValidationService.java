@@ -8,7 +8,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import java.io.IOException;
 
 @Service
@@ -54,6 +54,11 @@ public class PdfValidationService {
             }
 
             return pageCount;
+
+        } catch (InvalidPasswordException e) {
+            throw new EncryptedPdfException(
+                    "Encrypted or password-protected PDFs are not supported."
+            );
 
         } catch (EncryptedPdfException e) {
             throw e;
