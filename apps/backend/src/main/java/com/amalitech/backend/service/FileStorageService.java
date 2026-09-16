@@ -28,11 +28,11 @@ public class FileStorageService {
      * @return path to the stored source PDF
      */
     public Path storeSourcePdf(MultipartFile file, Long jobId) {
-        try {
-            Path jobDirectory = uploadRoot.resolve(jobId.toString());
-            Files.createDirectories(jobDirectory);
+        Path jobDirectory = uploadRoot.resolve(jobId.toString());
+        Path targetPath = jobDirectory.resolve("source.pdf");
 
-            Path targetPath = jobDirectory.resolve("source.pdf");
+        try {
+            Files.createDirectories(jobDirectory);
 
             Files.copy(
                     file.getInputStream(),
@@ -43,6 +43,12 @@ public class FileStorageService {
             return targetPath;
 
         } catch (IOException e) {
+            try {
+                Files.deleteIfExists(targetPath);
+            } catch (IOException cleanupException) {
+                e.addSuppressed(cleanupException);
+            }
+
             throw new IllegalStateException(
                     "Failed to store uploaded PDF.",
                     e
