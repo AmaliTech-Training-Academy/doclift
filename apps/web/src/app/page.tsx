@@ -1,6 +1,6 @@
 "use client";
 
-import MainSection from "@/components/layout/MainSection";
+import UploadScreen from "@/components/upload/UploadScreen";
 import { useConversion } from "@/context/ConversionContext";
 
 export default function Home() {
@@ -8,7 +8,7 @@ export default function Home() {
 
     return (
         <main className="min-h-dvh flex flex-col">
-            <MainSection key={resetKey} />
+            <UploadScreen key={resetKey} />
         </main>
     );
 }
