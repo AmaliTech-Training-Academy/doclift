@@ -9,27 +9,28 @@ public class UploadService {
 
     private final JobService jobService;
     private final PdfValidationService pdfValidationService;
+    private final FileStorageService fileStorageService;
 
     public UploadService(
             JobService jobService,
-            PdfValidationService pdfValidationService
+            PdfValidationService pdfValidationService,
+            FileStorageService fileStorageService
     ) {
         this.jobService = jobService;
         this.pdfValidationService = pdfValidationService;
+        this.fileStorageService = fileStorageService;
     }
 
-    /**
-     * Coordinates the upload flow for a PDF.
-     *
-     * @param file uploaded PDF file
-     * @return the created conversion job
-     */
     public Job handleUpload(MultipartFile file) {
         int pageCount = pdfValidationService.validateAndGetPageCount(file);
 
-        return jobService.createJob(
+        Job job = jobService.createJob(
                 file.getOriginalFilename(),
                 pageCount
         );
+
+        fileStorageService.storeSourcePdf(file, job.getId());
+
+        return job;
     }
 }
