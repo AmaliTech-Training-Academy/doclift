@@ -18,7 +18,7 @@ import ErrorStateCard from "../progress/ErrorStateCard";
 export default function MainSection() {
   return (
     <div className="min-h-dvh flex flex-col items-center mt-50">
-      <div className="flex-1">
+      {/* <div className="flex-1">
                 <DropZone>
                     <div className="">
                         <div className="p-4 bg-blue-100 rounded-2xl">
@@ -44,9 +44,11 @@ export default function MainSection() {
                     </CardFooter>
                 </Card>
 
-            </div>
+            </div> */}
 
-      
+      {/* Progress component */}
+      <HeaderBar />
+      <ProgressCard />
     </div>
   );
 }
