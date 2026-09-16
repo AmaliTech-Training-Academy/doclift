@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
 import { FileText, ArrowLeftRight, Trash, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/Card";
 import ProgressCard from "../progress/ProgressCard";
 import HeaderBar from "../progress/HeaderBar";
+import Button from "@/components/ui/Button";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/Card";
+import { useConversion } from "@/context/ConversionContext";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
