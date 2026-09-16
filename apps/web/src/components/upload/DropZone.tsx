@@ -106,6 +106,13 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             return false;
         }
 
+        if (file.size === 0) {
+            toast.error("Empty file", {
+                description: "The selected PDF file is empty.",
+            });
+            return false;
+        }
+
         if (file.size > MAX_FILE_SIZE_BYTES) {
             if (currentValidationId === validationIdRef.current) {
                 toast.error("File too large", {
