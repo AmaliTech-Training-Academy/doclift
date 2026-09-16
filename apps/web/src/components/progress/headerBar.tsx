@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardContent, CardDescription } from "../ui/Card";
 import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
 
-const headerBar = () => {
+const HeaderBar = () => {
   return (
     <div className="mb-8">
       <Card className="mt-10 mx-4 md:w-350 md:mx-auto">
@@ -73,4 +73,4 @@ const headerBar = () => {
   );
 };
 
-export default headerBar;
+export default HeaderBar;
