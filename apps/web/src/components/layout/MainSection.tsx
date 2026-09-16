@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/Card";
 import ProgressCard from "../progress/ProgressCard";
 import HeaderBar from "../progress/HeaderBar";
-import Button from "@/components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/Card";
 import { useConversion } from "@/context/ConversionContext";
 
 function formatFileSize(bytes: number): string {
