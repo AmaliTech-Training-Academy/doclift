@@ -17,9 +17,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
     Optional<Job> findBySourceFilename(String sourceFilename);
 
-    // Fetch the job together with its file in one query, avoiding a second
-    // lazy-load round trip when you know you'll need both (e.g. building a
-    // download response right after conversion finishes).
+
     @Query("SELECT j FROM Job j LEFT JOIN FETCH j.file WHERE j.id = :id")
     Optional<Job> findByIdWithFile(@Param("id") Long id);
 
