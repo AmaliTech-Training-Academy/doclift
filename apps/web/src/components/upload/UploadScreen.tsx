@@ -140,35 +140,33 @@ export default function UploadScreen() {
           </div>
         )}
 
-        <Button
-          disabled={!uploadedFile}
-          onClick={() => setActiveView("progress")}
-        >
-          <p className="text-xl">Convert to Word (.docx)</p>
-        </Button>
-      </div>
-      {/* Bottom Section*/}
-      <div className="w-full flex flex-col space-y-4 sm:px-8 px-2 py-4 bg-blue-100 rounded-xl">
-        <div className="flex sm:flex-row flex-col justify-between gap-2">
-          <div className="flex flex-col">
-            <h1 className="text-2xl">What DocLift Preserves</h1>
-            <p className="text-sm">
-              Unlike generic OCR or naive converters that dump arbitrary text
-              frames, DocLift reconstructs the logical semantic tree of your
-              document.
-            </p>
-          </div>
-          <div className="w-fit h-fit inline-flex items-center gap-2 bg-white p-2 rounded-lg">
-            <CheckCircle className="size-4 text-green-500" />
-            <p className="text-sm">99.8% Word Style Parity</p>
-          </div>
+                <Button disabled={!uploadedFile}>
+                    <p className="text-xl">Convert to Word (.docx)</p>
+                </Button>
+                
+            </div>
+            {/* Bottom Section*/}
+            <div className="w-full flex flex-col space-y-4 sm:px-8 px-2 py-4 bg-blue-100 rounded-xl">
+                <div className="flex sm:flex-row flex-col justify-between gap-2">
+                    <div className="flex flex-col">
+                        <h1 className="text-2xl">What DocLift Preserves</h1>
+                        <p className="text-sm">Unlike generic OCR or naive converters that dump arbitrary text frames, DocLift reconstructs the logical semantic tree of your document.</p>
+                    </div>
+                    <div className="w-fit h-fit inline-flex items-center gap-2 bg-white p-2 rounded-lg">
+                        <CheckCircle className="size-4 text-green-500"/>
+                        <p className="text-sm">99.8% Word Style Parity</p>
+                    </div>
+                </div>
+            {/* Bottom Section Cards*/}
+                <div className="grid sm:grid-cols-3 grid-cols-1 gap-4">
+                    {preservationData.map((item) => (
+                        <PreservationCard
+                            key={item.id}
+                            item={item}
+                        />
+                    ))}
+                </div>
+            </div>
         </div>
-        <div className="grid sm:grid-cols-3 grid-cols-1 gap-4">
-          {preservationData.map((item) => (
-            <PreservationCard key={item.id} item={item} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+    );
 }
