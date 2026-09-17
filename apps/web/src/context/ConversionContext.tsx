@@ -2,12 +2,16 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
+export type ActiveView = "upload" | "progress" | "result";
+
 interface ConversionContextValue {
     file: File | null;
     setFile: (file: File | null) => void;
     clearFile: () => void;
     resetKey: number;
     reset: () => void;
+    activeView: ActiveView;
+    setActiveView: (view: ActiveView) => void;
 }
 
 const ConversionContext = createContext<ConversionContextValue | null>(null);
@@ -15,15 +19,19 @@ const ConversionContext = createContext<ConversionContextValue | null>(null);
 export function ConversionProvider({ children }: { children: ReactNode }) {
     const [file, setFile] = useState<File | null>(null);
     const [resetKey, setResetKey] = useState(0);
+    const [activeView, setActiveView] = useState<ActiveView>("upload");
 
     const clearFile = () => setFile(null);
     const reset = () => {
         setFile(null);
         setResetKey((k) => k + 1);
+        setActiveView("upload");
     };
 
     return (
-        <ConversionContext.Provider value={{ file, setFile, clearFile, resetKey, reset }}>
+        <ConversionContext.Provider
+            value={{ file, setFile, clearFile, resetKey, reset, activeView, setActiveView }}
+        >
             {children}
         </ConversionContext.Provider>
     );
