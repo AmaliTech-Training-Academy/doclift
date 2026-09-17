@@ -18,7 +18,7 @@ public class Job {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false)
     private JobStatus status;
 
     @Column(name = "source_filename", nullable = false)
