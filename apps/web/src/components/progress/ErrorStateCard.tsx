@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardHeader } from "../ui/Card";
+import { Card } from "../ui/Card";
 import { TriangleAlert } from "lucide-react";
 import Button from "../ui/Button";
 

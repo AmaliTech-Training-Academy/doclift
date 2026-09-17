@@ -9,10 +9,10 @@ import {
   type VerticalStepperDemoHandle,
   type PipelineProgress,
 } from "../ui/Stepper";
-import Button  from "../ui/Button";
+import Button from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 
-const progressCard = () => {
+const ProgressCard = () => {
   const stepperRef = useRef<VerticalStepperDemoHandle>(null);
   const [cancelled, setCancelled] = useState(false);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
@@ -77,7 +77,7 @@ const progressCard = () => {
         <div>
           <Progress
             value={overallPercent}
-            className="bg-[#E5EEFF] mx-2 w-auto [&>*]:bg-[#2563EB]"
+            className="bg-[#E5EEFF] mx-2 w-auto *:bg-[#2563EB]"
           />
         </div>
         {/* Current Stage Callout */}
@@ -102,7 +102,7 @@ const progressCard = () => {
         </div>
         {/* Pipeline Footer */}
         <Card className="mx-2 my-6  bg-[#EFF4FF]">
-          <div className="flex flex-row items-start items-center gap-4 p-4">
+          <div className="flex flex-row items-center gap-4 p-4">
             <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
               <BadgeCheck className="text-blue-500" />
             </div>
@@ -140,4 +140,4 @@ const progressCard = () => {
   );
 };
 
-export default progressCard;
+export default ProgressCard;
