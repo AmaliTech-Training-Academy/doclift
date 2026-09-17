@@ -102,7 +102,7 @@ const ProgressCard = () => {
         </div>
         {/* Pipeline Footer */}
         <Card className="mx-2 my-6  bg-[#EFF4FF]">
-          <div className="flex flex-row items-start gap-4 p-4">
+          <div className="flex flex-row items-center gap-4 p-4">
             <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
               <BadgeCheck className="text-blue-500" />
             </div>
