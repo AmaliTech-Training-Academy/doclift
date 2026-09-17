@@ -1,17 +1,11 @@
 package com.amalitech.backend.exception;
 
-import com.amalitech.backend.dto.ApiErrorResponse;
+import com.amalitech.backend.dto.response.ApiErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
-
-import com.amalitech.backend.exception.EncryptedPdfException;
-import com.amalitech.backend.exception.FileTooLargeException;
-import com.amalitech.backend.exception.InvalidPdfException;
-
-import static org.mockito.Mockito.when;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {

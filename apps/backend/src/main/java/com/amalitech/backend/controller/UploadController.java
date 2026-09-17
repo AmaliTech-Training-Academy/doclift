@@ -1,6 +1,6 @@
 package com.amalitech.backend.controller;
 
-import com.amalitech.backend.dto.UploadResponse;
+import com.amalitech.backend.dto.response.UploadResponse;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.service.UploadService;
 import org.springframework.http.HttpStatus;
