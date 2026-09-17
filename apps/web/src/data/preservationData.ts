@@ -1,5 +1,6 @@
 import {
     FileText,
+    Type,
     Grid3x2,
     List,
     Bold,
@@ -37,7 +38,7 @@ export const preservationData: PreservationItem[] = [
         title: "Headings & Paragraphs",
         description:
             "Maps typography into native Word heading styles (H1–H4).",
-        icon: FileText,
+        icon: Type,
         comparison: {
             original: "Original Text",
             result: "Semantic Heading Styles",
