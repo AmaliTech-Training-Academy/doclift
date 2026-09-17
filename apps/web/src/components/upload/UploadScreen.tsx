@@ -140,7 +140,7 @@ export default function UploadScreen() {
           </div>
         )}
 
-                <Button disabled={!uploadedFile}>
+                <Button disabled={!uploadedFile} onClick={() => setActiveView('progress')}>
                     <p className="text-xl">Convert to Word (.docx)</p>
                 </Button>
                 
