@@ -45,7 +45,7 @@ class UploadControllerTest {
                 .thenReturn(job);
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isCreated())
@@ -72,7 +72,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isBadRequest())
@@ -101,7 +101,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isBadRequest())
@@ -130,7 +130,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isPayloadTooLarge())
