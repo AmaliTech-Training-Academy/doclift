@@ -2,6 +2,7 @@
 
 import UploadScreen from "@/components/upload/UploadScreen";
 import ProgressScreen from "@/components/progress/ProgressScreen";
+import ResultsScreen from "@/components/results/ResultsScreen";
 import { useConversion } from "@/context/ConversionContext";
 
 export default function Home() {
@@ -11,7 +12,7 @@ export default function Home() {
         <main className="min-h-dvh flex flex-col">
             {activeView === "upload" && <UploadScreen key={resetKey} />}
             {activeView === "progress" && <ProgressScreen />}
-            {/* {activeView === "result" && <ResultScreen />} */}
+            {activeView === "result" && <ResultsScreen />}
         </main>
     );
 }

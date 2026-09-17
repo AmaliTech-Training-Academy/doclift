@@ -6,8 +6,11 @@ import { ChecklistCard } from "@/components/results/ChecklistCard";
 import { FidelityMetricCard } from "@/components/results/FidelityMetricCard";
 import { SummaryCard } from "@/components/results/SummaryCard";
 import { checklistData, fidelityMetrics, summaryCards } from "@/data/resultsData";
+import { useConversion } from "@/context/ConversionContext";
 
 export default function ResultsScreen() {
+    const { setActiveView } = useConversion();
+
     return (
         <div className="flex-1 space-y-4 p-4">
             {/* Header row */}
@@ -35,7 +38,7 @@ export default function ResultsScreen() {
                         </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 sm:w-fit w-full">
-                        <Button variant="secondary">
+                        <Button variant="secondary" onClick={() => setActiveView('upload')}>
                             <RotateCw className="size-4" />
                             <span>Convert Another File</span>
                         </Button>
