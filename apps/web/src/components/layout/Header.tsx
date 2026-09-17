@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import {Button} from "@/components/ui/Button";
+import Button from "@/components/ui/Button";
 import Image from "next/image";
 import Logo from "@/app/assets/logo.png";
 import { useConversion } from "@/context/ConversionContext";
@@ -10,7 +10,7 @@ export default function Header() {
     const { reset } = useConversion();
 
     return (
-        <header className="w-full py-3 border-b border-gray-200 bg-white">
+        <header className="sticky top-0 w-full py-3 border-b border-gray-200 bg-white z-50">
             <div className="max-w-7xl mx-auto px-4">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col">
@@ -19,7 +19,7 @@ export default function Header() {
                     <div className="flex items-center space-x-4">
                         <Button variant="secondary" onClick={reset}>
                             <Plus/>
-                            New Conversion
+                            New <span className="hidden sm:inline">Conversion</span>
                         </Button>
                     </div>
                 </div>

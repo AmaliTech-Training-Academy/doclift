@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { DM_Serif_Display, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/Toaster";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { ConversionProvider } from "@/context/ConversionContext";
@@ -45,13 +45,7 @@ export default function RootLayout({
           <Header />
           {children}
           <Footer />
-          <Toaster richColors
-          position="top-right"
-          toastOptions={{
-            classNames: {
-              toast: "font-sans",
-            },
-          }} />
+          <Toaster />
         </ConversionProvider>
       </body>
     </html>
