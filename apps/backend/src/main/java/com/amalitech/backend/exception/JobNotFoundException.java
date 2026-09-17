@@ -1,10 +1,8 @@
 package com.amalitech.backend.exception;
 
-
-
 public class JobNotFoundException extends RuntimeException {
 
-    public JobNotFoundException(Long jobId) {
-        super("Job not found: " + jobId);
+    public JobNotFoundException() {
+        super("Job not found.");
     }
 }

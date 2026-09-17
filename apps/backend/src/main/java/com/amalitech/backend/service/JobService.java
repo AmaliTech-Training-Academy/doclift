@@ -66,11 +66,11 @@ public class JobService {
     @Transactional(readOnly = true)
     public Job getJobWithFile(Long jobId) {
         return jobRepository.findByIdWithFile(jobId)
-                .orElseThrow(() -> new JobNotFoundException(jobId));
+                .orElseThrow(JobNotFoundException::new);
     }
 
     private Job getJobOrThrow(Long jobId) {
         return jobRepository.findById(jobId)
-                .orElseThrow(() -> new JobNotFoundException(jobId));
+                .orElseThrow(JobNotFoundException::new);
     }
 }
