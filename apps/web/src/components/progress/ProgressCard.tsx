@@ -9,7 +9,7 @@ import {
   type VerticalStepperDemoHandle,
   type PipelineProgress,
 } from "../ui/Stepper";
-import { Button } from "../ui/Button";
+import Button  from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 
 const progressCard = () => {

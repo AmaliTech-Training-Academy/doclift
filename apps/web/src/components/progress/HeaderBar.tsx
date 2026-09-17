@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { Card, CardContent } from "../ui/Card";
 import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
 import FileInfoCard from "./FileInfoCard";
+import { useConversion } from "@/context/ConversionContext";
 
 interface HeaderBarProps {
   file: File | null;
@@ -29,6 +29,7 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
     ? `PDF Document • ${formatFileSize(file.size)}`
     : "No file selected";
   const targetFileDescription = file ? "Word Document (.docx)" : "No file selected";
+  const { setActiveView } = useConversion();
 
   return (
     <div className="mb-8">
@@ -52,9 +53,10 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
                 <p className="text-xs hidden md:block tracking-widest">DOCX</p>
               </div>
               {/* Target File */}
-              <Link
-                href="/"
-                className="cursor-pointer rounded-lg transition-opacity hover:opacity-80"
+              <button
+                type="button"
+                onClick={() => setActiveView("result")}
+                className="cursor-pointer rounded-lg transition-opacity hover:opacity-80 text-left"
                 aria-label={`Open ${targetFileName}`}
               >
                 <FileInfoCard
@@ -64,7 +66,7 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
                   name={targetFileName}
                   description={targetFileDescription}
                 />
-              </Link>
+              </button>
             </div>
             {/* Right: Time */}
             <div className="flex items-center justify-center gap-4 lg:ml-8">
