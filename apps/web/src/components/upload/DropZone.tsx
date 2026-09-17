@@ -143,23 +143,23 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         return true;
     };
 
-    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current += 1;
         if (dragCounter.current === 1) {
             setInternalIsDragActive(true);
         }
-        onDragEnter?.(e);
+        onDragEnter?.(e as unknown as React.DragEvent<HTMLDivElement>);
     };
 
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        onDragOver?.(e);
+        onDragOver?.(e as unknown as React.DragEvent<HTMLDivElement>);
     };
 
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current -= 1;
@@ -167,10 +167,10 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             dragCounter.current = 0;
             setInternalIsDragActive(false);
         }
-        onDragLeave?.(e);
+        onDragLeave?.(e as unknown as React.DragEvent<HTMLDivElement>);
     };
 
-    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current = 0;
@@ -190,30 +190,18 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         }
     };
 
-    const handleClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleClick();
-        }
-    };
-
     return (
-        <div 
-            role="button"
-            tabIndex={0}
+        // label[htmlFor] gives free click-to-open, keyboard (Enter/Space), and AT support
+        // without any JS workarounds. The browser deduplicates activation natively.
+        <label
+            htmlFor="dropzone-input"
             aria-label="Upload PDF file"
-            onClick={handleClick}
-            onKeyDown={handleKeyDown}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2",
                 isDragActive && "border-blue-500 bg-blue-100 scale-[1.01] shadow-lg"
             )}
         >
@@ -224,9 +212,11 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
                 <div className="inline-block sm:hidden bg-blue-100 shadow-md text-blue-600 p-2 rounded-md border border-blue-400 cursor-pointer mt-4">
                     <p className="">Click to choose a file</p>
                 </div>
-                <Input 
+                {/* Input id ties it to the label above — no JS click handler needed */}
+                <Input
+                    id="dropzone-input"
                     ref={fileInputRef}
-                    type="file" 
+                    type="file"
                     accept="application/pdf"
                     onChange={async (e) => {
                         if (e.target.files && e.target.files.length > 0) {
@@ -236,11 +226,10 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
                             }
                         }
                     }}
-                    onClick={(e) => e.stopPropagation()}
                     className="hidden sm:inline-block w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
                 />
             </div>
-        </div>
+        </label>
     );
 });
 

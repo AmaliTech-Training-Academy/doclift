@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
 import { FileText, ArrowLeftRight, Trash, CheckCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
@@ -9,6 +10,11 @@ import { useConversion } from "@/context/ConversionContext";
 import PreservationCard from "@/components/upload/PreservationCard";
 import { preservationData } from "@/data/preservationData";
 
+GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url,
+).toString();
+
 function formatFileSize(bytes: number): string {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -16,18 +22,8 @@ function formatFileSize(bytes: number): string {
 
 async function getPdfPageCount(file: File): Promise<number | null> {
     try {
-        const pdfjs = await import("pdfjs-dist");
-
-        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-            pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-        }
-
-        const arrayBuffer = await file.arrayBuffer();
-
-        const pdf = await pdfjs.getDocument({
-            data: arrayBuffer,
-        }).promise;
-
+        const data = new Uint8Array(await file.arrayBuffer());
+        const pdf = await getDocument({ data }).promise;
         return pdf.numPages;
     } catch (error) {
         console.error("Failed to read PDF page count:", error);
