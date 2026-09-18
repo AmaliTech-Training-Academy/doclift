@@ -62,7 +62,7 @@ const ProgressCard = () => {
   return (
     <div>
       {/* Main card */}
-      <Card className="m-8 flex flex-col p-4 md:mx-auto md:w-250">
+      <Card className="my-6 w-full max-w-5xl mx-auto flex flex-col p-4 sm:p-6">
         {/* Header and Percentage */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
           <h1 className="text-lg md:text-3xl font-semibold">
@@ -120,8 +120,8 @@ const ProgressCard = () => {
         {/* Cancel Button */}
         <div className="flex items-center gap-4 p-4">
           <Button
-            variant="secondary"
-            className="hover:text-red-700 disabled:hover:text-inherit w-80"
+            variant="danger"
+            className="disabled:hover:text-inherit w-80"
             onClick={handleCancel}
             disabled={cancelled || done}
           >
