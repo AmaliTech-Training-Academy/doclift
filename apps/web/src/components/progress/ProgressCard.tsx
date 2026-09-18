@@ -120,8 +120,8 @@ const ProgressCard = () => {
         {/* Cancel Button */}
         <div className="flex items-center gap-4 p-4">
           <Button
-            variant="secondary"
-            className="hover:text-red-700 disabled:hover:text-inherit w-80"
+            variant="danger"
+            className="disabled:hover:text-inherit w-80"
             onClick={handleCancel}
             disabled={cancelled || done}
           >
