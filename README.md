@@ -55,7 +55,6 @@ Start the server
 
 **Frontend:** NextJS, TailwindCSS
 
-**Backend:** SpringBoot, PostgreSQL
 
 ## Screenshots
 <img width="164" height="359" alt="image" src="https://github.com/user-attachments/assets/64b57ef9-8f17-44b4-b1c4-2e237222905b" />
