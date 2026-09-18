@@ -110,7 +110,7 @@ export default function UploadScreen() {
                                 <FileText className="size-6 text-blue-600" />
                             </div>
                             <div className="flex-1 flex flex-col space-y-1 min-w-0">
-                                <p className="text-base sm:text-lg font-semibold truncate">{uploadedFile.name}</p>
+                                <h1 className="text-base sm:text-lg font-semibold truncate">{uploadedFile.name}</h1>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-xs bg-blue-100 font-medium rounded-md px-2 py-1 text-blue-600">
                                         PDF Selected
