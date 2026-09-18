@@ -235,13 +235,13 @@ function ActiveStepCard({ step }: { step: Step }) {
       className={`rounded-xl border md:w-200 p-4 ${
         cancelled
           ? "border-slate-200 bg-slate-50"
-          : "border-brand-secondary bg-brand-secondary"
+          : "border-secondary bg-secondary"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p
-            className={`text-base font-semibold md:text-3xl ${cancelled ? "text-slate-600" : "text-brand-primary"}`}
+            className={`text-base font-semibold md:text-3xl ${cancelled ? "text-slate-600" : "text-primary"}`}
           >
             {title}
           </p>
@@ -249,14 +249,14 @@ function ActiveStepCard({ step }: { step: Step }) {
             className={`rounded-full px-2 py-0.5 text-xs truncate font-medium ${
               cancelled
                 ? "bg-slate-200 text-slate-600"
-                : "bg-indigo-100 text-brand-primary"
+                : "bg-indigo-100 text-primary"
             }`}
           >
             {cancelled ? "Cancelled" : "In Progress"}
           </span>
         </div>
         {!cancelled && runningNote && (
-          <span className="text-xs italic text-brand-primary">{runningNote}</span>
+          <span className="text-xs italic text-primary">{runningNote}</span>
         )}
       </div>
 
@@ -271,7 +271,7 @@ function ActiveStepCard({ step }: { step: Step }) {
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="text-slate-600">{progress.label}</span>
             <span
-              className={`font-semibold ${cancelled ? "text-slate-500" : "text-brand-primary"}`}
+              className={`font-semibold ${cancelled ? "text-slate-500" : "text-primary"}`}
             >
               {Math.round(progress.percent)}%
               {progress.note ? ` ${progress.note}` : ""}
@@ -281,10 +281,10 @@ function ActiveStepCard({ step }: { step: Step }) {
           {/* Track + fill: fill width is driven directly by `percent`, so
               the caller just updates that number as real work reports in.
               Left frozen at its last value once cancelled. */}
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-brand-secondary">
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
             <div
               className={`h-full rounded-full transition-all duration-300 ease-out ${
-                cancelled ? "bg-slate-400" : "bg-brand-primary"
+                cancelled ? "bg-slate-400" : "bg-primary"
               }`}
               style={{
                 width: `${Math.min(100, Math.max(0, progress.percent))}%`,
@@ -297,9 +297,9 @@ function ActiveStepCard({ step }: { step: Step }) {
               {progress.stats.map((stat, i) => (
                 <span
                   key={i}
-                  className="flex items-center gap-1.5 text-xs text-brand-primary"
+                  className="flex items-center gap-1.5 text-xs text-primary"
                 >
-                  <span className="h-1 w-1 rounded-full bg-brand-primary" />
+                  <span className="h-1 w-1 rounded-full bg-primary" />
                   {stat}
                 </span>
               ))}
