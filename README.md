@@ -37,8 +37,7 @@ Clone the project
 Go to the project directory
 
 ```bash
-  cd apps
-  cd web
+  cd ./apps/web
 ```
 
 Install dependencies
