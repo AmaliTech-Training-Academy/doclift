@@ -62,7 +62,7 @@ const ProgressCard = () => {
   return (
     <div>
       {/* Main card */}
-      <Card className="m-8 flex flex-col p-4 md:mx-auto md:w-250">
+      <Card className="my-6 w-full max-w-5xl mx-auto flex flex-col p-4 sm:p-6">
         {/* Header and Percentage */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
           <h1 className="text-lg md:text-3xl font-semibold">

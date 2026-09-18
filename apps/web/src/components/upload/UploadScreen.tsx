@@ -61,16 +61,16 @@ export default function UploadScreen() {
 
     return (
         <div className="flex-1 space-y-4 p-4">
+            <div className="mt-2 max-w-2xl text-center mx-auto space-y-3">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 font-heading">
+                    Transform Your PDF into Editable Word Documents
+                </h1>
+                <p className="text-md sm:text-lg text-gray-600 leading-relaxed max-w-xl mx-auto">
+                    Convert digital PDFs into editable Word documents while preserving text, structure, formatting, images, tables, and reading order.
+                </p>
+            </div>
+            {/* Upload Zone */}
             <div className="bg-white w-full mx-auto max-w-3xl flex flex-col space-y-6 p-6 sm:p-8 mb-10 rounded-2xl border border-blue-100 shadow-xs">
-                <div className="mt-2 max-w-2xl text-center mx-auto space-y-3">
-                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900 font-heading">
-                        Transform Your PDF into Editable Word Documents
-                    </h1>
-                    <p className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-xl mx-auto">
-                        Convert digital PDFs into editable Word documents while preserving text, structure, formatting, images, tables, and reading order.
-                    </p>
-                </div>
-
                 <DropZone ref={dropZoneRef} onDrop={handleFileDrop}>
                     <div className="relative mb-3">
                         <div className="size-16 sm:size-20 rounded-2xl bg-blue-100/70 border border-blue-200/80 flex items-center justify-center text-blue-600 shadow-2xs group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">

@@ -11,14 +11,13 @@ const ProgressScreen = () => {
   const [timeRemaining, setTimeRemaining] = useState(0);
 
   return (
-    <div>
+    <div className="w-full flex-1 px-4 py-2">
       <HeaderBar
         file={file}
         timeElapsed={timeElapsed}
         timeRemaining={timeRemaining}
       />
       <ProgressCard />
-      
     </div>
   );
 };
