@@ -52,7 +52,7 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               {/* Arrow Indicator  */}
               <div className="flex flex-col items-center justify-center gap-1 p-1 shrink-0">
                 <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90 sm:rotate-0" />
-                <p className="text-[10px] sm:text-xs hidden sm:block tracking-widest text-slate-400">DOCX</p>
+                <p className="text-xs hidden sm:block tracking-widest text-slate-400">DOCX</p>
               </div>
               {/* Target File */}
               <button
