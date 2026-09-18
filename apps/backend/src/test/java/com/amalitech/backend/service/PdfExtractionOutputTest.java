@@ -1,5 +1,7 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
+import com.amalitech.backend.service.impl.PdfValidationServiceImpl;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -8,26 +10,28 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import org.springframework.mock.web.MockMultipartFile;
 
 class PdfExtractionOutputTest {
 
-    private final PdfExtractionService service;
-    private final PdfValidationService validationService;
+    private PdfExtractionService service;
+    private PdfValidationService validationService;
 
-    {
-        service = new PdfExtractionService();
-        validationService = new PdfValidationService(10 * 1024 * 1024);
+    @BeforeEach
+    void setUp() {
+        validationService = new PdfValidationServiceImpl();
+        service = new PdfExtractionServiceImpl();
     }
 
     @Test
@@ -51,68 +55,48 @@ class PdfExtractionOutputTest {
     }
 
     private void validatePdf(byte[] pdfBytes, String fileName) {
-        int pageCount = validationService.validateAndGetPageCount(
-                new MockMultipartFile(
-                        "file",
-                        fileName,
-                        "application/pdf",
-                        pdfBytes
-                )
-        );
-
-        System.out.printf("Validated PDF: %s page(s)%n", pageCount);
+        Path temporaryFile = null;
+        try {
+            temporaryFile = Files.createTempFile("pdf-extraction-", "-" + fileName);
+            Files.write(temporaryFile, pdfBytes);
+            int pageCount = validationService.validateAndGetPageCount(temporaryFile);
+            System.out.printf("Validated PDF: %s page(s)%n", pageCount);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to prepare PDF for validation.", e);
+        } finally {
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to clean up temporary PDF.", e);
+                }
+            }
+        }
     }
 
     private void printResult(PdfExtractionResult result) {
-        System.out.println("\n" + "=".repeat(80));
-        System.out.println("=".repeat(80));
-        System.out.println();
+        System.out.println("=== PDF extraction output ===");
+        System.out.println("pages=" + result.getPages().size());
 
         for (PageExtraction page : result.getPages()) {
-
-            // Text Spans
-            System.out.println("│ TEXT SPANS (" + page.getTextSpans().size() + ")");
-            if (page.getTextSpans().isEmpty()) {
-                System.out.println("│   (none)");
-            } else {
-                for (TextSpan span : page.getTextSpans()) {
-                    System.out.printf("│   • \"%s\"%n", span.getText());
-                    System.out.printf("│     Position: (%.2f, %.2f) | Size: %.2f x %.2f%n",
-                            span.getX(), span.getY(), span.getWidth(), span.getHeight());
-                    System.out.printf("│     Font: %s | Size: %.1fpt%n", span.getFontName(), span.getFontSize());
-                }
+            System.out.println("pageIndex=" + page.getPageIndex());
+            System.out.println("textSpans=" + page.getTextSpans().size());
+            for (TextSpan span : page.getTextSpans()) {
+                System.out.println("  text='" + span.getText() + "' x=" + span.getX() + " y=" + span.getY()
+                        + " font=" + span.getFontName() + " size=" + span.getFontSize());
             }
-            System.out.println("│");
 
-            // Images
-            System.out.println("│ IMAGES (" + page.getImages().size() + ")");
-            if (page.getImages().isEmpty()) {
-                System.out.println("│   (none)");
-            } else {
-                for (ExtractedImage image : page.getImages()) {
-                    System.out.printf("│   • %s%n", image.getImageName());
-                    System.out.printf("│     Resolution: %dx%d pixels%n",
-                            image.getPixelsWidth(), image.getPixelsHeight());
-                }
+            System.out.println("images=" + page.getImages().size());
+            for (ExtractedImage image : page.getImages()) {
+                System.out.println("  image=" + image.getImageName() + " size=" + image.getPixelsWidth() + "x" + image.getPixelsHeight());
             }
-            System.out.println("│");
 
-            // Tables
-            System.out.println("│ CANDIDATE TABLE REGIONS (" + page.getCandidateTableRegions().size() + ")");
-            if (page.getCandidateTableRegions().isEmpty()) {
-                System.out.println("│   (none)");
-            } else {
-                for (TableRegion region : page.getCandidateTableRegions()) {
-                    System.out.printf("│   • Table: %d rows × %d columns%n",
-                            region.getRowCount(), region.getColumnCount());
-                    System.out.printf("│     Bounds: (%.2f, %.2f) | Size: %.2f x %.2f%n",
-                            region.getX(), region.getY(), region.getWidth(), region.getHeight());
-                }
+            System.out.println("candidateTables=" + page.getCandidateTableRegions().size());
+            for (TableRegion region : page.getCandidateTableRegions()) {
+                System.out.println("  table rows=" + region.getRowCount() + " cols=" + region.getColumnCount()
+                        + " bounds=" + region.getX() + "," + region.getY() + "," + region.getWidth() + "," + region.getHeight());
             }
-            System.out.println();
         }
-
-        System.out.println();
     }
 
     private byte[] buildSamplePdf() throws IOException {
