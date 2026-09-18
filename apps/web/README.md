@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DOCLIFT
+DocLift is a web application that converts a PDF into an editable Microsoft Word
+(.docx) document while preserving as much of the original layout as possible: text and reading order,
+headings and paragraphs, basic character formatting, and, in its fuller form, images, tables, and
+multi-column layouts. 
 
-## Getting Started
 
-First, run the development server:
+## Features
+- Upload a PDF file (drag-and-drop or file picker) with type and size validation
+- Convert to an editable Microsoft Word (.docx) document
+- Preserve all visible text in the correct reading order, including multi-column pages
+- Detect and reconstruct document structure: headings, paragraphs, and lists
+- Carry across basic character formatting: bold, italic, underline, and font size
+- Extract images from the PDF and place them at the correct point in the output
+- Detect tables and rebuild them as editable Word tables
+- A fidelity report/checklist per conversion(enhancement)
+- Progress indication while the file uploads and converts
+
+
+
+## Running Tests
+
+To run tests, run the following command
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+  npm run test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run Locally
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Clone the project
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+  git clone https://github.com/AmaliTech-Training-Academy/doclift.git
+```
 
-## Learn More
+Go to the project directory
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+  cd ./apps/web
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Install dependencies
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+  npm install
+```
 
-## Deploy on Vercel
+Start the server
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+  npm run dev
+```
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Frontend:** NextJS, TailwindCSS
+
+## Environment Variables
+
+
+
+
+
+
