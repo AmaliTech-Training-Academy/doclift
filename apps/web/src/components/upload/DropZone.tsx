@@ -1,9 +1,9 @@
 "use client";
 
 import { ReactNode, useState, useRef, forwardRef, useImperativeHandle } from "react";
-import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Upload } from "lucide-react";
 
 interface DropZoneProps {
     children?: ReactNode;
@@ -196,39 +196,50 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         <label
             htmlFor="dropzone-input"
             aria-label="Upload PDF file"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                }
+            }}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2",
-                isDragActive && "border-blue-500 bg-blue-100 scale-[1.01] shadow-lg"
+                "group relative w-full p-8 sm:p-10 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 select-none",
+                "bg-blue-50/40 border-blue-200/80 hover:bg-blue-50/80 hover:border-blue-400 hover:shadow-xs",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                isDragActive && "border-blue-500 bg-blue-100/70 scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">
                 {children}
             </div>
-            <div>
-                <div className="inline-block sm:hidden bg-blue-100 shadow-md text-blue-600 p-2 rounded-md border border-blue-400 cursor-pointer mt-4">
-                    <p className="">Click to choose a file</p>
-                </div>
-                {/* Input id ties it to the label above — no JS click handler needed */}
-                <Input
-                    id="dropzone-input"
-                    ref={fileInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    onChange={async (e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                            const isValid = await handleFile(e.target.files[0]);
-                            if (!isValid && fileInputRef.current) {
-                                fileInputRef.current.value = "";
-                            }
-                        }
-                    }}
-                    className="hidden sm:inline-block w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
-                />
+            <div className="mt-4 pointer-events-none">
+                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-xs sm:text-sm font-semibold shadow-2xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
+                    <Upload className="size-4" />
+                    <span>Choose PDF File</span>
+                </span>
             </div>
+            {/* Input id ties it to the label above — visually hidden for clean styling */}
+            <input
+                id="dropzone-input"
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                aria-label="Choose PDF file"
+                onChange={async (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        const isValid = await handleFile(e.target.files[0]);
+                        if (!isValid && fileInputRef.current) {
+                            fileInputRef.current.value = "";
+                        }
+                    }
+                }}
+                className="sr-only"
+            />
         </label>
     );
 });
