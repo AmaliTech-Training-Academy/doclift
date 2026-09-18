@@ -56,10 +56,6 @@ Start the server
 **Frontend:** NextJS, TailwindCSS
 
 
-## Screenshots
-<img width="164" height="359" alt="image" src="https://github.com/user-attachments/assets/64b57ef9-8f17-44b4-b1c4-2e237222905b" />
-<img width="659" height="476" alt="Screenshot 2026-09-16 141539" src="https://github.com/user-attachments/assets/885c0fb0-06a2-4b27-b3f9-c4e145df1fdf" />
-<img width="900" height="539" alt="image" src="https://github.com/user-attachments/assets/7477ff20-b6f0-4a13-920c-062cab18216d" />
 
 
 
