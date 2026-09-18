@@ -3,6 +3,8 @@ package com.amalitech.backend.service;
 import com.amalitech.backend.exception.EncryptedPdfException;
 import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
+import com.amalitech.backend.service.implementation.PdfValidationServiceImpl;
+import com.amalitech.backend.service.interfaces.PdfValidationService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
@@ -17,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PdfValidationServiceTest {
 
     private final PdfValidationService pdfValidationService =
-            new PdfValidationService(10 * 1024 * 1024);
+            new PdfValidationServiceImpl(10 * 1024 * 1024);
 
     // =========================================================
     // EMPTY FILE VALIDATION

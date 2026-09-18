@@ -1,17 +1,21 @@
-package com.amalitech.backend.service;
+package com.amalitech.backend.service.implementation;
 
 import com.amalitech.backend.model.Job;
+import com.amalitech.backend.service.interfaces.FileStorageService;
+import com.amalitech.backend.service.interfaces.JobService;
+import com.amalitech.backend.service.interfaces.PdfValidationService;
+import com.amalitech.backend.service.interfaces.UploadService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
-public class UploadService {
+public class UploadServiceImpl implements UploadService {
 
     private final JobService jobService;
     private final PdfValidationService pdfValidationService;
     private final FileStorageService fileStorageService;
 
-    public UploadService(
+    public UploadServiceImpl(
             JobService jobService,
             PdfValidationService pdfValidationService,
             FileStorageService fileStorageService
@@ -21,6 +25,7 @@ public class UploadService {
         this.fileStorageService = fileStorageService;
     }
 
+    @Override
     public Job handleUpload(MultipartFile file) {
         int pageCount = pdfValidationService.validateAndGetPageCount(file);
 

@@ -1,4 +1,4 @@
-package com.amalitech.backend.service;
+package com.amalitech.backend.service.implementation;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -10,11 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 @Service
-public class FileStorageService {
+public class FileStorageServiceImpl implements com.amalitech.backend.service.interfaces.FileStorageService {
 
     private final Path uploadRoot;
 
-    public FileStorageService(
+    public FileStorageServiceImpl(
             @Value("${app.upload.directory}") String uploadDirectory
     ) {
         this.uploadRoot = Path.of(uploadDirectory).toAbsolutePath().normalize();
@@ -27,6 +27,7 @@ public class FileStorageService {
      * @param jobId conversion job id
      * @return path to the stored source PDF
      */
+    @Override
     public Path storeSourcePdf(MultipartFile file, Long jobId) {
         Path jobDirectory = uploadRoot.resolve(jobId.toString());
         Path targetPath = jobDirectory.resolve("source.pdf");

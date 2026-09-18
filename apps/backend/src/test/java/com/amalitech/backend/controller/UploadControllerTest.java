@@ -4,7 +4,7 @@ import com.amalitech.backend.exception.EncryptedPdfException;
 import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.model.Job;
-import com.amalitech.backend.service.UploadService;
+import com.amalitech.backend.service.interfaces.UploadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;

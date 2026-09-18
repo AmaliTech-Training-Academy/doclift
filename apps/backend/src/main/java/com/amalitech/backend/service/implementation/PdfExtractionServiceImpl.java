@@ -1,4 +1,4 @@
-package com.amalitech.backend.service;
+package com.amalitech.backend.service.implementation;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSName;
@@ -12,6 +12,12 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.springframework.stereotype.Service;
+import com.amalitech.backend.service.ExtractedImage;
+import com.amalitech.backend.service.PageExtraction;
+import com.amalitech.backend.service.PdfExtractionResult;
+import com.amalitech.backend.service.TableRegion;
+import com.amalitech.backend.service.TextSpan;
+import com.amalitech.backend.service.interfaces.PdfExtractionService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,8 +30,9 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
-public class PdfExtractionService {
+public class PdfExtractionServiceImpl implements PdfExtractionService {
 
+    @Override
     public PdfExtractionResult extract(byte[] pdfBytes) throws IOException {
         try (PDDocument document = Loader.loadPDF(pdfBytes)) {
             return extract(document);

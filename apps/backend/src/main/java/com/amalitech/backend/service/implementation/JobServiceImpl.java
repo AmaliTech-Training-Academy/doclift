@@ -1,4 +1,4 @@
-package com.amalitech.backend.service;
+package com.amalitech.backend.service.implementation;
 
 
 import com.amalitech.backend.exception.JobNotFoundException;
@@ -6,15 +6,16 @@ import com.amalitech.backend.model.Job;
 import com.amalitech.backend.model.JobFile;
 import com.amalitech.backend.model.JobStatus;
 import com.amalitech.backend.repository.JobRepository;
+import com.amalitech.backend.service.interfaces.JobService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class JobService {
+public class JobServiceImpl implements JobService {
 
     private final JobRepository jobRepository;
 
-    public JobService(JobRepository jobRepository) {
+    public JobServiceImpl(JobRepository jobRepository) {
         this.jobRepository = jobRepository;
     }
 
@@ -23,6 +24,7 @@ public class JobService {
      * QUEUED (set automatically by Job's @PrePersist).
      */
     @Transactional
+    @Override
     public Job createJob(String sourceFilename, Integer pageCount) {
         Job job = new Job(sourceFilename, pageCount);
         return jobRepository.save(job);
@@ -33,6 +35,7 @@ public class JobService {
      * handing the PDF off to the PDF conversion engine.
      */
     @Transactional
+    @Override
     public Job markProcessing(Long jobId) {
         Job job = getJobOrThrow(jobId);
         job.setStatus(JobStatus.PROCESSING);
@@ -44,6 +47,7 @@ public class JobService {
      * output file record and sets the job status to DONE in one transaction.
      */
     @Transactional
+    @Override
     public Job markCompleted(Long jobId, String outputPath, long sizeBytes) {
         Job job = getJobOrThrow(jobId);
         JobFile file = new JobFile(job, outputPath, sizeBytes);
@@ -57,6 +61,7 @@ public class JobService {
      * timeout, etc.)
      */
     @Transactional
+    @Override
     public Job markFailed(Long jobId) {
         Job job = getJobOrThrow(jobId);
         job.setStatus(JobStatus.FAILED);
@@ -64,6 +69,7 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
+    @Override
     public Job getJobWithFile(Long jobId) {
         return jobRepository.findByIdWithFile(jobId)
                 .orElseThrow(() -> new JobNotFoundException(jobId));
