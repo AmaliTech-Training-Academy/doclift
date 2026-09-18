@@ -55,6 +55,8 @@ Start the server
 
 **Frontend:** NextJS, TailwindCSS
 
+## Environment Variables
+
 
 
 
