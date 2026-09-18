@@ -18,6 +18,7 @@ export interface DropZoneHandle {
     clearFile: () => void;
 }
 
+// validating if the file is a pdf (checks for the %PDF- header)
 async function validatePdfHeader(file: File): Promise<boolean> {
     try {
         const slice = file.slice(0, 5);
@@ -37,6 +38,28 @@ async function validatePdfHeader(file: File): Promise<boolean> {
     }
 }
 
+// checking if the file is encrypted (scans head and tail of file for /Encrypt keyword)
+async function checkPdfEncrypted(file: File): Promise<boolean> {
+    try {
+        const size = file.size;
+        const chunkSize = 1024 * 1024; // 1 MB
+
+        // For small files (<= 2MB), scan the entire file text
+        if (size <= 2 * chunkSize) {
+            const text = await file.text();
+            return /\/Encrypt\b/.test(text);
+        }
+
+        // For larger files, scan both head (first 1MB) and tail (last 1MB where trailer sits)
+        const headText = await file.slice(0, chunkSize).text();
+        const tailText = await file.slice(size - chunkSize, size).text();
+
+        return /\/Encrypt\b/.test(headText) || /\/Encrypt\b/.test(tailText);
+    } catch {
+        return false;
+    }
+}
+
 const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     {children, onDrop, onDragOver, onDragEnter, onDragLeave, isDragActive: externalIsDragActive}: DropZoneProps,
     ref
@@ -44,11 +67,13 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     const [internalIsDragActive, setInternalIsDragActive] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dragCounter = useRef(0);
+    const validationIdRef = useRef(0);
 
     const isDragActive = externalIsDragActive ?? internalIsDragActive;
 
     useImperativeHandle(ref, () => ({
         clearFile() {
+            validationIdRef.current += 1;
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
@@ -58,27 +83,54 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
     const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
     const handleFile = async (file: File): Promise<boolean> => {
+        const currentValidationId = ++validationIdRef.current;
+
         const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
         const hasPdfMime = file.type === "application/pdf" || file.type === "";
 
         if (!hasPdfExtension || !hasPdfMime) {
-            toast.error("Invalid file", {
-                description: "Only PDF files are allowed.",
-            });
+            if (currentValidationId === validationIdRef.current) {
+                toast.error("Invalid file", {
+                    description: "Only PDF files are allowed.",
+                });
+            }
+            return false;
+        }
+
+        if (file.size === 0) {
+            if (currentValidationId === validationIdRef.current) {
+                toast.error("Empty file", {
+                    description: "The selected PDF file is empty.",
+                });
+            }
             return false;
         }
 
         if (file.size > MAX_FILE_SIZE_BYTES) {
-            toast.error("File too large", {
-                description: "File size exceeds the 50 MB limit.",
-            });
+            if (currentValidationId === validationIdRef.current) {
+                toast.error("File too large", {
+                    description: "File size exceeds the 50 MB limit.",
+                });
+            }
             return false;
         }
 
         const isHeaderValid = await validatePdfHeader(file);
+        if (currentValidationId !== validationIdRef.current) return false;
+
         if (!isHeaderValid) {
             toast.error("Invalid PDF file", {
                 description: "File content is not a valid PDF document.",
+            });
+            return false;
+        }
+
+        const isEncrypted = await checkPdfEncrypted(file);
+        if (currentValidationId !== validationIdRef.current) return false;
+
+        if (isEncrypted) {
+            toast.error("Encrypted PDF", {
+                description: "Password-protected or encrypted PDF files are not supported.",
             });
             return false;
         }
@@ -91,23 +143,23 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         return true;
     };
 
-    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current += 1;
         if (dragCounter.current === 1) {
             setInternalIsDragActive(true);
         }
-        onDragEnter?.(e);
+        onDragEnter?.(e as unknown as React.DragEvent<HTMLDivElement>);
     };
 
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        onDragOver?.(e);
+        onDragOver?.(e as unknown as React.DragEvent<HTMLDivElement>);
     };
 
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current -= 1;
@@ -115,10 +167,10 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             dragCounter.current = 0;
             setInternalIsDragActive(false);
         }
-        onDragLeave?.(e);
+        onDragLeave?.(e as unknown as React.DragEvent<HTMLDivElement>);
     };
 
-    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounter.current = 0;
@@ -138,52 +190,46 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         }
     };
 
-    const handleClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleClick();
-        }
-    };
-
     return (
-        <div 
-            role="button"
-            tabIndex={0}
+        // label[htmlFor] gives free click-to-open, keyboard (Enter/Space), and AT support
+        // without any JS workarounds. The browser deduplicates activation natively.
+        <label
+            htmlFor="dropzone-input"
             aria-label="Upload PDF file"
-            onClick={handleClick}
-            onKeyDown={handleKeyDown}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                "group max-w-4xl w-full p-8 m-4 mx-auto border-2 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer rounded-xl transition-all active:border-solid active:scale-[1.01] duration-200 ease-in-out select-none focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2",
                 isDragActive && "border-blue-500 bg-blue-100 scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">
                 {children}
             </div>
-            <Input 
-                ref={fileInputRef}
-                type="file" 
-                accept="application/pdf"
-                onChange={async (e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                        const isValid = await handleFile(e.target.files[0]);
-                        if (!isValid && fileInputRef.current) {
-                            fileInputRef.current.value = "";
+            <div>
+                <div className="inline-block sm:hidden bg-blue-100 shadow-md text-blue-600 p-2 rounded-md border border-blue-400 cursor-pointer mt-4">
+                    <p className="">Click to choose a file</p>
+                </div>
+                {/* Input id ties it to the label above — no JS click handler needed */}
+                <Input
+                    id="dropzone-input"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    onChange={async (e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            const isValid = await handleFile(e.target.files[0]);
+                            if (!isValid && fileInputRef.current) {
+                                fileInputRef.current.value = "";
+                            }
                         }
-                    }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
-            />
-        </div>
+                    }}
+                    className="hidden sm:inline-block w-fit mt-4 border-blue-400 bg-blue-100 text-blue-600 hover:bg-blue-200 hover:shadow-md cursor-pointer transition-all"
+                />
+            </div>
+        </label>
     );
 });
 

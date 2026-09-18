@@ -1,14 +1,18 @@
 "use client";
 
-import MainSection from "@/components/layout/MainSection";
+import UploadScreen from "@/components/upload/UploadScreen";
+import ProgressScreen from "@/components/progress/ProgressScreen";
+import ResultsScreen from "@/components/results/ResultsScreen";
 import { useConversion } from "@/context/ConversionContext";
 
 export default function Home() {
-    const { resetKey } = useConversion();
+    const { resetKey, activeView } = useConversion();
 
     return (
         <main className="min-h-dvh flex flex-col">
-            <MainSection key={resetKey} />
+            {activeView === "upload" && <UploadScreen key={resetKey} />}
+            {activeView === "progress" && <ProgressScreen />}
+            {activeView === "result" && <ResultsScreen />}
         </main>
     );
 }
