@@ -40,9 +40,11 @@ describe("UploadScreen", () => {
     renderWithProvider();
 
     expect(
-      screen.getByText("TRANSFORM YOUR PDF INTO EDITABLE WORD DOCUMENT"),
+      screen.getByRole("heading", {
+        name: /transform your pdf into editable word document/i,
+      }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/PDF selected/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PDF selected/i)).not.toBeInTheDocument();
   });
 
   it("disables the convert button until a file is selected", () => {
@@ -61,7 +63,7 @@ describe("UploadScreen", () => {
     await user.upload(input, makeValidPdf("report.pdf"));
 
     expect(await screen.findByText("report.pdf")).toBeInTheDocument();
-    expect(screen.getByText("PDF selected")).toBeInTheDocument();
+    expect(screen.getByText("PDF Selected")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /convert to word/i }),
     ).toBeEnabled();
