@@ -44,8 +44,6 @@ Install dependencies
 
 ```bash
   npm install
-  npx shadcn@latest init
-  npm install pdfjs-dist
 ```
 
 Start the server
