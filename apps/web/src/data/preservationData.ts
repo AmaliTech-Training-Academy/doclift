@@ -11,6 +11,7 @@ import {
 export interface PreservationItem {
     id: number;
     title: string;
+    category?: string;
     description: string;
     icon: LucideIcon;
     comparison: {
@@ -24,57 +25,62 @@ export const preservationData: PreservationItem[] = [
     {
         id: 1,
         title: "Reading Order",
+        category: "Layout Flow",
         description: "Rebuilds multi-column & asymmetric column flows naturally.",
         icon: FileText,
         comparison: {
             original: "Column Flow",
             result: "Contiguous Flow",
             description:
-                "Rebuilds multi-column & asymmetric column flows naturally.",
+                "Multi-column geometry resolved into natural reading sequence.",
         },
     },
     {
         id: 2,
         title: "Headings & Paragraphs",
+        category: "Typography",
         description:
             "Maps typography into native Word heading styles (H1–H4).",
         icon: Type,
         comparison: {
-            original: "Original Text",
-            result: "Semantic Heading Styles",
+            original: "Visual Text",
+            result: "Semantic Headings",
             description:
-                "Maps all heading styles into native Word heading styles.",
+                "Native heading hierarchy enables Word Navigation Pane.",
         },
     },
     {
         id: 3,
         title: "Editable Data Tables",
+        category: "Tables",
         description:
             "Converted to native Word tables with structured rows, columns, and borders.",
         icon: Grid3x2,
         comparison: {
-            original: "Original Table",
-            result: "Word Table",
+            original: "Grid Lines & Text",
+            result: "Native Word Table",
             description:
-                "Converted to native Word tables with structured rows, columns, and borders.",
+                "Structured rows, borders, and resizable cells preserved.",
         },
     },
     {
         id: 4,
         title: "Bulleted & Numbered Lists",
+        category: "Hierarchy",
         description:
             "Recreates true hierarchical lists, not raw bullet characters.",
         icon: List,
         comparison: {
-            original: "List Engine",
-            result: "Bulleting style Managed",
+            original: "Raw Glyphs",
+            result: "Word List Engine",
             description:
-                "Tier 1 Operational Node • Nested verification child",
+                "Hierarchical nesting and indentation preserved.",
         },
     },
     {
         id: 5,
         title: "Bold, Italic & Underline",
+        category: "Formatting",
         description:
             "Character formatting and inline spans fully retained.",
         icon: Bold,
@@ -82,20 +88,21 @@ export const preservationData: PreservationItem[] = [
             original: "Inline Spans",
             result: "100% Retained",
             description:
-                "Standard text with bold weight and slanted emphasis",
+                "Weighted strokes and slanted emphasis cleanly separated.",
         },
     },
     {
         id: 6,
         title: "Embedded Images",
+        category: "Media",
         description:
             "Preserved at native resolution in their exact reading context.",
         icon: ImageIcon,
         comparison: {
             original: "Raster & Vectors",
-            result: "Lossless Wrap",
+            result: "Lossless Extraction",
             description:
-                "Lossless Extraction • 300 DPI preserved",
+                "High-resolution images kept with original text wrapping.",
         },
     },
 ];
