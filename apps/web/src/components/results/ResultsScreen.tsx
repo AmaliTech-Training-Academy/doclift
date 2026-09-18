@@ -9,7 +9,7 @@ import { checklistData, fidelityMetrics, summaryCards } from "@/data/resultsData
 import { useConversion } from "@/context/ConversionContext";
 
 export default function ResultsScreen() {
-    const { setActiveView } = useConversion();
+    const { reset } = useConversion();
 
     return (
         <div className="flex-1 space-y-4 p-4">
@@ -26,7 +26,7 @@ export default function ResultsScreen() {
                             <span className="text-black">Your Word document is ready for download</span>
                         </div>
                         <div className="flex flex-col space-y-1 min-w-0">
-                            <p className="text-base sm:text-xl font-semibold truncate">Word Document.docx</p>
+                            <h1 className="text-xl font-semibold truncate">Word Document.docx</h1>
                             <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-xs sm:text-sm bg-blue-100 rounded-lg w-fit px-2 py-1 text-blue-600">
                                     <span>Converted Word Document</span>
@@ -38,7 +38,7 @@ export default function ResultsScreen() {
                         </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 sm:w-fit w-full">
-                        <Button variant="secondary" onClick={() => setActiveView('upload')}>
+                        <Button variant="secondary" onClick={reset}>
                             <RotateCw className="size-4" />
                             <span>Convert Another File</span>
                         </Button>
@@ -54,10 +54,10 @@ export default function ResultsScreen() {
             <div className="w-full mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Left — Structural Conversion Checklist */}
                 <div className="flex flex-col space-y-3 bg-white p-4 rounded-xl">
-                    <div className="flex flex-row justify-between items-center mb-1">
+                    <div className="flex flex-row justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                             <ListChecks className="size-5 text-blue-600 shrink-0" />
-                            <h2 className="font-semibold text-base">Structural Conversion Checklist</h2>
+                            <h2 className="font-semibold text-xl">Structural Conversion Checklist</h2>
                         </div>
                         <span className="text-xs text-gray-400">Deterministic AST Validation</span>
                     </div>
@@ -68,10 +68,10 @@ export default function ResultsScreen() {
 
                 {/* Right — Factual Fidelity Metrics */}
                 <div className="flex flex-col space-y-3 bg-white p-4 rounded-xl">
-                    <div className="flex flex-row justify-between items-center mb-1">
+                    <div className="flex flex-row justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                             <ChartLine className="size-5 text-blue-600 shrink-0" />
-                            <h2 className="font-semibold text-base">Factual Fidelity Metrics</h2>
+                            <h2 className="font-semibold text-xl">Factual Fidelity Metrics</h2>
                         </div>
                         <span className="text-xs text-gray-400">Target: Exact DOCX</span>
                     </div>
