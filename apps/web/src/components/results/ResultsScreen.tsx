@@ -17,7 +17,7 @@ export default function ResultsScreen() {
             <div className="bg-white w-full mx-auto max-w-5xl flex flex-col space-y-4 p-4 rounded-xl">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex flex-col gap-2">
-                        <div className="flex flex-col text-xs sm:flex-row gap-2 bg-blue-100 p-2 rounded-xl sm:items-center">
+                        <div className="flex flex-col text-sm sm:flex-row gap-2 bg-blue-100 p-2 rounded-xl sm:items-center">
                             <div className="text-blue-600 flex items-center gap-2">
                                 <CircleCheck className="size-3" />
                                 <p>Conversion Complete</p>
@@ -26,12 +26,12 @@ export default function ResultsScreen() {
                             <span className="text-black">Your Word document is ready for download</span>
                         </div>
                         <div className="flex flex-col space-y-1 min-w-0">
-                            <h1 className="text-xl font-semibold truncate">Word Document.docx</h1>
+                            <h1 className="text-2xl font-semibold truncate">Word Document.docx</h1>
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="text-xs sm:text-sm bg-blue-100 rounded-lg w-fit px-2 py-1 text-blue-600">
+                                <div className="text-sm sm:text-md bg-blue-100 rounded-lg w-fit px-2 py-1 text-blue-600">
                                     <span>Converted Word Document</span>
                                 </div>
-                                <p className="text-xs sm:text-sm text-gray-500">
+                                <p className="text-sm sm:text-md text-gray-500">
                                     File size • 2 Pages • 20s conversion time
                                 </p>
                             </div>
@@ -57,9 +57,9 @@ export default function ResultsScreen() {
                     <div className="flex flex-row justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                             <ListChecks className="size-5 text-blue-600 shrink-0" />
-                            <h2 className="font-semibold text-xl">Structural Conversion Checklist</h2>
+                            <h2 className="font-semibold text-2xl">Conversion Checklist</h2>
                         </div>
-                        <span className="text-xs text-gray-400">Deterministic AST Validation</span>
+                        <span className="text-sm text-gray-400">Deterministic AST Validation</span>
                     </div>
                     {checklistData.map((item) => (
                         <ChecklistCard key={item.id} item={item} />
@@ -71,9 +71,9 @@ export default function ResultsScreen() {
                     <div className="flex flex-row justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                             <ChartLine className="size-5 text-blue-600 shrink-0" />
-                            <h2 className="font-semibold text-xl">Factual Fidelity Metrics</h2>
+                            <h2 className="font-semibold text-2xl">Factual Fidelity Metrics</h2>
                         </div>
-                        <span className="text-xs text-gray-400">Target: Exact DOCX</span>
+                        <span className="text-sm text-gray-400">Target: Exact DOCX</span>
                     </div>
 
                     {/* Deterministic Text Yield donut */}
@@ -97,7 +97,7 @@ export default function ResultsScreen() {
                         </div>
                         <div className="flex flex-col">
                             <p className="font-semibold text-sm">Deterministic Text Yield</p>
-                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                            <p className="text-sm text-gray-500 mt-1 leading-relaxed">
                                 Calculated from Levenshtein token parity between raw PDF content streams and Word runs.
                             </p>
                         </div>
@@ -111,8 +111,8 @@ export default function ResultsScreen() {
                     <div className="flex flex-row items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3 mt-1">
                         <Info className="size-4 text-blue-500 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-xs font-semibold text-blue-700 mb-0.5">DocLift Transparency Principle</p>
-                            <p className="text-xs text-blue-600 leading-relaxed">
+                            <p className="text-sm font-semibold text-blue-700 mb-0.5">DocLift Transparency Principle</p>
+                            <p className="text-sm text-blue-600 leading-relaxed">
                                 We never fabricate simulated 99.9% metrics. Our parser runs strict geometric audits: when slight manual alignment or cell adjustments are required, we flag the exact page offsets directly in your report.
                             </p>
                         </div>
