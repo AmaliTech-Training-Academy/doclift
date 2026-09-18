@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - DOC-2-T5-Build-PDF-extractor
       - "**"
   pull_request:
 
