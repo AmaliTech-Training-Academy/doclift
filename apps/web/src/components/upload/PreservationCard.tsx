@@ -32,7 +32,7 @@ export default function PreservationCard({ item }: PreservationCardProps) {
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
                         {item.title}
                     </h3>
-                    <CardDescription className="text-xs sm:text-sm text-gray-500 leading-relaxed mt-1">
+                    <CardDescription className="text-sm sm:text-md text-gray-500 leading-relaxed mt-1">
                         {item.description}
                     </CardDescription>
                 </div>
@@ -45,7 +45,7 @@ export default function PreservationCard({ item }: PreservationCardProps) {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 PDF Input
                             </span>
-                            <span className="text-xs font-medium text-slate-700">
+                            <span className="text-sm font-medium text-slate-700">
                                 {item.comparison.original}
                             </span>
                         </div>
@@ -56,14 +56,14 @@ export default function PreservationCard({ item }: PreservationCardProps) {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                                 DOCX Output
                             </span>
-                            <span className="text-xs font-semibold text-blue-700">
+                            <span className="text-sm font-semibold text-blue-700">
                                 {item.comparison.result}
                             </span>
                         </div>
                     </div>
 
                     {item.comparison.description && (
-                        <div className="pt-2 border-t border-slate-200/60 flex items-start gap-1.5 text-xs text-slate-500">
+                        <div className="pt-2 border-t border-slate-200/60 flex items-start gap-1.5 text-sm text-slate-500">
                             <Check className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
                             <span className="leading-snug">{item.comparison.description}</span>
                         </div>
