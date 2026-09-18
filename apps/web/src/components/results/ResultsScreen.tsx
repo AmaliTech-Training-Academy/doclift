@@ -8,13 +8,17 @@ import { SummaryCard } from "@/components/results/SummaryCard";
 import { checklistData, fidelityMetrics, summaryCards } from "@/data/resultsData";
 import { useConversion } from "@/context/ConversionContext";
 
+
 export default function ResultsScreen() {
-    const { setActiveView } = useConversion();
+    const { setActiveView, file } = useConversion();
+    const targetFileName = file
+    ? file.name.replace(/\.[^./]+$/, ".docx")
+    : "Untitled document.docx";
 
     return (
         <div className="flex-1 space-y-4 p-4">
             {/* Header row */}
-            <div className="bg-white w-full mx-auto max-w-5xl flex flex-col space-y-4 p-4 rounded-xl">
+            <div className="bg-white w-full mx-auto max-w-5xl  flex flex-col space-y-4 p-4 rounded-xl">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex flex-col gap-2">
                         <div className="flex flex-col text-xs sm:flex-row gap-2 bg-blue-100 p-2 rounded-xl sm:items-center">
@@ -26,7 +30,9 @@ export default function ResultsScreen() {
                             <span className="text-black">Your Word document is ready for download</span>
                         </div>
                         <div className="flex flex-col space-y-1 min-w-0">
-                            <p className="text-base sm:text-xl font-semibold truncate">Word Document.docx</p>
+                            <p className="text-base sm:text-xl font-semibold truncate text-wrap">
+                                {targetFileName}
+                            </p>
                             <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-xs sm:text-sm bg-blue-100 rounded-lg w-fit px-2 py-1 text-blue-600">
                                     <span>Converted Word Document</span>

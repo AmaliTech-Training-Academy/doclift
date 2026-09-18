@@ -55,7 +55,7 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               {/* Target File */}
               <button
                 type="button"
-                onClick={() => setActiveView("result")}
+                onClick={() => setActiveView("result") }
                 className="cursor-pointer rounded-lg transition-opacity hover:opacity-80 text-left"
                 aria-label={`Open ${targetFileName}`}
               >
