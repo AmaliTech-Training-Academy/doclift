@@ -3,7 +3,6 @@ import ProgressCard from "./ProgressCard";
 import HeaderBar from "./HeaderBar";
 import { useConversion } from "@/context/ConversionContext";
 
-
 const ProgressScreen = () => {
   const { file } = useConversion();
 
@@ -17,6 +16,7 @@ const ProgressScreen = () => {
         timeElapsed={timeElapsed}
         timeRemaining={timeRemaining}
       />
+
       <ProgressCard />
     </div>
   );

@@ -1,9 +1,18 @@
-import React from "react";
+import { useEffect } from "react";
 import { Card } from "../ui/Card";
 import { TriangleAlert } from "lucide-react";
 import Button from "../ui/Button";
 
-const errorStateCard = () => {
+const ErrorStateCard = ({
+  error,
+  reset,
+}: {
+  error?: (Error & { digest?: string }) | string;
+  reset?: () => void;
+}) => {
+  useEffect(() => {
+    if (error) console.error(error);
+  }, [error]);
   return (
     <div>
       {/* Error State Card */}
@@ -13,11 +22,11 @@ const errorStateCard = () => {
         </div>
         <div className="flex flex-col items-center justify-center p-4 pt-10">
           <h1 className="text-3xl font-bold">Error</h1>
-          <p className="text-sm text-gray-600 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             An error has occurred. Please try again later.
           </p>
         </div>
-        <Button variant="danger" className="self-center">
+        <Button variant="danger" className="self-center" onClick={reset}>
           Retry
         </Button>
       </Card>
@@ -25,4 +34,4 @@ const errorStateCard = () => {
   );
 };
 
-export default errorStateCard;
+export default ErrorStateCard;

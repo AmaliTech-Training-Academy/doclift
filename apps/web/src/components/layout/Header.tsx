@@ -10,7 +10,7 @@ export default function Header() {
     const { reset } = useConversion();
 
     return (
-        <header className="sticky top-0 w-full py-3 border-b border-gray-200 bg-white z-50">
+        <header className="sticky top-0 w-full py-3 border-b border-muted bg-white z-50">
             <div className="max-w-7xl mx-auto px-4">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col">
