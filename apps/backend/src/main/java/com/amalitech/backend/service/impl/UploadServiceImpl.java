@@ -1,5 +1,6 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.service.FileStorageService;
 import com.amalitech.backend.service.JobService;
@@ -30,8 +31,16 @@ public class UploadServiceImpl implements UploadService {
         int pageCount =
                 pdfValidationService.validateAndGetPageCount(file);
 
+        String originalFilename = file.getOriginalFilename();
+
+        if (originalFilename == null || originalFilename.isBlank()) {
+            throw new InvalidPdfException(
+                    "The uploaded file must include a filename."
+            );
+        }
+
         Job job = jobService.createJob(
-                file.getOriginalFilename(),
+                originalFilename,
                 pageCount
         );
 
