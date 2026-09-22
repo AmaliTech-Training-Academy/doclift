@@ -20,9 +20,9 @@ export default function Home() {
 
         setSession(session);
 
-        if (session.status === "converting" || session.status === "uploading") {
+        if (session.status === "processing" || session.status === "queued") {
             setActiveView("progress");
-        } else if (session.status === "completed") {
+        } else if (session.status === "done") {
             setActiveView("result");
         } else if (session.status === "failed" || session.status === "expired") {
             setSession(null);

@@ -1,4 +1,4 @@
-export type ConversionStatus = "uploading" | "converting" | "completed" | "failed" | "expired";
+export type ConversionStatus = "queued" | "processing" | "done" | "failed" | "expired";
 
 export type ConversionSession = {
     jobId: string;

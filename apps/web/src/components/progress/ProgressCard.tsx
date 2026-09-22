@@ -32,7 +32,7 @@ const ProgressCard = () => {
   const handleProgress = useCallback((state: PipelineProgress) => {
     setProgress(state);
     if (state.done) {
-      updateStatus("completed");
+      updateStatus("done");
     }
   }, [updateStatus]);
 
