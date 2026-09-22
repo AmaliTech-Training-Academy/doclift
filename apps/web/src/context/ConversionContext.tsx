@@ -1,6 +1,13 @@
 "use client";
 
 import { createContext, useContext, useState, ReactNode } from "react";
+import {
+    ConversionSession,
+    ConversionStatus,
+    generateJobId,
+    saveConversionSession,
+    clearConversionSession,
+} from "@/lib/conversionSession";
 
 export type ActiveView = "upload" | "progress" | "result";
 
@@ -12,6 +19,10 @@ interface ConversionContextValue {
     reset: () => void;
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
+    session: ConversionSession | null;
+    setSession: (session: ConversionSession | null) => void;
+    startConversion: (fileOverride?: File | null) => ConversionSession | null;
+    updateStatus: (status: ConversionStatus) => void;
 }
 
 const ConversionContext = createContext<ConversionContextValue | null>(null);
@@ -20,17 +31,60 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const [file, setFile] = useState<File | null>(null);
     const [resetKey, setResetKey] = useState(0);
     const [activeView, setActiveView] = useState<ActiveView>("upload");
+    const [session, setSession] = useState<ConversionSession | null>(null);
 
     const clearFile = () => setFile(null);
+
+    const startConversion = (fileOverride?: File | null): ConversionSession | null => {
+        const targetFile = fileOverride || file;
+        const fileName = targetFile?.name || "document.pdf";
+        const newSession: ConversionSession = {
+            jobId: generateJobId(),
+            fileName,
+            status: "converting",
+            updatedAt: Date.now(),
+        };
+
+        saveConversionSession(newSession);
+        setSession(newSession);
+        setActiveView("progress");
+        return newSession;
+    };
+
+    const updateStatus = (status: ConversionStatus) => {
+        if (!session) return;
+        const updatedSession: ConversionSession = {
+            ...session,
+            status,
+            updatedAt: Date.now(),
+        };
+        saveConversionSession(updatedSession);
+        setSession(updatedSession);
+    };
+
     const reset = () => {
         setFile(null);
+        setSession(null);
+        clearConversionSession();
         setResetKey((k) => k + 1);
         setActiveView("upload");
     };
 
     return (
         <ConversionContext.Provider
-            value={{ file, setFile, clearFile, resetKey, reset, activeView, setActiveView }}
+            value={{
+                file,
+                setFile,
+                clearFile,
+                resetKey,
+                reset,
+                activeView,
+                setActiveView,
+                session,
+                setSession,
+                startConversion,
+                updateStatus,
+            }}
         >
             {children}
         </ConversionContext.Provider>

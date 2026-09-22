@@ -21,15 +21,17 @@ function formatTime(seconds: number): string {
 }
 
 const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
-  const sourceFileName = file ? file.name : "Untitled document";
-  const targetFileName = file
-    ? file.name.replace(/\.[^./]+$/, ".docx")
-    : "Untitled document.docx";
+  const { session, setActiveView } = useConversion();
+
+  const fileName = file?.name || session?.fileName || "Untitled document";
+  const sourceFileName = fileName;
+  const targetFileName = fileName.replace(/\.[^./]+$/, ".docx");
   const sourceFileDescription = file
     ? `PDF Document • ${formatFileSize(file.size)}`
+    : session?.fileName
+    ? "PDF Document"
     : "No file selected";
-  const targetFileDescription = file ? "Word Document (.docx)" : "No file selected";
-  const { setActiveView } = useConversion();
+  const targetFileDescription = "Word Document (.docx)";
 
   return (
     <div className="mb-6 w-full">

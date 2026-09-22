@@ -3,7 +3,7 @@ import { Card } from "../ui/Card";
 import { TriangleAlert } from "lucide-react";
 import Button from "../ui/Button";
 
-const errorStateCard = () => {
+const ErrorStateCard = () => {
   return (
     <div>
       {/* Error State Card */}
@@ -25,4 +25,4 @@ const errorStateCard = () => {
   );
 };
 
-export default errorStateCard;
+export default ErrorStateCard;
