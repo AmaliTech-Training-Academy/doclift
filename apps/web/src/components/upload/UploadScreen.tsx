@@ -104,18 +104,18 @@ export default function UploadScreen() {
                 </div>
 
                 {uploadedFile && (
-                    <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 border border-blue-200 rounded-xl">
+                    <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 border border-primary rounded-xl">
                         <div className="flex flex-row items-center space-x-3 sm:space-x-4 min-w-0 w-full sm:w-auto flex-1">
-                            <div className="size-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                                <FileText className="size-6 text-blue-600" />
+                            <div className="size-12 rounded-xl bg-primary-background text-primary flex items-center justify-center shrink-0">
+                                <FileText className="size-6 text-primary" />
                             </div>
                             <div className="flex-1 flex flex-col space-y-1 min-w-0">
                                 <p className="text-base sm:text-lg font-semibold truncate">{uploadedFile.name}</p>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-xs bg-blue-100 font-medium rounded-md px-2 py-1 text-blue-600">
+                                    <span className="text-xs bg-primary-background font-medium rounded-md px-2 py-1 text-primary">
                                         PDF Selected
                                     </span>
-                                    <p className="text-xs sm:text-sm text-gray-500">
+                                    <p className="text-xs sm:text-sm text-muted-foreground">
                                         {formatFileSize(uploadedFile.size)}
                                         {pageCount !== null && ` • ${pageCount} ${pageCount === 1 ? "page" : "pages"}`}
                                     </p>
@@ -137,7 +137,7 @@ export default function UploadScreen() {
             {/* Bottom Section: What DocLift Preserves */}
             <section
                 aria-labelledby="preserves-heading"
-                className="w-full mx-auto flex flex-col space-y-6 sm:p-8 p-5 bg-white border border-blue-100 rounded-2xl"
+                className="w-full mx-auto flex flex-col space-y-6 sm:p-8 p-5 bg-white border border-primary-background rounded-2xl"
             >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex flex-col space-y-1">
@@ -147,13 +147,13 @@ export default function UploadScreen() {
                         >
                             What DocLift Preserves
                         </h2>
-                        <p className="text-sm sm:text-base text-gray-600 max-w-2xl leading-relaxed">
+                        <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
                             Unlike generic OCR or naive converters that dump arbitrary text frames, DocLift reconstructs the logical semantic tree of your document.
                         </p>
                     </div>
 
-                    <div className="shrink-0 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-xs sm:text-sm font-semibold self-start sm:self-center">
-                        <CheckCircle className="size-4 text-emerald-600 shrink-0" />
+                    <div className="shrink-0 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-success text-xs sm:text-sm font-semibold self-start sm:self-center">
+                        <CheckCircle className="size-4 text-success shrink-0" />
                         <span>99.8% Word Style Parity</span>
                     </div>
                 </div>

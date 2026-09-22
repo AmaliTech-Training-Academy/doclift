@@ -35,7 +35,7 @@ export default function MainSection() {
 
   return (
     <div className="flex-1 space-y-4 p-4">
-      <div className="bg-white w-full mx-auto max-w-3xl flex flex-col space-y-4 p-4 mb-10 rounded-xl">
+      <div className="w-full mx-auto max-w-3xl flex flex-col space-y-4 p-4 mb-10 rounded-xl">
         <div className="mt-8 max-w-2xl text-center mx-auto space-y-4">
           <h1 className="text-4xl font-bold">
             TRANSFORM YOUR PDF INTO EDITABLE WORD DOCUMENT
@@ -47,10 +47,10 @@ export default function MainSection() {
         </div>
         <DropZone ref={dropZoneRef} onDrop={handleFileDrop}>
           <div>
-            <div className="p-4 bg-blue-200 rounded-2xl">
-              <FileText className="size-15 text-blue-600" />
+            <div className="p-4 bg-primary-background rounded-2xl">
+              <FileText className="size-15 text-primary" />
             </div>
-            <div className="relative w-fit left-1/2 top-1/2 -translate-y-1/2 translate-x-6 bg-blue-600 rounded-full p-2">
+            <div className="relative w-fit left-1/2 top-1/2 -translate-y-1/2 translate-x-6 bg-primary rounded-full p-2">
               <ArrowLeftRight className="size-4 text-white" />
             </div>
           </div>
@@ -59,7 +59,7 @@ export default function MainSection() {
           </h1>
           <p className="flex justify-center">Drop files here</p>
         </DropZone>
-        <div className="w-full flex justify-around p-2 items-center bg-blue-100 rounded-xl max-w-4xl mx-auto">
+        <div className="w-full flex justify-around p-2 items-center bg-primary-background rounded-xl max-w-4xl mx-auto">
           <div>
             {" "}
             <p>
@@ -82,13 +82,13 @@ export default function MainSection() {
         </div>
 
         {file && (
-          <div className="w-full flex flex-row items-center space-x-4 p-4 border border-gray-200 rounded-xl">
-            <FileText className="size-15 text-blue-600 shrink-0" />
+          <div className="w-full flex flex-row items-center space-x-4 p-4 border border-muted rounded-xl">
+            <FileText className="size-15 text-primary shrink-0" />
             <div className="flex-1 flex flex-col space-y-2 min-w-0">
               <p className="text-xl font-semibold truncate">
                 {file.name}
               </p>
-              <div className="text-sm bg-blue-100 rounded-lg w-fit px-2 py-1 space-x-2 text-blue-600">
+              <div className="text-sm bg-primary-background rounded-lg w-fit px-2 py-1 space-x-2 text-primary">
                 <span>PDF selected</span>
               </div>
               <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -102,12 +102,12 @@ export default function MainSection() {
           </div>
         )}
 
-        <Button disabled={!file} onClick={() => setActiveView('progress')} className="w-full bg-blue-600 text-white hover:bg-blue-700">
+        <Button disabled={!file} onClick={() => setActiveView('progress')} className="w-full bg-primary text-white hover:bg-blue-700">
           <p className="text-xl">Convert to Word (.docx)</p>
         </Button>
       </div>
       {/* Bottom Section*/}
-      <div className="w-full flex flex-col space-y-4 px-8 py-4 bg-blue-100">
+      <div className="w-full flex flex-col space-y-4 px-8 py-4 bg-primary-background">
         <div className="flex flex-row justify-between">
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">What DocLift Preserves</h1>
@@ -125,8 +125,8 @@ export default function MainSection() {
         <div className="grid grid-cols-3 gap-4">
           <Card className="mx-auto w-full">
             <CardHeader>
-              <CardDescription className="rounded-xl bg-blue-100 p-2 w-fit h-fit flex">
-                <FileText className="size-10 text-blue-600" />
+              <CardDescription className="rounded-xl bg-primary-background p-2 w-fit h-fit flex">
+                <FileText className="size-10 text-primary" />
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -135,7 +135,7 @@ export default function MainSection() {
                 Rebuilds multi-column & asymmetric column flows naturally.
               </p>
 
-              <div className="bg-blue-100 flex flex-col rounded-lg p-4">
+              <div className="bg-primary-background flex flex-col rounded-lg p-4">
                 <div className="flex flex-row justify-between mb-2">
                   <p className="text-sm">Column Flow</p>
                   <p className="text-sm">Contiguous Flow</p>

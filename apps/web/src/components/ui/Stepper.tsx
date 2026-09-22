@@ -549,6 +549,7 @@ function useSimulatedPipeline(stepCount: number) {
 export interface VerticalStepperDemoHandle {
   cancel: () => void;
   complete: () => void;
+  reset: () => void;
 }
 
 // Overall pipeline progress, reported to the parent via `onProgress` so
@@ -574,10 +575,14 @@ export const VerticalStepperDemo = forwardRef<
   VerticalStepperDemoHandle,
   VerticalStepperDemoProps
 >(function VerticalStepperDemo({ onProgress }, ref) {
-    const { activeIndex, percent, done, cancelled, cancel } =
+    const { activeIndex, percent, done, cancelled, cancel, reset } =
       useSimulatedPipeline(PIPELINE.length);
 
-    useImperativeHandle(ref, () => ({ cancel, complete: () => { } }), [cancel]);
+    useImperativeHandle(
+      ref,
+      () => ({ cancel, complete: () => {}, reset }),
+      [cancel, reset],
+    );
 
     useEffect(() => {
       if (done) {
