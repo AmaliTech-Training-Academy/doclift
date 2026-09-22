@@ -41,7 +41,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         const newSession: ConversionSession = {
             jobId: generateJobId(),
             fileName,
-            status: "converting",
+            status: "processing",
             updatedAt: Date.now(),
         };
 
