@@ -42,6 +42,7 @@ public class FileStorageServiceImpl implements FileStorageService {
         } catch (IOException e) {
             try {
                 Files.deleteIfExists(targetPath);
+                Files.deleteIfExists(jobDirectory);
             } catch (IOException cleanupException) {
                 e.addSuppressed(cleanupException);
             }
