@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -19,6 +20,18 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse(
                         "INVALID_PDF",
                         ex.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingFilePart(
+            MissingServletRequestPartException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiErrorResponse(
+                        "MISSING_FILE",
+                        "A PDF file is required."
                 ));
     }
 
@@ -55,6 +68,42 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse(
                         "FILE_TOO_LARGE",
                         ex.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiErrorResponse> handleStorageFailure(
+            IllegalStateException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiErrorResponse(
+                        "STORAGE_ERROR",
+                        "The uploaded file could not be stored."
+                ));
+    }
+
+    @ExceptionHandler(JobNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleJobNotFound(
+            JobNotFoundException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new ApiErrorResponse(
+                        "JOB_NOT_FOUND",
+                        ex.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
+            Exception ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiErrorResponse(
+                        "INTERNAL_ERROR",
+                        "An unexpected server error occurred."
                 ));
     }
 }

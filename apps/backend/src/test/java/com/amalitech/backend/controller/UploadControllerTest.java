@@ -139,4 +139,19 @@ class UploadControllerTest {
                 .andExpect(jsonPath("$.message")
                         .value("The uploaded PDF exceeds the maximum allowed size."));
     }
+
+    // =========================================================
+    // MISSING FILE RESPONSE
+    // =========================================================
+
+    @Test
+    void shouldReturnBadRequestWhenFilePartIsMissing() throws Exception {
+        mockMvc.perform(
+                        multipart("/api/v1/upload")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MISSING_FILE"))
+                .andExpect(jsonPath("$.message")
+                        .value("A PDF file is required."));
+    }
 }
