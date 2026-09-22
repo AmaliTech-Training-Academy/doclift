@@ -18,7 +18,7 @@ export function FidelityMetricCard({ item }: FidelityMetricCardProps) {
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{item.value}</span>
                     {item.note && (
-                        <span className={`text-xs rounded-md px-2 py-0.5 ${item.highlight ? "bg-yellow-200 text-yellow-800" : "text-gray-400"}`}>
+                        <span className={`text-sm rounded-md px-2 py-0.5 ${item.highlight ? "bg-yellow-200 text-yellow-800" : "text-gray-400"}`}>
                             {item.note}
                         </span>
                     )}

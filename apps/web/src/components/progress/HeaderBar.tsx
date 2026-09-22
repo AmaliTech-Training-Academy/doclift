@@ -32,31 +32,33 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
   const { setActiveView } = useConversion();
 
   return (
-    <div className="mb-8">
-      <Card className="mt-10 mx-4 md:w-350 md:mx-auto">
-        <CardContent className="flex items-center justify-between gap-4 mt-6">
+    <div className="mb-6 w-full">
+      <Card className="mt-6 w-full max-w-5xl mx-auto">
+        <CardContent className="p-4 sm:p-6">
           {/* Header Bar */}
-          <div className="flex flex-col lg:flex-row  gap-6 lg:gap-4 md:items-center md:justify-between w-full">
+          <div className="flex flex-col lg:flex-row gap-6 lg:gap-4 lg:items-center lg:justify-between w-full">
             {/* Left: Document Pair */}
-            <div className="flex flex-col md:flex-row gap-2 sm:gap-4 lg:pr-8">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 min-w-0 flex-1 items-stretch sm:items-center">
               {/* Source File */}
-              <FileInfoCard
-                icon={FileInput}
-                iconClassName="text-red-600"
-                iconContainerClassName="bg-red-100"
-                name={sourceFileName}
-                description={sourceFileDescription}
-              />
+              <div className="min-w-0 flex-1">
+                <FileInfoCard
+                  icon={FileInput}
+                  iconClassName="text-red-600"
+                  iconContainerClassName="bg-red-100"
+                  name={sourceFileName}
+                  description={sourceFileDescription}
+                />
+              </div>
               {/* Arrow Indicator  */}
-              <div className="flex flex-col items-center justify-center gap-2 rounded-lg p-2">
-                <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90 md:rotate-0" />
-                <p className="text-xs hidden md:block tracking-widest">DOCX</p>
+              <div className="flex flex-col items-center justify-center gap-1 p-1 shrink-0">
+                <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90 sm:rotate-0" />
+                <p className="text-xs hidden sm:block tracking-widest text-slate-400">DOCX</p>
               </div>
               {/* Target File */}
               <button
                 type="button"
                 onClick={() => setActiveView("result")}
-                className="cursor-pointer rounded-lg transition-opacity hover:opacity-80 text-left"
+                className="cursor-pointer rounded-lg shadow-lg border border-blue-300 transition-all hover:scale-101 hover:opacity-80 text-left min-w-0 flex-1"
                 aria-label={`Open ${targetFileName}`}
               >
                 <FileInfoCard
@@ -69,24 +71,24 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               </button>
             </div>
             {/* Right: Time */}
-            <div className="flex items-center justify-center gap-4 lg:ml-8">
+            <div className="flex items-center justify-center sm:justify-end gap-3 sm:gap-4 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
               {/* Time elapsed */}
-              <div className="flex flex-col items-center justify-center">
-                <p className="text-xs sm:text-base text-[#434655] text-center">
+              <div className="flex flex-col items-center sm:items-end justify-center">
+                <p className="text-xs sm:text-sm text-[#434655] whitespace-nowrap">
                   Time Elapsed
                 </p>
-                <p className="text-sm sm:text-base">{formatTime(timeElapsed)} elapsed</p>
+                <p className="text-sm sm:text-base font-medium whitespace-nowrap">{formatTime(timeElapsed)} elapsed</p>
               </div>
               {/* Divider */}
-              <div className="border-l border-gray-300 h-8 mx-2 sm:mx-4"></div>
+              <div className="border-l border-gray-300 h-8 mx-1 sm:mx-2"></div>
               {/* Time remaining */}
-              <div className="flex flex-col items-center justify-center">
-                <p className="text-xs sm:text-base text-[#434655] text-center">
+              <div className="flex flex-col items-center sm:items-start justify-center">
+                <p className="text-xs sm:text-sm text-[#434655] whitespace-nowrap">
                   Estimated Time Remaining
                 </p>
-                <div className="flex gap-2 sm:gap-3 items-center justify-center">
-                  <Timer className="size-5 sm:size-6 text-gray-600" />
-                  <p className="text-sm sm:text-base">~{formatTime(timeRemaining)}s remaining</p>
+                <div className="flex gap-2 items-center justify-center whitespace-nowrap">
+                  <Timer className="size-4 sm:size-5 text-gray-600 shrink-0" />
+                  <p className="text-sm sm:text-base font-medium">~{formatTime(timeRemaining)}s remaining</p>
                 </div>
               </div>
             </div>

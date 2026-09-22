@@ -4,7 +4,7 @@ import com.amalitech.backend.exception.EncryptedPdfException;
 import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.model.Job;
-import com.amalitech.backend.service.interfaces.UploadService;
+import com.amalitech.backend.service.UploadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -45,7 +45,7 @@ class UploadControllerTest {
                 .thenReturn(job);
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isCreated())
@@ -72,7 +72,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isBadRequest())
@@ -101,7 +101,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isBadRequest())
@@ -130,7 +130,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/upload")
+                        multipart("/api/v1/upload")
                                 .file(file)
                 )
                 .andExpect(status().isPayloadTooLarge())
@@ -138,5 +138,20 @@ class UploadControllerTest {
                 .andExpect(jsonPath("$.error").value("FILE_TOO_LARGE"))
                 .andExpect(jsonPath("$.message")
                         .value("The uploaded PDF exceeds the maximum allowed size."));
+    }
+
+    // =========================================================
+    // MISSING FILE RESPONSE
+    // =========================================================
+
+    @Test
+    void shouldReturnBadRequestWhenFilePartIsMissing() throws Exception {
+        mockMvc.perform(
+                        multipart("/api/v1/upload")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MISSING_FILE"))
+                .andExpect(jsonPath("$.message")
+                        .value("A PDF file is required."));
     }
 }

@@ -1,4 +1,4 @@
-package com.amalitech.backend.service.interfaces;
+package com.amalitech.backend.service;
 
 import com.amalitech.backend.model.Job;
 

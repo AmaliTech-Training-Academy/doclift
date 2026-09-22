@@ -16,12 +16,12 @@ export function ChecklistCard({ item }: ChecklistCardProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                        <p className="font-semibold text-sm">{item.title}</p>
-                        <span className="text-xs bg-gray-100 text-gray-500 rounded-md px-2 py-0.5 whitespace-nowrap">
+                        <p className="font-semibold text-md">{item.title}</p>
+                        <span className="text-sm bg-gray-100 text-gray-500 rounded-md px-2 py-0.5 whitespace-nowrap">
                             {item.badge}
                         </span>
                     </div>
-                    <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>
+                    <p className="text-sm text-gray-500 leading-relaxed">{item.description}</p>
                 </div>
             </CardContent>
         </Card>

@@ -62,13 +62,13 @@ const ProgressCard = () => {
   return (
     <div>
       {/* Main card */}
-      <Card className="m-8 flex flex-col p-4 md:mx-auto md:w-250">
+      <Card className="my-6 w-full max-w-5xl mx-auto flex flex-col p-4 sm:p-6">
         {/* Header and Percentage */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
           <h1 className="text-lg md:text-3xl font-semibold">
             Reconstructing Document Structures
           </h1>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 self-end">
             {overallPercent}%{" "}
             <span className="text-sm text-[#434655]">completed</span>
           </h1>
@@ -88,11 +88,11 @@ const ProgressCard = () => {
             ) : (
               <Spinner className="w-4 h-4 text-[#004AC6]" />
             )}
-            <p className="font-bold text-xs">
+            <p className="font-bold text-sm">
               Phase {currentStepIndex + 1} of {totalSteps}:
             </p>
           </div>
-          <p className="text-xs text-[#434655]">
+          <p className="text-sm text-[#434655]">
             {steps[currentStepIndex]?.description}
           </p>
         </div>
@@ -108,7 +108,7 @@ const ProgressCard = () => {
             </div>
             <div className="flex flex-col">
               <p className="font-bold">Native Flow Fidelity Guarantee</p>
-              <p className="text-xs ">
+              <p className="text-sm ">
                 DocLift reconstructs actual Word document objects (tables,
                 paragraphs, list definitions) rather than static text boxes.
                 Once finished, document text reflows naturally when edited in
@@ -120,8 +120,8 @@ const ProgressCard = () => {
         {/* Cancel Button */}
         <div className="flex items-center gap-4 p-4">
           <Button
-            variant="secondary"
-            className="hover:text-red-700 disabled:hover:text-inherit w-80"
+            variant="danger"
+            className="disabled:hover:text-inherit w-80"
             onClick={handleCancel}
             disabled={cancelled || done}
           >
