@@ -1,7 +1,6 @@
 package com.amalitech.backend.service;
 
 import com.amalitech.backend.exception.EncryptedPdfException;
-import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.service.impl.PdfValidationServiceImpl;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -9,84 +8,37 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class PdfValidationServiceTest {
 
-    private final PdfValidationService pdfValidationService =
-            new PdfValidationServiceImpl(10 * 1024 * 1024);
+    private final PdfValidationServiceImpl pdfValidationService =
+            new PdfValidationServiceImpl();
 
     // =========================================================
-    // EMPTY FILE VALIDATION
-    // =========================================================
-
-    @Test
-    void shouldRejectEmptyFile() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "empty.pdf",
-                "application/pdf",
-                new byte[0]
-        );
-
-        InvalidPdfException exception = assertThrows(
-                InvalidPdfException.class,
-                () -> pdfValidationService.validateAndGetPageCount(file)
-        );
-
-        assertEquals(
-                "The uploaded file is empty.",
-                exception.getMessage()
-        );
-    }
-
-    // =========================================================
-    // FILE TYPE VALIDATION
+    // VALID PDF VALIDATION
     // =========================================================
 
     @Test
-    void shouldRejectNonPdfFile() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "notes.txt",
-                "text/plain",
-                "hello".getBytes()
-        );
+    void shouldAcceptValidPdfAndReturnPageCount() throws Exception {
+        Path tempFile = Files.createTempFile("valid-", ".pdf");
 
-        InvalidPdfException exception = assertThrows(
-                InvalidPdfException.class,
-                () -> pdfValidationService.validateAndGetPageCount(file)
-        );
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            document.save(tempFile.toFile());
+        }
 
-        assertEquals(
-                "Only PDF files are supported.",
-                exception.getMessage()
-        );
-    }
+        int pageCount =
+                pdfValidationService.validateAndGetPageCount(tempFile);
 
-    // =========================================================
-    // FILE SIZE VALIDATION
-    // =========================================================
+        assertEquals(1, pageCount);
 
-    @Test
-    void shouldRejectOversizedFile() {
-        byte[] largeFile = new byte[(10 * 1024 * 1024) + 1];
-
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "large.pdf",
-                "application/pdf",
-                largeFile
-        );
-
-        assertThrows(
-                FileTooLargeException.class,
-                () -> pdfValidationService.validateAndGetPageCount(file)
-        );
+        Files.deleteIfExists(tempFile);
     }
 
     // =========================================================
@@ -95,7 +47,7 @@ class PdfValidationServiceTest {
 
     @Test
     void shouldRejectPasswordProtectedPdf() throws Exception {
-        byte[] pdfBytes;
+        Path tempFile = Files.createTempFile("protected-", ".pdf");
 
         try (PDDocument document = new PDDocument()) {
             document.addPage(new PDPage());
@@ -110,54 +62,16 @@ class PdfValidationServiceTest {
                     );
 
             protectionPolicy.setEncryptionKeyLength(128);
-
             document.protect(protectionPolicy);
-
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            document.save(outputStream);
-            pdfBytes = outputStream.toByteArray();
+            document.save(tempFile.toFile());
         }
-
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "protected.pdf",
-                "application/pdf",
-                pdfBytes
-        );
 
         assertThrows(
                 EncryptedPdfException.class,
-                () -> pdfValidationService.validateAndGetPageCount(file)
-        );
-    }
-
-    // =========================================================
-    // VALID PDF VALIDATION
-    // =========================================================
-
-    @Test
-    void shouldAcceptValidPdfAndReturnPageCount() throws Exception {
-        byte[] pdfBytes;
-
-        try (PDDocument document = new PDDocument()) {
-            document.addPage(new PDPage());
-
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            document.save(outputStream);
-            pdfBytes = outputStream.toByteArray();
-        }
-
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "valid.pdf",
-                "application/pdf",
-                pdfBytes
+                () -> pdfValidationService.validateAndGetPageCount(tempFile)
         );
 
-        int pageCount =
-                pdfValidationService.validateAndGetPageCount(file);
-
-        assertEquals(1, pageCount);
+        Files.deleteIfExists(tempFile);
     }
 
     // =========================================================
@@ -165,17 +79,19 @@ class PdfValidationServiceTest {
     // =========================================================
 
     @Test
-    void shouldRejectInvalidPdfContent() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "fake.pdf",
-                "application/pdf",
-                "this is not actually a pdf".getBytes()
+    void shouldRejectInvalidPdfContent() throws Exception {
+        Path tempFile = Files.createTempFile("invalid-", ".pdf");
+
+        Files.writeString(
+                tempFile,
+                "this is not actually a pdf"
         );
 
         assertThrows(
                 InvalidPdfException.class,
-                () -> pdfValidationService.validateAndGetPageCount(file)
+                () -> pdfValidationService.validateAndGetPageCount(tempFile)
         );
+
+        Files.deleteIfExists(tempFile);
     }
 }

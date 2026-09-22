@@ -24,20 +24,45 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public Path storeSourcePdf(MultipartFile file, Long jobId) {
+    public Path storeTemporaryFile(MultipartFile file) {
+        try {
+            Files.createDirectories(uploadRoot);
+
+            Path temporaryFile = Files.createTempFile(
+                    uploadRoot,
+                    "upload-",
+                    ".pdf"
+            );
+
+            Files.copy(
+                    file.getInputStream(),
+                    temporaryFile,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+
+            return temporaryFile;
+
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to store uploaded PDF.",
+                    e
+            );
+        }
+    }
+
+    @Override
+    public Path moveToJobDirectory(Path temporaryFile, Long jobId) {
         Path jobDirectory = uploadRoot.resolve(jobId.toString());
         Path targetPath = jobDirectory.resolve("source.pdf");
 
         try {
             Files.createDirectories(jobDirectory);
 
-            Files.copy(
-                    file.getInputStream(),
+            return Files.move(
+                    temporaryFile,
                     targetPath,
                     StandardCopyOption.REPLACE_EXISTING
             );
-
-            return targetPath;
 
         } catch (IOException e) {
             try {
@@ -49,6 +74,22 @@ public class FileStorageServiceImpl implements FileStorageService {
 
             throw new IllegalStateException(
                     "Failed to store uploaded PDF.",
+                    e
+            );
+        }
+    }
+
+    @Override
+    public void deleteIfExists(Path path) {
+        if (path == null) {
+            return;
+        }
+
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to clean up temporary upload.",
                     e
             );
         }

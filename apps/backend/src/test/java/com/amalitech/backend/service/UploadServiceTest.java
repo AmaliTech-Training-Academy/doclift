@@ -1,12 +1,16 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
+import com.amalitech.backend.model.Job;
 import com.amalitech.backend.service.impl.UploadServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class UploadServiceTest {
@@ -16,6 +20,8 @@ class UploadServiceTest {
     private FileStorageService fileStorageService;
     private UploadServiceImpl uploadService;
 
+    private final long maxSizeBytes = 10 * 1024 * 1024;
+
     @BeforeEach
     void setUp() {
         jobService = mock(JobService.class);
@@ -23,6 +29,84 @@ class UploadServiceTest {
         fileStorageService = mock(FileStorageService.class);
 
         uploadService = new UploadServiceImpl(
+                jobService,
+                pdfValidationService,
+                fileStorageService,
+                maxSizeBytes
+        );
+    }
+
+    // =========================================================
+    // EMPTY FILE VALIDATION
+    // =========================================================
+
+    @Test
+    void shouldRejectEmptyFile() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "empty.pdf",
+                "application/pdf",
+                new byte[0]
+        );
+
+        assertThrows(
+                InvalidPdfException.class,
+                () -> uploadService.handleUpload(file)
+        );
+
+        verifyNoInteractions(
+                jobService,
+                pdfValidationService,
+                fileStorageService
+        );
+    }
+
+    // =========================================================
+    // FILE TYPE VALIDATION
+    // =========================================================
+
+    @Test
+    void shouldRejectNonPdfFile() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "notes.txt",
+                "text/plain",
+                "hello".getBytes()
+        );
+
+        assertThrows(
+                InvalidPdfException.class,
+                () -> uploadService.handleUpload(file)
+        );
+
+        verifyNoInteractions(
+                jobService,
+                pdfValidationService,
+                fileStorageService
+        );
+    }
+
+    // =========================================================
+    // FILE SIZE VALIDATION
+    // =========================================================
+
+    @Test
+    void shouldRejectOversizedFile() {
+        byte[] largeFile = new byte[(10 * 1024 * 1024) + 1];
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "large.pdf",
+                "application/pdf",
+                largeFile
+        );
+
+        assertThrows(
+                FileTooLargeException.class,
+                () -> uploadService.handleUpload(file)
+        );
+
+        verifyNoInteractions(
                 jobService,
                 pdfValidationService,
                 fileStorageService
@@ -39,45 +123,62 @@ class UploadServiceTest {
                 "file",
                 null,
                 "application/pdf",
-                "dummy-content".getBytes()
+                "dummy".getBytes()
         );
-
-        when(pdfValidationService.validateAndGetPageCount(file))
-                .thenReturn(1);
 
         assertThrows(
                 InvalidPdfException.class,
                 () -> uploadService.handleUpload(file)
         );
 
-        verify(jobService, never())
-                .createJob(any(), any());
-
-        verify(fileStorageService, never())
-                .storeSourcePdf(any(), any());
+        verifyNoInteractions(
+                jobService,
+                pdfValidationService,
+                fileStorageService
+        );
     }
 
+    // =========================================================
+    // SUCCESSFUL UPLOAD FLOW
+    // =========================================================
+
     @Test
-    void shouldRejectUploadWithBlankFilename() {
+    void shouldValidateCreateJobAndMoveFile() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "   ",
+                "sample.pdf",
                 "application/pdf",
-                "dummy-content".getBytes()
+                "dummy".getBytes()
         );
 
-        when(pdfValidationService.validateAndGetPageCount(file))
-                .thenReturn(1);
+        Path tempPath = Path.of("/tmp/upload-test.pdf");
 
-        assertThrows(
-                InvalidPdfException.class,
-                () -> uploadService.handleUpload(file)
-        );
+        Job job = new Job();
+        job.setId(42L);
 
-        verify(jobService, never())
-                .createJob(any(), any());
+        when(fileStorageService.storeTemporaryFile(file))
+                .thenReturn(tempPath);
 
-        verify(fileStorageService, never())
-                .storeSourcePdf(any(), any());
+        when(pdfValidationService.validateAndGetPageCount(tempPath))
+                .thenReturn(2);
+
+        when(jobService.createJob("sample.pdf", 2))
+                .thenReturn(job);
+
+        Job result = uploadService.handleUpload(file);
+
+        assertEquals(42L, result.getId());
+
+        verify(fileStorageService)
+                .storeTemporaryFile(file);
+
+        verify(pdfValidationService)
+                .validateAndGetPageCount(tempPath);
+
+        verify(jobService)
+                .createJob("sample.pdf", 2);
+
+        verify(fileStorageService)
+                .moveToJobDirectory(tempPath, 42L);
     }
 }

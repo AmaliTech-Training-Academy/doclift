@@ -11,36 +11,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import java.io.IOException;
+import java.nio.file.Path;
 
 @Service
 public class PdfValidationServiceImpl implements PdfValidationService {
 
-    private final long maxSizeBytes;
-
-    public PdfValidationServiceImpl(
-            @Value("${app.upload.max-size-bytes:10485760}") long maxSizeBytes
-    ) {
-        this.maxSizeBytes = maxSizeBytes;
-    }
-
-    public int validateAndGetPageCount(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new InvalidPdfException("The uploaded file is empty.");
-        }
-
-        //Defense-in-depth: Spring's multipart limit normally rejects oversized
-        //requests before this service, but this also protects direct/internal callers.
-        if (file.getSize() > maxSizeBytes) {
-            throw new FileTooLargeException(
-                    "The uploaded PDF exceeds the maximum allowed size."
-            );
-        }
-
-        if (!"application/pdf".equalsIgnoreCase(file.getContentType())) {
-            throw new InvalidPdfException("Only PDF files are supported.");
-        }
-
-        try (PDDocument document = Loader.loadPDF(file.getBytes())) {
+    @Override
+    public int validateAndGetPageCount(Path filePath) {
+        try (PDDocument document =
+                     Loader.loadPDF(filePath.toFile())) {
 
             if (document.isEncrypted()) {
                 throw new EncryptedPdfException(
