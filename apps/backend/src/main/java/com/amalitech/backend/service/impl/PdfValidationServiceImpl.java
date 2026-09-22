@@ -28,6 +28,8 @@ public class PdfValidationServiceImpl implements PdfValidationService {
             throw new InvalidPdfException("The uploaded file is empty.");
         }
 
+        //Defense-in-depth: Spring's multipart limit normally rejects oversized
+        //requests before this service, but this also protects direct/internal callers.
         if (file.getSize() > maxSizeBytes) {
             throw new FileTooLargeException(
                     "The uploaded PDF exceeds the maximum allowed size."
@@ -61,10 +63,10 @@ public class PdfValidationServiceImpl implements PdfValidationService {
                     "Encrypted or password-protected PDFs are not supported."
             );
 
-        } catch (EncryptedPdfException e) {
+        } catch (InvalidPdfException | EncryptedPdfException e) {
             throw e;
 
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             throw new InvalidPdfException(
                     "The uploaded file is not a valid PDF.",
                     e
