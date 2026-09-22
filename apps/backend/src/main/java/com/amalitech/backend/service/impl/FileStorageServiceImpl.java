@@ -25,10 +25,12 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Override
     public Path storeTemporaryFile(MultipartFile file) {
+        Path temporaryFile = null;
+
         try {
             Files.createDirectories(uploadRoot);
 
-            Path temporaryFile = Files.createTempFile(
+            temporaryFile = Files.createTempFile(
                     uploadRoot,
                     "upload-",
                     ".pdf"
@@ -43,6 +45,15 @@ public class FileStorageServiceImpl implements FileStorageService {
             return temporaryFile;
 
         } catch (IOException e) {
+
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException cleanupException) {
+                    e.addSuppressed(cleanupException);
+                }
+            }
+
             throw new IllegalStateException(
                     "Failed to store uploaded PDF.",
                     e

@@ -181,4 +181,40 @@ class UploadServiceTest {
         verify(fileStorageService)
                 .moveToJobDirectory(tempPath, 42L);
     }
+
+    @Test
+    void shouldMarkJobFailedWhenFinalStorageFails() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "sample.pdf",
+                "application/pdf",
+                "dummy".getBytes()
+        );
+
+        Path tempPath = Path.of("/tmp/upload-test.pdf");
+
+        Job job = new Job();
+        job.setId(42L);
+
+        when(fileStorageService.storeTemporaryFile(file))
+                .thenReturn(tempPath);
+
+        when(pdfValidationService.validateAndGetPageCount(tempPath))
+                .thenReturn(1);
+
+        when(jobService.createJob("sample.pdf", 1))
+                .thenReturn(job);
+
+        doThrow(new IllegalStateException("Storage failed"))
+                .when(fileStorageService)
+                .moveToJobDirectory(tempPath, 42L);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> uploadService.handleUpload(file)
+        );
+
+        verify(jobService).markFailed(42L);
+        verify(fileStorageService).deleteIfExists(tempPath);
+    }
 }

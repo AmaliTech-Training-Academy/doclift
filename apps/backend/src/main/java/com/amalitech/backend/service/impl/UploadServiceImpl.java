@@ -66,17 +66,16 @@ public class UploadServiceImpl implements UploadService {
         }
 
         Path temporaryFile = null;
+        Job job = null;
 
         try {
             temporaryFile =
                     fileStorageService.storeTemporaryFile(file);
 
             int pageCount =
-                    pdfValidationService.validateAndGetPageCount(
-                            temporaryFile
-                    );
+                    pdfValidationService.validateAndGetPageCount(temporaryFile);
 
-            Job job = jobService.createJob(
+            job = jobService.createJob(
                     originalFilename,
                     pageCount
             );
@@ -91,6 +90,11 @@ public class UploadServiceImpl implements UploadService {
             return job;
 
         } catch (RuntimeException e) {
+
+            if (job != null) {
+                jobService.markFailed(job.getId());
+            }
+
             if (temporaryFile != null) {
                 fileStorageService.deleteIfExists(temporaryFile);
             }
