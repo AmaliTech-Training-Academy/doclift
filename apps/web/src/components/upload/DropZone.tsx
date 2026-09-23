@@ -211,14 +211,14 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
                 "group relative w-full p-8 sm:p-10 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 select-none",
                 "bg-blue-50/40 border-blue-200/80 hover:bg-blue-50/80 hover:border-blue-400 hover:shadow-xs",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-                isDragActive && "border-blue-500 bg-blue-100/70 scale-[1.01] shadow-lg"
+                isDragActive && "border-primary bg-blue-100/70 scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">
                 {children}
             </div>
             <div className="mt-4 pointer-events-none">
-                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 text-xs sm:text-sm font-semibold shadow-2xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
+                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-primary-background text-primary text-xs sm:text-sm font-semibold shadow-2xs group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-200">
                     <Upload className="size-4" />
                     <span>Choose PDF File</span>
                 </span>

@@ -25,6 +25,7 @@ const ProgressScreen = () => {
         timeElapsed={timeElapsed}
         timeRemaining={timeRemaining}
       />
+
       <ProgressCard />
     </div>
   );
