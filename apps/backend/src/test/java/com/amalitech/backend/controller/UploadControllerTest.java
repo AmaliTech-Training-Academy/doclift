@@ -45,7 +45,7 @@ class UploadControllerTest {
                 .thenReturn(job);
 
         mockMvc.perform(
-                        multipart("/api/v1/upload")
+                        multipart("/upload")
                                 .file(file)
                 )
                 .andExpect(status().isCreated())
@@ -72,7 +72,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/api/v1/upload")
+                        multipart("/upload")
                                 .file(file)
                 )
                 .andExpect(status().isBadRequest())
@@ -101,7 +101,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/api/v1/upload")
+                        multipart("/upload")
                                 .file(file)
                 )
                 .andExpect(status().isBadRequest())
@@ -130,7 +130,7 @@ class UploadControllerTest {
                 ));
 
         mockMvc.perform(
-                        multipart("/api/v1/upload")
+                        multipart("/upload")
                                 .file(file)
                 )
                 .andExpect(status().isPayloadTooLarge())
@@ -147,7 +147,7 @@ class UploadControllerTest {
     @Test
     void shouldReturnBadRequestWhenFilePartIsMissing() throws Exception {
         mockMvc.perform(
-                        multipart("/api/v1/upload")
+                        multipart("/upload")
                 )
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("MISSING_FILE"))
