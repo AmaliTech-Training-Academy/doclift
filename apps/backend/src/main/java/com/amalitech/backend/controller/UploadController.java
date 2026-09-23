@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
-@RequestMapping("/upload")
+@RequestMapping("/api/v1/uploads")
 @Tag(
         name = "PDF Upload",
         description = "Endpoints for uploading PDF documents"
