@@ -5,7 +5,7 @@ import UploadScreen from "@/components/upload/UploadScreen";
 import ProgressScreen from "@/components/progress/ProgressScreen";
 import ResultsScreen from "@/components/results/ResultsScreen";
 import { useConversion } from "@/context/ConversionContext";
-import { getConversionSession } from "@/lib/conversionSession";
+import { getConversionSession, clearConversionSession } from "@/lib/conversionSession";
 
 export default function Home() {
     const { resetKey, activeView, setActiveView, setSession } = useConversion();
@@ -25,6 +25,7 @@ export default function Home() {
         } else if (session.status === "done") {
             setActiveView("result");
         } else if (session.status === "failed" || session.status === "expired") {
+            clearConversionSession();
             setSession(null);
             setActiveView("upload");
         }

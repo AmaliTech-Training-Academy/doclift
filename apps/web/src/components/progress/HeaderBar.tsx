@@ -23,6 +23,8 @@ function formatTime(seconds: number): string {
 const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
   const { session, setActiveView } = useConversion();
 
+  const isDone = session?.status === "done";
+
   const fileName = file?.name || session?.fileName || "Untitled document";
   const sourceFileName = fileName;
   const targetFileName = fileName.endsWith(".docx")
@@ -63,8 +65,17 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               {/* Target File */}
               <button
                 type="button"
-                onClick={() => setActiveView("result")}
-                className="cursor-pointer rounded-lg shadow-lg border border-blue-300 transition-all hover:scale-101 hover:opacity-80 text-left min-w-0 flex-1"
+                disabled={!isDone}
+                onClick={() => {
+                  if (isDone) {
+                    setActiveView("result");
+                  }
+                }}
+                className={`text-left min-w-0 flex-1 rounded-lg border transition-all ${
+                  isDone
+                    ? "cursor-pointer border-blue-300 shadow-lg hover:scale-101 hover:opacity-80"
+                    : "cursor-not-allowed border-gray-200 opacity-60"
+                }`}
                 aria-label={`Open ${targetFileName}`}
               >
                 <FileInfoCard

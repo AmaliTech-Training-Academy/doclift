@@ -40,12 +40,28 @@ describe("HeaderBar", () => {
     expect(screen.getByText("~1:30s remaining")).toBeInTheDocument();
   });
 
-  it("switches to the result view when the target file is clicked", async () => {
+  it("disables the target file button until conversion is done", async () => {
     const user = userEvent.setup();
 
     function ActiveViewProbe() {
-      const { activeView } = useConversion();
-      return <p>active:{activeView}</p>;
+      const { activeView, setSession } = useConversion();
+      return (
+        <div>
+          <p>active:{activeView}</p>
+          <button
+            onClick={() =>
+              setSession({
+                jobId: "j1",
+                fileName: "doc.pdf",
+                status: "done",
+                updatedAt: Date.now(),
+              })
+            }
+          >
+            mark done
+          </button>
+        </div>
+      );
     }
 
     renderWithProvider(
@@ -55,12 +71,14 @@ describe("HeaderBar", () => {
       </>,
     );
 
-    expect(screen.getByText("active:upload")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Open Untitled document.docx" });
+    expect(button).toBeDisabled();
 
-    await user.click(
-      screen.getByRole("button", { name: "Open Untitled document.docx" }),
-    );
+    await user.click(screen.getByRole("button", { name: "mark done" }));
 
+    expect(button).not.toBeDisabled();
+
+    await user.click(button);
     expect(screen.getByText("active:result")).toBeInTheDocument();
   });
 });
