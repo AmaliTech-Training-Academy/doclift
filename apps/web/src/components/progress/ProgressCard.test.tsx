@@ -26,6 +26,15 @@ vi.mock("sonner", () => ({
 
 import ProgressCard from "./ProgressCard";
 import { toast } from "sonner";
+import { ConversionProvider } from "@/context/ConversionContext";
+
+function renderWithProvider() {
+  return render(
+    <ConversionProvider>
+      <ProgressCard />
+    </ConversionProvider>,
+  );
+}
 
 function emitProgress(overrides: Partial<PipelineProgress> = {}) {
   const state: PipelineProgress = {
@@ -48,7 +57,7 @@ describe("ProgressCard", () => {
   });
 
   it("renders the initial state at 0% on phase 1", () => {
-    render(<ProgressCard />);
+    renderWithProvider();
 
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("Phase 1 of 5:")).toBeInTheDocument();
@@ -58,7 +67,7 @@ describe("ProgressCard", () => {
   });
 
   it("reflects progress reported by the stepper", () => {
-    render(<ProgressCard />);
+    renderWithProvider();
 
     emitProgress({ activeIndex: 2, overallPercent: 45 });
 
@@ -72,7 +81,7 @@ describe("ProgressCard", () => {
   });
 
   it("shows the final phase description and a check icon once the last phase is reached", () => {
-    render(<ProgressCard />);
+    renderWithProvider();
 
     emitProgress({ activeIndex: 4, overallPercent: 95 });
 
@@ -84,7 +93,7 @@ describe("ProgressCard", () => {
 
   it("cancels the conversion when the cancel button is clicked", async () => {
     const user = userEvent.setup();
-    render(<ProgressCard />);
+    renderWithProvider();
 
     const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
     await user.click(cancelButton);
@@ -98,7 +107,7 @@ describe("ProgressCard", () => {
 
   it("ignores repeated cancel clicks", async () => {
     const user = userEvent.setup();
-    render(<ProgressCard />);
+    renderWithProvider();
 
     const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
     await user.click(cancelButton);
@@ -109,7 +118,7 @@ describe("ProgressCard", () => {
   });
 
   it("disables the button and shows completion copy once the pipeline is done", () => {
-    render(<ProgressCard />);
+    renderWithProvider();
 
     emitProgress({ activeIndex: 5, overallPercent: 100, done: true });
 
@@ -119,7 +128,7 @@ describe("ProgressCard", () => {
   });
 
   it("renders the error state card when the pipeline reports an error", () => {
-    render(<ProgressCard />);
+    renderWithProvider();
 
     emitProgress({ error: "Something went wrong" });
 
@@ -127,7 +136,7 @@ describe("ProgressCard", () => {
   });
 
   it("does not render the error state card by default", () => {
-    render(<ProgressCard />);
+    renderWithProvider();
 
     expect(
       screen.queryByRole("heading", { name: "Error" }),

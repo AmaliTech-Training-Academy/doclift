@@ -25,7 +25,11 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
 
   const fileName = file?.name || session?.fileName || "Untitled document";
   const sourceFileName = fileName;
-  const targetFileName = fileName.replace(/\.[^./]+$/, ".docx");
+  const targetFileName = fileName.endsWith(".docx")
+    ? fileName
+    : fileName.includes(".")
+    ? fileName.replace(/\.[^./]+$/, ".docx")
+    : `${fileName}.docx`;
   const sourceFileDescription = file
     ? `PDF Document • ${formatFileSize(file.size)}`
     : session?.fileName

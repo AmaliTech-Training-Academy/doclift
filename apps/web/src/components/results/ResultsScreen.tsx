@@ -17,7 +17,7 @@ export default function ResultsScreen() {
             {/* Header row */}
             <div className="bg-white w-full mx-auto max-w-5xl flex flex-col space-y-4 p-4 rounded-xl">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 min-w-0 flex-1">
                         <div className="w-fit flex flex-col text-sm sm:flex-row gap-2 bg-blue-100 p-2 rounded-xl sm:items-center">
                             <div className="text-blue-600 flex items-center gap-2">
                                 <CircleCheck className="size-3" />
@@ -43,7 +43,7 @@ export default function ResultsScreen() {
                             </div>
                         </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
+                    <div className="flex flex-col flex-nowrap sm:flex-row gap-2 sm:w-auto w-full shrink-0">
                         <Button variant="secondary" onClick={reset}>
                             <RotateCw className="size-4" />
                             <span>Convert Another File</span>
