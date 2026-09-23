@@ -11,8 +11,10 @@ import {
 } from "../ui/Stepper";
 import Button from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
+import { useConversion } from "@/context/ConversionContext";
 
 const ProgressCard = () => {
+  const { reset: resetConversion } = useConversion();
   const stepperRef = useRef<VerticalStepperDemoHandle>(null);
   const [cancelled, setCancelled] = useState(false);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
@@ -30,6 +32,7 @@ const ProgressCard = () => {
     setCancelled(false);
     setProgress(null);
     stepperRef.current?.reset?.();
+    resetConversion();
   };
 
   const handleProgress = useCallback((state: PipelineProgress) => {

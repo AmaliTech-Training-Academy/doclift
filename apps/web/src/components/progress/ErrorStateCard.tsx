@@ -1,3 +1,4 @@
+"use client";
 import { useEffect } from "react";
 import { Card } from "../ui/Card";
 import { TriangleAlert } from "lucide-react";
@@ -13,6 +14,12 @@ const ErrorStateCard = ({
   useEffect(() => {
     if (error) console.error(error);
   }, [error]);
+
+  const handleRetry = () => {
+    reset?.();
+    window.location.reload();
+  };
+
   return (
     <div>
       {/* Error State Card */}
@@ -26,7 +33,7 @@ const ErrorStateCard = ({
             An error has occurred. Please try again later.
           </p>
         </div>
-        <Button variant="danger" className="self-center" onClick={reset}>
+        <Button variant="danger" className="self-center" onClick={handleRetry}>
           Retry
         </Button>
       </Card>
