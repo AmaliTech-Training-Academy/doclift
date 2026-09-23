@@ -45,7 +45,7 @@ export default function PreservationCard({ item }: PreservationCardProps) {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                 PDF Input
                             </span>
-                            <span className="text-xs font-medium text-slate-700">
+                            <span className="text-sm font-medium text-slate-700">
                                 {item.comparison.original}
                             </span>
                         </div>

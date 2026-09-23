@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { useEffect } from "react";
 import ProgressScreen from "./ProgressScreen";
 import { ConversionProvider, useConversion } from "@/context/ConversionContext";
@@ -44,5 +44,45 @@ describe("ProgressScreen", () => {
     );
 
     expect(screen.getByTestId("header-bar")).toHaveTextContent("contract.pdf");
+  });
+
+  it("automatically navigates to the result view 2 seconds after conversion is done", () => {
+    vi.useFakeTimers();
+
+    function ViewProbe() {
+      const { activeView, setSession } = useConversion();
+
+      useEffect(() => {
+        setSession({
+          jobId: "j1",
+          fileName: "doc.pdf",
+          status: "done",
+          updatedAt: Date.now(),
+        });
+      }, [setSession]);
+
+      return (
+        <div>
+          <ProgressScreen />
+          <p>active:{activeView}</p>
+        </div>
+      );
+    }
+
+    render(
+      <ConversionProvider>
+        <ViewProbe />
+      </ConversionProvider>,
+    );
+
+    expect(screen.getByText("active:upload")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(screen.getByText("active:result")).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 });

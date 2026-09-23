@@ -13,6 +13,8 @@ import Button from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 import { useConversion } from "@/context/ConversionContext";
 
+import { useConversion } from "@/context/ConversionContext";
+
 const ProgressCard = () => {
   const { reset: resetConversion } = useConversion();
   const stepperRef = useRef<VerticalStepperDemoHandle>(null);
@@ -25,6 +27,7 @@ const ProgressCard = () => {
     if (cancelled) return;
     stepperRef.current?.cancel();
     setCancelled(true);
+    updateStatus("failed");
     toast.error("Conversion cancelled");
   };
 
@@ -37,7 +40,12 @@ const ProgressCard = () => {
 
   const handleProgress = useCallback((state: PipelineProgress) => {
     setProgress(state);
-  }, []);
+    if (state.error || state.cancelled) {
+      updateStatus("failed");
+    } else if (state.done) {
+      updateStatus("done");
+    }
+  }, [updateStatus]);
 
   const overallPercent = progress?.overallPercent ?? 0;
 
@@ -106,7 +114,7 @@ const ProgressCard = () => {
             ) : (
               <Spinner className="w-4 h-4 text-primary" />
             )}
-            <p className="font-bold text-xs">
+            <p className="font-bold text-sm">
               Phase {currentStepIndex + 1} of {totalSteps}:
             </p>
           </div>
@@ -126,7 +134,7 @@ const ProgressCard = () => {
             </div>
             <div className="flex flex-col">
               <p className="font-bold">Native Flow Fidelity Guarantee</p>
-              <p className="text-xs ">
+              <p className="text-sm ">
                 DocLift reconstructs actual Word document objects (tables,
                 paragraphs, list definitions) rather than static text boxes.
                 Once finished, document text reflows naturally when edited in

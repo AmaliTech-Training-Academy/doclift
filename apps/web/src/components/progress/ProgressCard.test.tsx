@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { forwardRef, useImperativeHandle } from "react";
+import { forwardRef, useImperativeHandle, useEffect } from "react";
 import type { PipelineProgress } from "../ui/Stepper";
+import { useConversion } from "../../context/ConversionContext";
+import type { ConversionSession } from "@/lib/conversionSession";
 
 const stepperMocks = vi.hoisted(() => ({
   onProgress: undefined as ((state: PipelineProgress) => void) | undefined,
@@ -28,7 +30,7 @@ import ProgressCard from "./ProgressCard";
 import { toast } from "sonner";
 import { ConversionProvider } from "@/context/ConversionContext";
 
-function renderProgressCard() {
+function renderWithProvider() {
   return render(
     <ConversionProvider>
       <ProgressCard />
@@ -58,7 +60,7 @@ describe("ProgressCard", () => {
   });
 
   it("renders the initial state at 0% on phase 1", () => {
-    renderProgressCard();
+    renderWithProvider();
 
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("Phase 1 of 5:")).toBeInTheDocument();
@@ -68,7 +70,7 @@ describe("ProgressCard", () => {
   });
 
   it("reflects progress reported by the stepper", () => {
-    renderProgressCard();
+    renderWithProvider();
 
     emitProgress({ activeIndex: 2, overallPercent: 45 });
 
@@ -82,7 +84,7 @@ describe("ProgressCard", () => {
   });
 
   it("shows the final phase description and a check icon once the last phase is reached", () => {
-    renderProgressCard();
+    renderWithProvider();
 
     emitProgress({ activeIndex: 4, overallPercent: 95 });
 
@@ -94,7 +96,7 @@ describe("ProgressCard", () => {
 
   it("cancels the conversion when the cancel button is clicked", async () => {
     const user = userEvent.setup();
-    renderProgressCard();
+    renderWithProvider();
 
     const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
     await user.click(cancelButton);
@@ -108,7 +110,7 @@ describe("ProgressCard", () => {
 
   it("ignores repeated cancel clicks", async () => {
     const user = userEvent.setup();
-    renderProgressCard();
+    renderWithProvider();
 
     const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
     await user.click(cancelButton);
@@ -119,7 +121,7 @@ describe("ProgressCard", () => {
   });
 
   it("disables the button and shows completion copy once the pipeline is done", () => {
-    renderProgressCard();
+    renderWithProvider();
 
     emitProgress({ activeIndex: 5, overallPercent: 100, done: true });
 
@@ -128,16 +130,44 @@ describe("ProgressCard", () => {
     ).toBeDisabled();
   });
 
-  it("renders the error state card when the pipeline reports an error", () => {
-    renderProgressCard();
+  it("renders the error state card and updates session status to failed when the pipeline reports an error", () => {
+    function StatusProbe({
+      onSession,
+    }: {
+      onSession: (session: ConversionSession | null) => void;
+    }) {
+      const { session, startConversion } = useConversion();
+
+      useEffect(() => {
+        if (!session) {
+          startConversion(
+            new File(["test"], "sample.pdf", { type: "application/pdf" }),
+          );
+        }
+      }, [session, startConversion]);
+
+      useEffect(() => {
+        onSession(session);
+      }, [session, onSession]);
+
+      return <ProgressCard />;
+    }
+
+    const tracker = { session: null as ConversionSession | null };
+    render(
+      <ConversionProvider>
+        <StatusProbe onSession={(s) => (tracker.session = s)} />
+      </ConversionProvider>,
+    );
 
     emitProgress({ error: "Something went wrong" });
 
     expect(screen.getByRole("heading", { name: "Error" })).toBeInTheDocument();
+    expect(tracker.session?.status).toBe("failed");
   });
 
   it("does not render the error state card by default", () => {
-    renderProgressCard();
+    renderWithProvider();
 
     expect(
       screen.queryByRole("heading", { name: "Error" }),

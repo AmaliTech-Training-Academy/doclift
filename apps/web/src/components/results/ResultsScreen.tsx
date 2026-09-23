@@ -10,10 +10,8 @@ import { useConversion } from "@/context/ConversionContext";
 
 
 export default function ResultsScreen() {
-    const { setActiveView, file } = useConversion();
-    const targetFileName = file
-    ? file.name.replace(/\.[^./]+$/, ".docx")
-    : "Untitled document.docx";
+    const { reset, session } = useConversion();
+    const docxTitle = session?.fileName ? session.fileName.replace(/\.[^./]+$/, ".docx") : "Word Document.docx";
 
     return (
         <div className="flex-1 space-y-4 p-4">
@@ -30,14 +28,17 @@ export default function ResultsScreen() {
                             <span className="text-black">Your Word document is ready for download</span>
                         </div>
                         <div className="flex flex-col space-y-1 min-w-0">
-                            <p className="text-base sm:text-xl font-semibold truncate text-wrap">
-                                {targetFileName}
-                            </p>
+                            <h1 className="text-2xl font-regular sm:font-semibold truncate">{docxTitle}</h1>
                             <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-xs sm:text-sm bg-primary-background rounded-lg w-fit px-2 py-1 text-primary">
                                     <span>Converted Word Document</span>
                                 </div>
-                                <p className="text-xs sm:text-sm text-muted-foreground">
+                                {session?.jobId && (
+                                    <span className="text-xs bg-gray-100 text-gray-600 font-mono px-2 py-1 rounded-md">
+                                        ID: {session.jobId}
+                                    </span>
+                                )}
+                                <p className="text-sm sm:text-md text-muted-foreground">
                                     File size • 2 Pages • 20s conversion time
                                 </p>
                             </div>
@@ -45,6 +46,8 @@ export default function ResultsScreen() {
                     </div>
                     <div className="flex flex-col md:mt-8 gap-2 sm:w-fit w-full">
                         <Button variant="secondary" onClick={() => setActiveView('upload')}>
+                    <div className="flex flex-col flex-nowrap sm:flex-row gap-2 sm:w-auto w-full shrink-0">
+                        <Button variant="secondary" onClick={reset}>
                             <RotateCw className="size-4" />
                             <span className="truncate">Convert Another File</span>
                         </Button>
@@ -60,10 +63,10 @@ export default function ResultsScreen() {
             <div className="w-full mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Left — Structural Conversion Checklist */}
                 <div className="flex flex-col space-y-3 bg-white p-4 rounded-xl">
-                    <div className="flex flex-row justify-between items-center mb-1">
+                    <div className="flex flex-row justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                             <ListChecks className="size-5 text-primary shrink-0" />
-                            <h2 className="font-semibold text-base">Structural Conversion Checklist</h2>
+                            <h2 className="font-semibold text-2xl">Conversion Checklist</h2>
                         </div>
                         <span className="text-xs text-muted-foreground">Deterministic AST Validation</span>
                     </div>
@@ -74,7 +77,7 @@ export default function ResultsScreen() {
 
                 {/* Right — Factual Fidelity Metrics */}
                 <div className="flex flex-col space-y-3 bg-white p-4 rounded-xl">
-                    <div className="flex flex-row justify-between items-center mb-1">
+                    <div className="flex flex-row justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                             <ChartLine className="size-5 text-primary shrink-0" />
                             <h2 className="font-semibold text-base">Factual Fidelity Metrics</h2>
