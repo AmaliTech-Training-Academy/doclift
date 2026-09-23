@@ -152,6 +152,10 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         for (COSName resourceName : resources.getXObjectNames()) {
             PDXObject xObject = resources.getXObject(resourceName);
+            if (xObject == null) {
+                continue;
+            }
+
             COSBase xObjectKey = xObject.getCOSObject();
             if (!visited.add(xObjectKey)) {
                 continue;

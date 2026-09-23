@@ -6,5 +6,5 @@ Content-Type: multipart/form-data; boundary=WebAppBoundary
 Content-Disposition: form-data; name="file"; filename="minimal-document.pdf"
 Content-Type: application/pdf
 
-< /Users/NanaKwameAdi/IdeaProjects/doclift/apps/backend/src/main/resources/sample-files-main/001-trivial/minimal-document.pdf
+< ../../../../resources/sample-files-main/001-trivial/minimal-document.pdf
 --WebAppBoundary--
