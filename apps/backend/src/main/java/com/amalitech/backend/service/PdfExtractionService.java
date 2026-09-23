@@ -1,6 +1,5 @@
-package com.amalitech.backend.service.interfaces;
+package com.amalitech.backend.service;
 
-import com.amalitech.backend.service.PdfExtractionResult;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 import java.io.IOException;

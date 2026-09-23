@@ -1,4 +1,4 @@
-package com.amalitech.backend.service.implementation;
+package com.amalitech.backend.service.impl;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSName;
@@ -17,7 +17,7 @@ import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.PdfExtractionResult;
 import com.amalitech.backend.service.TableRegion;
 import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.interfaces.PdfExtractionService;
+import com.amalitech.backend.service.PdfExtractionService;
 
 import java.io.IOException;
 import java.io.InputStream;

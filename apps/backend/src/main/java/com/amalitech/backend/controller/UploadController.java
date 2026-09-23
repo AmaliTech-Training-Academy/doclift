@@ -2,7 +2,7 @@ package com.amalitech.backend.controller;
 
 import com.amalitech.backend.dto.response.UploadResponse;
 import com.amalitech.backend.model.Job;
-import com.amalitech.backend.service.interfaces.UploadService;
+import com.amalitech.backend.service.UploadService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
