@@ -51,7 +51,7 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               <div className="min-w-0 flex-1">
                 <FileInfoCard
                   icon={FileInput}
-                  iconClassName="text-red-600"
+                  iconClassName="text-destructive"
                   iconContainerClassName="bg-red-100"
                   name={sourceFileName}
                   description={sourceFileDescription}
@@ -59,52 +59,43 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               </div>
               {/* Arrow Indicator  */}
               <div className="flex flex-col items-center justify-center gap-1 p-1 shrink-0">
-                <ArrowRight className="size-5 sm:size-6 text-blue-400 rotate-90 sm:rotate-0" />
-                <p className="text-xs hidden sm:block tracking-widest text-slate-400">DOCX</p>
+                <ArrowRight className="size-5 sm:size-6 text-primary rotate-90 sm:rotate-0" />
+                <p className="text-[10px] sm:text-xs hidden sm:block tracking-widest text-muted-foreground">DOCX</p>
               </div>
               {/* Target File */}
               <button
                 type="button"
-                disabled={!isDone}
-                onClick={() => {
-                  if (isDone) {
-                    setActiveView("result");
-                  }
-                }}
-                className={`text-left min-w-0 flex-1 rounded-lg border transition-all ${
-                  isDone
-                    ? "cursor-pointer border-blue-300 shadow-lg hover:scale-101 hover:opacity-80"
-                    : "cursor-not-allowed border-gray-200 opacity-60"
-                }`}
+                onClick={() => setActiveView("result")}
+                className="cursor-pointer rounded-lg shadow-lg border border-primary transition-all hover:scale-101 hover:opacity-80 text-left min-w-0 flex-1"
                 aria-label={`Open ${targetFileName}`}
               >
                 <FileInfoCard
                   icon={FileTypeCorner}
-                  iconClassName="text-blue-600"
-                  iconContainerClassName="bg-blue-200"
+                  iconClassName="text-primary"
+                  iconContainerClassName="bg-primary-background"
                   name={targetFileName}
                   description={targetFileDescription}
                 />
               </button>
             </div>
             {/* Right: Time */}
-            <div className="flex items-center justify-center sm:justify-end gap-3 sm:gap-4 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+            <div className="flex items-center justify-center sm:justify-end gap-3 sm:gap-4 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-muted">
               {/* Time elapsed */}
               <div className="flex flex-col items-center sm:items-end justify-center">
-                <p className="text-xs sm:text-sm text-[#434655] whitespace-nowrap">
+                <p className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                   Time Elapsed
                 </p>
                 <p className="text-sm sm:text-base font-medium whitespace-nowrap">{formatTime(timeElapsed)} elapsed</p>
               </div>
               {/* Divider */}
-              <div className="border-l border-gray-300 h-8 mx-1 sm:mx-2"></div>
+              <div className="border-l border-muted-foreground h-8 mx-1 sm:mx-2"></div>
               {/* Time remaining */}
               <div className="flex flex-col items-center sm:items-start justify-center">
-                <p className="text-xs sm:text-sm text-[#434655] whitespace-nowrap">
+                <p className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                   Estimated Time Remaining
                 </p>
                 <div className="flex gap-2 items-center justify-center whitespace-nowrap">
-                  <Timer className="size-4 sm:size-5 text-gray-600 shrink-0" />
+                  <Timer className="size-4 sm:size-5 text-muted-foreground shrink-0" />
                   <p className="text-sm sm:text-base font-medium">~{formatTime(timeRemaining)}s remaining</p>
                 </div>
               </div>

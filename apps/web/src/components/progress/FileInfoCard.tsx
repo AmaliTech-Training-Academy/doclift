@@ -16,7 +16,7 @@ const FileInfoCard = ({
   name = "Untitled document",
   description = "No file selected",
 }: FileInfoCardProps) => (
-  <div className="flex items-center gap-3 bg-blue-50 rounded-lg p-3 sm:p-4 min-w-0 max-w-full">
+  <div className="flex items-center gap-3 bg-secondary rounded-lg p-3 sm:p-4 min-w-0 max-w-full">
     <div
       className={`flex items-center justify-center rounded-lg p-3 sm:p-4 shrink-0 ${iconContainerClassName}`}
     >
@@ -24,12 +24,12 @@ const FileInfoCard = ({
     </div>
     <div className="flex flex-col min-w-0 flex-1">
       <h2
-        className="text-sm sm:text-base font-semibold text-gray-900 truncate"
+        className="text-sm sm:text-base font-semibold text-foreground truncate"
         title={name}
       >
         {name}
       </h2>
-      <CardDescription className="text-[11px] sm:text-sm text-gray-500 truncate">
+      <CardDescription className="text-[11px] sm:text-sm text-muted-foreground truncate">
         {description}
       </CardDescription>
     </div>

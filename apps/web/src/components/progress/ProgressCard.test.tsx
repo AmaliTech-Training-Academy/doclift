@@ -56,6 +56,7 @@ describe("ProgressCard", () => {
     stepperMocks.cancel.mockClear();
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.success).mockClear();
+    localStorage.clear();
   });
 
   it("renders the initial state at 0% on phase 1", () => {
@@ -171,5 +172,19 @@ describe("ProgressCard", () => {
     expect(
       screen.queryByRole("heading", { name: "Error" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("resets the active view to upload when retrying from the error state", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload: vi.fn() },
+    });
+    renderProgressCard();
+
+    emitProgress({ error: "Something went wrong" });
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(localStorage.getItem("activeView")).toBe("upload");
   });
 });

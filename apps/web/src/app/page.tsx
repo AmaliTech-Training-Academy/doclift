@@ -31,11 +31,15 @@ export default function Home() {
         }
     }, [setActiveView, setSession]);
 
-    return (
-        <main className="min-h-dvh flex flex-col">
-            {activeView === "upload" && <UploadScreen key={resetKey} />}
-            {activeView === "progress" && <ProgressScreen />}
-            {activeView === "result" && <ResultsScreen />}
-        </main>
-    );
+  const { reset } = useConversion();
+
+  return (
+  
+    <main className="min-h-dvh flex flex-col">
+      {activeView === "upload" && <UploadScreen key={resetKey} />}
+      {activeView === "progress" && <ProgressScreen />}
+      {activeView === "result" && <ResultsScreen />}
+    </main>
+  
+  );
 }

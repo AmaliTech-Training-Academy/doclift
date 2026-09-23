@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
 import {
     ConversionSession,
     ConversionStatus,
@@ -94,7 +100,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 }
 
 export function useConversion() {
-    const ctx = useContext(ConversionContext);
-    if (!ctx) throw new Error("useConversion must be used within ConversionProvider");
-    return ctx;
+  const ctx = useContext(ConversionContext);
+  if (!ctx)
+    throw new Error("useConversion must be used within ConversionProvider");
+  return ctx;
 }
