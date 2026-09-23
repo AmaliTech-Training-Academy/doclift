@@ -113,4 +113,24 @@ describe("useConversion", () => {
     expect((session as ConversionSession | null)?.fileName).toBe("doc.pdf");
     expect(result.current.activeView).toBe("progress");
   });
+
+  it("resetKeepFile clears session and returns to upload view while retaining the uploaded file", () => {
+    const { result } = renderHook(() => useConversion(), { wrapper });
+    const file = new File(["hello"], "hello.pdf", { type: "application/pdf" });
+
+    act(() => {
+      result.current.startConversion(file);
+    });
+
+    act(() => {
+      result.current.updateStatus("failed");
+    });
+
+    expect(result.current.session?.status).toBe("failed");
+
+    act(() => result.current.resetKeepFile());
+
+    expect(result.current.session).toBeNull();
+    expect(result.current.activeView).toBe("upload");
+  });
 });

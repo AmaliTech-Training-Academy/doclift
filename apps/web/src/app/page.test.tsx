@@ -69,11 +69,29 @@ describe("Home", () => {
     expect(screen.queryByTestId("upload-screen")).not.toBeInTheDocument();
   });
 
-  it("cleans up terminal 'failed' or 'expired' sessions and renders the upload screen", () => {
+  it("recovers stored 'failed' session and renders the progress screen", () => {
     saveConversionSession({
       jobId: "job_failed",
       fileName: "report.pdf",
       status: "failed",
+      updatedAt: Date.now(),
+    });
+
+    render(
+      <ConversionProvider>
+        <Home />
+      </ConversionProvider>,
+    );
+
+    expect(screen.getByTestId("progress-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("upload-screen")).not.toBeInTheDocument();
+  });
+
+  it("cleans up expired sessions and renders the upload screen", () => {
+    saveConversionSession({
+      jobId: "job_expired",
+      fileName: "report.pdf",
+      status: "expired",
       updatedAt: Date.now(),
     });
 

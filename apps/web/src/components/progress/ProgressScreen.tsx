@@ -18,14 +18,17 @@ const ProgressScreen = () => {
     }
   }, [session?.status, setActiveView]);
 
+  const isFailed = session?.status === "failed";
+
   return (
     <div className="w-full flex-1 px-4 py-2">
-      <HeaderBar
-        file={file}
-        timeElapsed={timeElapsed}
-        timeRemaining={timeRemaining}
-      />
-
+      {!isFailed && (
+        <HeaderBar
+          file={file}
+          timeElapsed={timeElapsed}
+          timeRemaining={timeRemaining}
+        />
+      )}
       <ProgressCard />
     </div>
   );
