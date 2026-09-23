@@ -43,4 +43,4 @@ const ErrorStateCard = ({
 };
 
 export default ErrorStateCard;
-export default ErrorStateCard;
+
