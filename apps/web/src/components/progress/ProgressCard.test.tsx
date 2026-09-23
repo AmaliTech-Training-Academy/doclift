@@ -26,6 +26,15 @@ vi.mock("sonner", () => ({
 
 import ProgressCard from "./ProgressCard";
 import { toast } from "sonner";
+import { ConversionProvider } from "@/context/ConversionContext";
+
+function renderProgressCard() {
+  return render(
+    <ConversionProvider>
+      <ProgressCard />
+    </ConversionProvider>,
+  );
+}
 
 function emitProgress(overrides: Partial<PipelineProgress> = {}) {
   const state: PipelineProgress = {
@@ -45,10 +54,11 @@ describe("ProgressCard", () => {
     stepperMocks.cancel.mockClear();
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.success).mockClear();
+    localStorage.clear();
   });
 
   it("renders the initial state at 0% on phase 1", () => {
-    render(<ProgressCard />);
+    renderProgressCard();
 
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("Phase 1 of 5:")).toBeInTheDocument();
@@ -58,7 +68,7 @@ describe("ProgressCard", () => {
   });
 
   it("reflects progress reported by the stepper", () => {
-    render(<ProgressCard />);
+    renderProgressCard();
 
     emitProgress({ activeIndex: 2, overallPercent: 45 });
 
@@ -72,7 +82,7 @@ describe("ProgressCard", () => {
   });
 
   it("shows the final phase description and a check icon once the last phase is reached", () => {
-    render(<ProgressCard />);
+    renderProgressCard();
 
     emitProgress({ activeIndex: 4, overallPercent: 95 });
 
@@ -84,7 +94,7 @@ describe("ProgressCard", () => {
 
   it("cancels the conversion when the cancel button is clicked", async () => {
     const user = userEvent.setup();
-    render(<ProgressCard />);
+    renderProgressCard();
 
     const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
     await user.click(cancelButton);
@@ -98,7 +108,7 @@ describe("ProgressCard", () => {
 
   it("ignores repeated cancel clicks", async () => {
     const user = userEvent.setup();
-    render(<ProgressCard />);
+    renderProgressCard();
 
     const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
     await user.click(cancelButton);
@@ -109,7 +119,7 @@ describe("ProgressCard", () => {
   });
 
   it("disables the button and shows completion copy once the pipeline is done", () => {
-    render(<ProgressCard />);
+    renderProgressCard();
 
     emitProgress({ activeIndex: 5, overallPercent: 100, done: true });
 
@@ -119,7 +129,7 @@ describe("ProgressCard", () => {
   });
 
   it("renders the error state card when the pipeline reports an error", () => {
-    render(<ProgressCard />);
+    renderProgressCard();
 
     emitProgress({ error: "Something went wrong" });
 
@@ -127,10 +137,24 @@ describe("ProgressCard", () => {
   });
 
   it("does not render the error state card by default", () => {
-    render(<ProgressCard />);
+    renderProgressCard();
 
     expect(
       screen.queryByRole("heading", { name: "Error" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("resets the active view to upload when retrying from the error state", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload: vi.fn() },
+    });
+    renderProgressCard();
+
+    emitProgress({ error: "Something went wrong" });
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(localStorage.getItem("activeView")).toBe("upload");
   });
 });
