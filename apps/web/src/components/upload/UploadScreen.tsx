@@ -23,8 +23,11 @@ function formatFileSize(bytes: number): string {
 async function getPdfPageCount(file: File): Promise<number | null> {
     try {
         const data = new Uint8Array(await file.arrayBuffer());
-        const pdf = await getDocument({ data }).promise;
-        return pdf.numPages;
+        const loadingTask = getDocument({ data });
+        const pdf = await loadingTask.promise;
+        const numPages = pdf.numPages;
+        await loadingTask.destroy?.();
+        return numPages;
     } catch (error) {
         console.error("Failed to read PDF page count:", error);
         return null;
@@ -32,7 +35,7 @@ async function getPdfPageCount(file: File): Promise<number | null> {
 }
 
 export default function UploadScreen() {
-    const { file: uploadedFile, setFile: setUploadedFile, clearFile, setActiveView } = useConversion();
+    const { file: uploadedFile, setFile: setUploadedFile, clearFile, startConversion } = useConversion();
     const dropZoneRef = useRef<DropZoneHandle>(null);
     const [pageCount, setPageCount] = useState<number | null>(null);
 
@@ -129,7 +132,7 @@ export default function UploadScreen() {
                     </div>
                 )}
 
-                <Button size="lg" disabled={!uploadedFile} onClick={() => setActiveView("progress")} className="w-full">
+                <Button size="lg" disabled={!uploadedFile} onClick={() => startConversion()} className="w-full">
                     <span>Convert to Word (.docx)</span>
                     <ArrowRight className="size-4" />
                 </Button>
