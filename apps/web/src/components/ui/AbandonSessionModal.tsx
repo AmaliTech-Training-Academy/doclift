@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { ConversionSession } from "@/lib/conversionSession";
@@ -53,18 +53,77 @@ export default function AbandonSessionModal({
     onConfirm,
     session,
 }: AbandonSessionModalProps) {
+    const modalRef = useRef<HTMLDivElement>(null);
+    const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || !session) return;
+
+        previousActiveElementRef.current = document.activeElement as HTMLElement;
+
+        const focusableSelector =
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+        const timer = setTimeout(() => {
+            if (!modalRef.current) return;
+            const focusables = Array.from(
+                modalRef.current.querySelectorAll<HTMLElement>(focusableSelector)
+            );
+            if (focusables.length > 0) {
+                focusables[0].focus();
+            } else {
+                modalRef.current.focus();
+            }
+        }, 0);
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 onClose();
+                return;
+            }
+
+            if (e.key === "Tab" && modalRef.current) {
+                const focusables = Array.from(
+                    modalRef.current.querySelectorAll<HTMLElement>(focusableSelector)
+                );
+                if (focusables.length === 0) return;
+
+                const firstElement = focusables[0];
+                const lastElement = focusables[focusables.length - 1];
+
+                if (e.shiftKey) {
+                    if (
+                        document.activeElement === firstElement ||
+                        !modalRef.current.contains(document.activeElement)
+                    ) {
+                        e.preventDefault();
+                        lastElement.focus();
+                    }
+                } else {
+                    if (
+                        document.activeElement === lastElement ||
+                        !modalRef.current.contains(document.activeElement)
+                    ) {
+                        e.preventDefault();
+                        firstElement.focus();
+                    }
+                }
             }
         };
 
         window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, onClose]);
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener("keydown", handleKeyDown);
+            if (
+                previousActiveElementRef.current &&
+                typeof previousActiveElementRef.current.focus === "function"
+            ) {
+                previousActiveElementRef.current.focus();
+            }
+        };
+    }, [isOpen, session, onClose]);
 
     if (!isOpen || !session) return null;
 
@@ -77,7 +136,9 @@ export default function AbandonSessionModal({
             data-testid="abandon-session-modal-backdrop"
         >
             <div
-                className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-muted p-6 space-y-6 sm:p-8 animate-in zoom-in-95 duration-200"
+                ref={modalRef}
+                tabIndex={-1}
+                className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-muted p-6 space-y-6 sm:p-8 animate-in zoom-in-95 duration-200 focus:outline-none"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"

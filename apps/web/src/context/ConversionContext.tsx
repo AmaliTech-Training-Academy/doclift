@@ -45,7 +45,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         let isMounted = true;
         getDraftFile().then((savedFile) => {
             if (isMounted && savedFile) {
-                setFileState(savedFile);
+                setFileState((currentFile) => currentFile ?? savedFile);
             }
         });
         return () => {

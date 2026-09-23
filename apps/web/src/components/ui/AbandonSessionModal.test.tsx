@@ -132,6 +132,39 @@ describe("AbandonSessionModal component", () => {
         await user.click(screen.getByRole("button", { name: "Abandon & Restart" }));
         expect(handleConfirm).toHaveBeenCalledTimes(1);
     });
+
+    it("traps focus within the modal when Tab or Shift+Tab is pressed", async () => {
+        const user = userEvent.setup();
+
+        render(
+            <AbandonSessionModal
+                isOpen={true}
+                onClose={() => {}}
+                onConfirm={() => {}}
+                session={mockSession}
+            />
+        );
+
+        await new Promise((r) => setTimeout(r, 10));
+
+        const closeBtn = screen.getByRole("button", { name: "Close modal" });
+        const keepBtn = screen.getByRole("button", { name: "Keep Session" });
+        const confirmBtn = screen.getByRole("button", { name: "Abandon & Restart" });
+
+        expect(document.activeElement).toBe(closeBtn);
+
+        await user.tab();
+        expect(document.activeElement).toBe(keepBtn);
+
+        await user.tab();
+        expect(document.activeElement).toBe(confirmBtn);
+
+        await user.tab();
+        expect(document.activeElement).toBe(closeBtn);
+
+        await user.tab({ shift: true });
+        expect(document.activeElement).toBe(confirmBtn);
+    });
 });
 
 describe("ConversionContext integration with requestReset and AbandonSessionModal", () => {

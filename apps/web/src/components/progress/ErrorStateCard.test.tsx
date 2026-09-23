@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ErrorStateCard from "./ErrorStateCard";
@@ -27,9 +27,11 @@ describe("ErrorStateCard", () => {
 
     expect(screen.getByRole("heading", { name: "Error" })).toBeInTheDocument();
     expect(
-      screen.getByText("An error has occurred. Your File conversion failed."),
+      screen.getByText("An error has occurred. Your file conversion failed."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Please try again later.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Click retry to try the conversion once more."),
+    ).toBeInTheDocument();
 
     const retryBtn = screen.getByRole("button", { name: "Retry" });
     expect(retryBtn).toBeInTheDocument();
@@ -39,5 +41,21 @@ describe("ErrorStateCard", () => {
 
     await user.click(retryBtn);
     expect(screen.getByText("view:upload")).toBeInTheDocument();
+  });
+
+  it("renders custom error message and triggers custom reset handler when provided", async () => {
+    const user = userEvent.setup();
+    const mockReset = vi.fn();
+
+    renderWithProvider(
+      <ErrorStateCard error="Custom error message" reset={mockReset} />
+    );
+
+    expect(screen.getByText("Custom error message")).toBeInTheDocument();
+
+    const retryBtn = screen.getByRole("button", { name: "Retry" });
+    await user.click(retryBtn);
+
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 });

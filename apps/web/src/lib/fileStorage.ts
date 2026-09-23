@@ -4,10 +4,11 @@ const FILE_KEY = "current-uploaded-file";
 
 function getDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-        if (typeof window === "undefined" || !window.indexedDB) {
+        const idb = typeof window !== "undefined" && window.indexedDB ? window.indexedDB : (typeof globalThis !== "undefined" ? globalThis.indexedDB : undefined);
+        if (!idb) {
             return reject(new Error("IndexedDB not available"));
         }
-        const request = indexedDB.open(DB_NAME, 1);
+        const request = idb.open(DB_NAME, 1);
         request.onupgradeneeded = () => {
             const db = request.result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -21,10 +22,17 @@ function getDB(): Promise<IDBDatabase> {
 
 export async function saveDraftFile(file: File): Promise<void> {
     try {
+        const arrayBuffer = await file.arrayBuffer();
         const db = await getDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
-        store.put(file, FILE_KEY);
+        const record = {
+            arrayBuffer,
+            name: file.name,
+            type: file.type,
+            lastModified: file.lastModified,
+        };
+        store.put(record, FILE_KEY);
         return new Promise((resolve, reject) => {
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error || new Error("Save draft file error"));
@@ -43,22 +51,32 @@ export async function getDraftFile(): Promise<File | null> {
         return new Promise((resolve, reject) => {
             request.onsuccess = () => {
                 const res = request.result;
+                if (!res) {
+                    resolve(null);
+                    return;
+                }
                 if (res instanceof File) {
                     resolve(res);
-                } else if (res && typeof res === "object" && "name" in res) {
+                    return;
+                }
+                if (typeof res === "object") {
                     try {
-                        const blob = res as Blob & { name?: string; lastModified?: number };
-                        const restoredFile = new File([blob], blob.name || "uploaded.pdf", {
-                            type: blob.type || "application/pdf",
-                            lastModified: blob.lastModified || Date.now(),
+                        const buffer = res.arrayBuffer || res.blob || res;
+                        const name = res.name || "uploaded.pdf";
+                        const type = res.type || "application/pdf";
+                        const lastModified = res.lastModified || Date.now();
+
+                        const restoredFile = new File([buffer], name, {
+                            type,
+                            lastModified,
                         });
                         resolve(restoredFile);
                     } catch {
                         resolve(null);
                     }
-                } else {
-                    resolve(null);
+                    return;
                 }
+                resolve(null);
             };
             request.onerror = () => reject(request.error || new Error("Get draft file error"));
         });

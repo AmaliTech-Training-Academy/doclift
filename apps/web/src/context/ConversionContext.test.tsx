@@ -119,18 +119,22 @@ describe("useConversion", () => {
     const file = new File(["hello"], "hello.pdf", { type: "application/pdf" });
 
     act(() => {
+      result.current.setFile(file);
+    });
+    act(() => {
       result.current.startConversion(file);
     });
-
     act(() => {
       result.current.updateStatus("failed");
     });
 
+    expect(result.current.file).toBe(file);
     expect(result.current.session?.status).toBe("failed");
 
     act(() => result.current.resetKeepFile());
 
     expect(result.current.session).toBeNull();
+    expect(result.current.file).toBe(file);
     expect(result.current.activeView).toBe("upload");
   });
 });
