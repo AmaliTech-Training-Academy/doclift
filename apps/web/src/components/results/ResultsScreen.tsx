@@ -9,15 +9,16 @@ import { checklistData, fidelityMetrics, summaryCards } from "@/data/resultsData
 import { useConversion } from "@/context/ConversionContext";
 
 export default function ResultsScreen() {
-    const { reset } = useConversion();
+    const { reset, session } = useConversion();
+    const docxTitle = session?.fileName ? session.fileName.replace(/\.[^./]+$/, ".docx") : "Word Document.docx";
 
     return (
         <div className="flex-1 space-y-4 p-4">
             {/* Header row */}
             <div className="bg-white w-full mx-auto max-w-5xl flex flex-col space-y-4 p-4 rounded-xl">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex flex-col gap-2">
-                        <div className="flex flex-col text-sm sm:flex-row gap-2 bg-blue-100 p-2 rounded-xl sm:items-center">
+                    <div className="flex flex-col gap-2 min-w-0 flex-1">
+                        <div className="w-fit flex flex-col text-sm sm:flex-row gap-2 bg-blue-100 p-2 rounded-xl sm:items-center">
                             <div className="text-blue-600 flex items-center gap-2">
                                 <CircleCheck className="size-3" />
                                 <p>Conversion Complete</p>
@@ -26,18 +27,23 @@ export default function ResultsScreen() {
                             <span className="text-black">Your Word document is ready for download</span>
                         </div>
                         <div className="flex flex-col space-y-1 min-w-0">
-                            <h1 className="text-2xl font-semibold truncate">Word Document.docx</h1>
+                            <h1 className="text-2xl font-regular sm:font-semibold truncate">{docxTitle}</h1>
                             <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-sm sm:text-md bg-blue-100 rounded-lg w-fit px-2 py-1 text-blue-600">
                                     <span>Converted Word Document</span>
                                 </div>
+                                {session?.jobId && (
+                                    <span className="text-xs bg-gray-100 text-gray-600 font-mono px-2 py-1 rounded-md">
+                                        ID: {session.jobId}
+                                    </span>
+                                )}
                                 <p className="text-sm sm:text-md text-gray-500">
                                     File size • 2 Pages • 20s conversion time
                                 </p>
                             </div>
                         </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2 sm:w-fit w-full">
+                    <div className="flex flex-col flex-nowrap sm:flex-row gap-2 sm:w-auto w-full shrink-0">
                         <Button variant="secondary" onClick={reset}>
                             <RotateCw className="size-4" />
                             <span>Convert Another File</span>

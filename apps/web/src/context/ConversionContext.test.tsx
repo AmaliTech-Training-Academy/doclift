@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { render, renderHook, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConversionProvider, useConversion } from "./ConversionContext";
+import type { ConversionSession } from "@/lib/conversionSession";
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return <ConversionProvider>{children}</ConversionProvider>;
@@ -84,5 +85,32 @@ describe("useConversion", () => {
     await user.click(screen.getByRole("button", { name: "go" }));
 
     expect(screen.getByText("view:progress")).toBeInTheDocument();
+  });
+
+  it("returns null when startConversion is called without a selected file", () => {
+    const { result } = renderHook(() => useConversion(), { wrapper });
+
+    let session: ConversionSession | null = null;
+    act(() => {
+      session = result.current.startConversion();
+    });
+
+    expect(session).toBeNull();
+    expect(result.current.session).toBeNull();
+    expect(result.current.activeView).toBe("upload");
+  });
+
+  it("returns a session when startConversion is called with a file or fileOverride", () => {
+    const { result } = renderHook(() => useConversion(), { wrapper });
+    const file = new File(["pdf"], "doc.pdf", { type: "application/pdf" });
+
+    let session: ConversionSession | null = null;
+    act(() => {
+      session = result.current.startConversion(file);
+    });
+
+    expect(session).not.toBeNull();
+    expect((session as ConversionSession | null)?.fileName).toBe("doc.pdf");
+    expect(result.current.activeView).toBe("progress");
   });
 });

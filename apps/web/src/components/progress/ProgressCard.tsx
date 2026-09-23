@@ -12,7 +12,10 @@ import {
 import Button from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 
+import { useConversion } from "@/context/ConversionContext";
+
 const ProgressCard = () => {
+  const { updateStatus } = useConversion();
   const stepperRef = useRef<VerticalStepperDemoHandle>(null);
   const [cancelled, setCancelled] = useState(false);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
@@ -22,12 +25,18 @@ const ProgressCard = () => {
     if (cancelled) return;
     stepperRef.current?.cancel();
     setCancelled(true);
+    updateStatus("failed");
     toast.error("Conversion cancelled");
   };
 
   const handleProgress = useCallback((state: PipelineProgress) => {
     setProgress(state);
-  }, []);
+    if (state.error || state.cancelled) {
+      updateStatus("failed");
+    } else if (state.done) {
+      updateStatus("done");
+    }
+  }, [updateStatus]);
 
   const overallPercent = progress?.overallPercent ?? 0;
 
