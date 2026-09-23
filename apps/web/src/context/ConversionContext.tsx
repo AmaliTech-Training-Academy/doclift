@@ -36,8 +36,10 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const clearFile = () => setFile(null);
 
     const startConversion = (fileOverride?: File | null): ConversionSession | null => {
-        const targetFile = fileOverride || file;
-        const fileName = targetFile?.name || "document.pdf";
+        const targetFile = fileOverride !== undefined ? fileOverride : file;
+        if (!targetFile) return null;
+
+        const fileName = targetFile.name;
         const newSession: ConversionSession = {
             jobId: generateJobId(),
             fileName,

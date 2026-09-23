@@ -31,7 +31,9 @@ const ProgressCard = () => {
 
   const handleProgress = useCallback((state: PipelineProgress) => {
     setProgress(state);
-    if (state.done) {
+    if (state.error || state.cancelled) {
+      updateStatus("failed");
+    } else if (state.done) {
       updateStatus("done");
     }
   }, [updateStatus]);
