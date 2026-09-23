@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/Card";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import type { SummaryCardItem } from "@/data/resultsData";
 
 interface SummaryCardProps {

@@ -23,7 +23,7 @@ describe("ErrorStateCard", () => {
 
     expect(screen.getByRole("heading", { name: "Error" })).toBeInTheDocument();
     expect(
-      screen.getByText("An error has occurred. Please try again later."),
+      screen.getByText("An error has occurred. Your File conversion failed."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });

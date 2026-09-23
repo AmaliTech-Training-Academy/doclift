@@ -160,7 +160,7 @@ function Connector({ status }: ConnectorProps) {
 
   return (
     // ml-[18px] centers the 2px line under the 36px (h-9 w-9) icon above it.
-    <div className="relative ml-[18px] h-full w-0.5 flex-1 bg-slate-200">
+    <div className="relative ml-4 h-full w-0.5 flex-1 bg-slate-200">
       <div
         className={`absolute inset-x-0 top-0 w-full origin-top bg-brand-primary transition-transform duration-500 ease-out ${
           filled ? "scale-y-100" : active ? "scale-y-50" : "scale-y-0"
@@ -214,7 +214,7 @@ function StepRow({ step }: { step: Step }) {
       </div>
 
       {step.meta && (
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs  text-slate-500">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-sm  text-slate-500">
           {step.meta}
         </span>
       )}
@@ -246,7 +246,7 @@ function ActiveStepCard({ step }: { step: Step }) {
             {title}
           </p>
           <span
-            className={`rounded-full px-2 py-0.5 text-xs truncate font-medium ${
+            className={`rounded-full px-2 py-0.5 text-sm truncate font-medium ${
               cancelled
                 ? "bg-slate-200 text-slate-600"
                 : "bg-indigo-100 text-primary"
@@ -256,7 +256,7 @@ function ActiveStepCard({ step }: { step: Step }) {
           </span>
         </div>
         {!cancelled && runningNote && (
-          <span className="text-xs italic text-primary">{runningNote}</span>
+          <span className="text-sm italic text-primary">{runningNote}</span>
         )}
       </div>
 
@@ -268,7 +268,7 @@ function ActiveStepCard({ step }: { step: Step }) {
 
       {progress && (
         <div className="mt-3 rounded-lg bg-white p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="text-slate-600">{progress.label}</span>
             <span
               className={`font-semibold ${cancelled ? "text-slate-500" : "text-primary"}`}
@@ -297,7 +297,7 @@ function ActiveStepCard({ step }: { step: Step }) {
               {progress.stats.map((stat, i) => (
                 <span
                   key={i}
-                  className="flex items-center gap-1.5 text-xs text-primary"
+                  className="flex items-center gap-1.5 text-sm text-primary"
                 >
                   <span className="h-1 w-1 rounded-full bg-primary" />
                   {stat}
@@ -487,7 +487,7 @@ const PIPELINE: DemoStepTemplate[] = [
 function useSimulatedPipeline(stepCount: number) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [percent, setPercent] = useState(0);
-  const [done, setDone] = useState(false);
+  const done = activeIndex >= stepCount;
   const [cancelled, setCancelled] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -496,8 +496,7 @@ function useSimulatedPipeline(stepCount: number) {
     if (cancelled) return; // stopped by the user — don't start/continue ticking
 
     if (activeIndex >= stepCount) {
-      setDone(true);
-      return;
+      return; // all steps complete — done is derived, no setState needed
     }
 
     intervalRef.current = setInterval(() => {
@@ -534,7 +533,6 @@ function useSimulatedPipeline(stepCount: number) {
   const reset = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
-    setDone(false);
     setCancelled(false);
     setPercent(0);
     setActiveIndex(0);
@@ -658,7 +656,7 @@ export const VerticalStepperDemo = forwardRef<
     });
 
     return (
-      <div className="flex min-h-[560px] w-full items-start px-4">
+      <div className="flex min-h-140 w-full items-start px-4">
         <div className="w-full max-w-xl ">
           <div className="mb-6 flex items-center justify-between"></div>
           <VerticalStepper steps={steps} />

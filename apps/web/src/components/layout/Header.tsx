@@ -13,12 +13,12 @@ export default function Header() {
         <header className="sticky top-0 w-full py-3 border-b border-muted bg-white z-50">
             <div className="max-w-7xl mx-auto px-4">
                 <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <Image priority src={Logo} alt="Logo" height={60}/>
-                    </div>
+                    <button className="flex flex-col cursor-pointer" onClick={reset}>
+                        <Image priority src={Logo} alt="Logo" height={60} />
+                    </button>
                     <div className="flex items-center space-x-4">
                         <Button variant="secondary" onClick={reset}>
-                            <Plus/>
+                            <Plus />
                             New <span className="hidden sm:inline">Conversion</span>
                         </Button>
                     </div>
