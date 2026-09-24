@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PdfValidationServiceTest {
 
     private final PdfValidationServiceImpl pdfValidationService =
-            new PdfValidationServiceImpl();
+            new PdfValidationServiceImpl(10 * 1024 * 1024);
 
     // =========================================================
     // VALID PDF VALIDATION

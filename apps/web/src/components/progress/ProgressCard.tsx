@@ -13,9 +13,9 @@ import Button from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
 import { useConversion } from "@/context/ConversionContext";
 
-import { useConversion } from "@/context/ConversionContext";
 
 const ProgressCard = () => {
+  const{ updateStatus, session } =useConversion();
   const { reset: resetConversion } = useConversion();
   const stepperRef = useRef<VerticalStepperDemoHandle>(null);
   const [cancelled, setCancelled] = useState(false);

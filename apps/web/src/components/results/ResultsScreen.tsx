@@ -44,8 +44,6 @@ export default function ResultsScreen() {
                             </div>
                         </div>
                     </div>
-                    <div className="flex flex-col md:mt-8 gap-2 sm:w-fit w-full">
-                        <Button variant="secondary" onClick={() => setActiveView('upload')}>
                     <div className="flex flex-col flex-nowrap sm:flex-row gap-2 sm:w-auto w-full shrink-0">
                         <Button variant="secondary" onClick={reset}>
                             <RotateCw className="size-4" />

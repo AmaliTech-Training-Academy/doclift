@@ -1,20 +1,28 @@
 package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.exception.EncryptedPdfException;
-import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.service.PdfValidationService;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import java.io.IOException;
 import java.nio.file.Path;
 
 @Service
 public class PdfValidationServiceImpl implements PdfValidationService {
+
+    private final long maxSizeBytes;
+
+    @Autowired
+    public PdfValidationServiceImpl(
+            @Value("${app.upload.max-size-bytes:10485760}") long maxSizeBytes
+    ) {
+        this.maxSizeBytes = maxSizeBytes;
+    }
 
     @Override
     public int validateAndGetPageCount(Path filePath) {
