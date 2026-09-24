@@ -5,7 +5,6 @@ import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSBase;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -18,16 +17,27 @@ import com.amalitech.backend.service.PdfExtractionResult;
 import com.amalitech.backend.service.TableRegion;
 import com.amalitech.backend.service.TextSpan;
 import com.amalitech.backend.service.PdfExtractionService;
+import java.awt.geom.Point2D;
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+import org.apache.pdfbox.contentstream.PDFStreamEngine;
+import org.apache.pdfbox.contentstream.operator.Operator;
+import org.apache.pdfbox.contentstream.operator.state.Concatenate;
+import org.apache.pdfbox.contentstream.operator.state.Restore;
+import org.apache.pdfbox.contentstream.operator.state.Save;
+import org.apache.pdfbox.contentstream.operator.state.SetGraphicsStateParameters;
+import org.apache.pdfbox.contentstream.operator.state.SetMatrix;
+import org.apache.pdfbox.util.Matrix;
+
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class PdfExtractionServiceImpl implements PdfExtractionService {
@@ -134,48 +144,96 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return spans;
     }
 
+
     private List<ExtractedImage> extractImages(int pageIndex, PDPage page) throws IOException {
         List<ExtractedImage> images = new ArrayList<>();
-        collectImages(pageIndex, page.getResources(), images, new HashSet<>());
+        new ImageLocationStreamEngine(pageIndex, images).processPage(page);
         return images;
     }
 
-    private void collectImages(
-            int pageIndex,
-            PDResources resources,
-            List<ExtractedImage> images,
-            Set<COSBase> visited
-    ) throws IOException {
-        if (resources == null) {
-            return;
+    /**
+     * Walks the page content stream (including nested Form XObjects) and records, for every
+     * image "Do" invocation, the image's actual on-page position and size in PDF point-space,
+     * derived from the current transformation matrix (CTM) at that point in the stream —
+     * as opposed to the resource's raw pixel dimensions.
+     */
+    private static class ImageLocationStreamEngine extends PDFStreamEngine {
+
+        private final int pageIndex;
+        private final List<ExtractedImage> images;
+        private final Deque<COSBase> formsInProgress = new ArrayDeque<>();
+
+        ImageLocationStreamEngine(int pageIndex, List<ExtractedImage> images) {
+            this.pageIndex = pageIndex;
+            this.images = images;
+            addOperator(new Concatenate(this));
+            addOperator(new SetGraphicsStateParameters(this));
+            addOperator(new Save(this));
+            addOperator(new Restore(this));
+            addOperator(new SetMatrix(this));
         }
 
-        for (COSName resourceName : resources.getXObjectNames()) {
-            PDXObject xObject = resources.getXObject(resourceName);
-            if (xObject == null) {
-                continue;
+        @Override
+        protected void processOperator(Operator operator, List<COSBase> operands) throws IOException {
+            if (!"Do".equals(operator.getName()) || operands.isEmpty()
+                    || !(operands.get(0) instanceof COSName objectName)) {
+                super.processOperator(operator, operands);
+                return;
             }
 
-            COSBase xObjectKey = xObject.getCOSObject();
-            if (!visited.add(xObjectKey)) {
-                continue;
+            PDXObject xObject = getResources().getXObject(objectName);
+            if (xObject == null) {
+                return;
             }
 
             if (xObject instanceof PDImageXObject image) {
-                images.add(new ExtractedImage(
-                        pageIndex,
-                        resourceName.getName(),
-                        0f,
-                        0f,
-                        image.getWidth(),
-                        image.getHeight(),
-                        image.getWidth(),
-                        image.getHeight(),
-                        image.getSuffix()
-                ));
+                recordImagePlacement(objectName.getName(), image);
             } else if (xObject instanceof PDFormXObject form) {
-                collectImages(pageIndex, form.getResources(), images, visited);
+                COSBase formKey = form.getCOSObject();
+                if (formsInProgress.contains(formKey)) {
+                    // Self-referential form; skip to avoid infinite recursion.
+                    return;
+                }
+                formsInProgress.push(formKey);
+                try {
+                    showForm(form);
+                } finally {
+                    formsInProgress.pop();
+                }
             }
+        }
+
+        private void recordImagePlacement(String imageName, PDImageXObject image) {
+            Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
+
+            // Transform all four corners of the unit square (the space an image is drawn into)
+            // rather than reading getScaleX()/getScaleY() directly, so rotated or sheared
+            // placements still produce a correct axis-aligned bounding box.
+            float minX = Float.MAX_VALUE;
+            float maxX = -Float.MAX_VALUE;
+            float minY = Float.MAX_VALUE;
+            float maxY = -Float.MAX_VALUE;
+
+            float[][] unitCorners = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+            for (float[] corner : unitCorners) {
+                Point2D.Float p = ctm.transformPoint(corner[0], corner[1]);
+                minX = Math.min(minX, p.x);
+                maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y);
+                maxY = Math.max(maxY, p.y);
+            }
+
+            images.add(new ExtractedImage(
+                    pageIndex,
+                    imageName,
+                    minX,
+                    minY,
+                    maxX - minX,
+                    maxY - minY,
+                    image.getWidth(),
+                    image.getHeight(),
+                    image.getSuffix()
+            ));
         }
     }
 

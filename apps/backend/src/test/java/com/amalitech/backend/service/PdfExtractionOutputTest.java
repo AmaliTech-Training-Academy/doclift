@@ -85,9 +85,13 @@ class PdfExtractionOutputTest {
                         + " font=" + span.getFontName() + " size=" + span.getFontSize());
             }
 
-            System.out.println("images=" + page.getImages().size());
             for (ExtractedImage image : page.getImages()) {
-                System.out.println("  image=" + image.getImageName() + " size=" + image.getPixelsWidth() + "x" + image.getPixelsHeight());
+                System.out.println(
+                        "  image=" + image.getImageName()
+                                + " position=" + image.getX() + "," + image.getY()
+                                + " size=" + image.getWidth() + "x" + image.getHeight()
+                                + " pixels=" + image.getPixelsWidth() + "x" + image.getPixelsHeight()
+                );
             }
 
             System.out.println("candidateTables=" + page.getCandidateTableRegions().size());
