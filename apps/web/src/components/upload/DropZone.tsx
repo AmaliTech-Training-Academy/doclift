@@ -209,9 +209,9 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             onDrop={handleDrop}
             className={cn(
                 "group relative w-full p-8 sm:p-10 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 select-none",
-                "bg-blue-50/40 border-blue-200/80 hover:bg-blue-50/80 hover:border-blue-400 hover:shadow-xs",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-                isDragActive && "border-primary bg-blue-100/70 scale-[1.01] shadow-lg"
+                "bg-secondary/40 border-primary-background hover:bg-secondary hover:border-primary hover:shadow-xs",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                isDragActive && "border-primary bg-primary-background scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">

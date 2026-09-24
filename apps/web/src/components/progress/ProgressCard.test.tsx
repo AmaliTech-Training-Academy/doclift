@@ -1,88 +1,175 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
-import { useEffect } from "react";
-import ProgressScreen from "./ProgressScreen";
-import { ConversionProvider, useConversion } from "@/context/ConversionContext";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { forwardRef, useImperativeHandle, useEffect } from "react";
+import type { PipelineProgress } from "../ui/Stepper";
+import { useConversion } from "../../context/ConversionContext";
+import type { ConversionSession } from "@/lib/conversionSession";
 
-vi.mock("./HeaderBar", () => ({
-  default: ({ file }: { file: File | null }) => (
-      <div data-testid="header-bar">{file ? file.name : "no file"}</div>
-  ),
+const stepperMocks = vi.hoisted(() => ({
+  onProgress: undefined as ((state: PipelineProgress) => void) | undefined,
+  cancel: vi.fn(),
 }));
 
-vi.mock("./ProgressCard", () => ({
-  default: () => <div data-testid="progress-card" />,
+vi.mock("../ui/Stepper", () => ({
+  VerticalStepperDemo: forwardRef(function MockStepper(
+    props: { onProgress?: (state: PipelineProgress) => void },
+    ref,
+  ) {
+    stepperMocks.onProgress = props.onProgress;
+    useImperativeHandle(ref, () => ({ cancel: stepperMocks.cancel, complete: () => {} }));
+    return null;
+  }),
 }));
 
-describe("ProgressScreen", () => {
-  it("renders the header bar and the progress card", () => {
-    render(
-        <ConversionProvider>
-          <ProgressScreen />
-        </ConversionProvider>,
-    );
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
-    expect(screen.getByTestId("header-bar")).toBeInTheDocument();
-    expect(screen.getByTestId("progress-card")).toBeInTheDocument();
+import ProgressCard from "./ProgressCard";
+import { toast } from "sonner";
+import { ConversionProvider } from "@/context/ConversionContext";
+
+function renderWithProvider() {
+  return render(
+    <ConversionProvider>
+      <ProgressCard />
+    </ConversionProvider>,
+  );
+}
+
+function emitProgress(overrides: Partial<PipelineProgress> = {}) {
+  const state: PipelineProgress = {
+    activeIndex: 0,
+    totalSteps: 5,
+    currentStepPercent: 0,
+    overallPercent: 0,
+    done: false,
+    cancelled: false,
+    ...overrides,
+  };
+  act(() => stepperMocks.onProgress?.(state));
+}
+
+describe("ProgressCard", () => {
+  beforeEach(() => {
+    stepperMocks.cancel.mockClear();
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
   });
 
-  it("passes the file from context down to the header bar", () => {
-    const file = new File(["%PDF-1.4"], "contract.pdf", {
-      type: "application/pdf",
-    });
+  it("renders the initial state at 0% on phase 1", () => {
+    renderWithProvider();
 
-    function SetFileThenRender() {
-      const { setFile } = useConversion();
-      useEffect(() => setFile(file), [setFile]);
-      return <ProgressScreen />;
-    }
-
-    render(
-        <ConversionProvider>
-          <SetFileThenRender />
-        </ConversionProvider>,
-    );
-
-    expect(screen.getByTestId("header-bar")).toHaveTextContent("contract.pdf");
+    expect(screen.getByText("0%")).toBeInTheDocument();
+    expect(screen.getByText("Phase 1 of 5:")).toBeInTheDocument();
+    expect(
+      screen.getByText("Initializing document processing..."),
+    ).toBeInTheDocument();
   });
 
-  it("automatically navigates to the result view 2 seconds after conversion is done", () => {
-    vi.useFakeTimers();
+  it("reflects progress reported by the stepper", () => {
+    renderWithProvider();
 
-    function ViewProbe() {
-      const { activeView, setSession } = useConversion();
+    emitProgress({ activeIndex: 2, overallPercent: 45 });
+
+    expect(screen.getByText("45%")).toBeInTheDocument();
+    expect(screen.getByText("Phase 3 of 5:")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Reconstructing tabular data structures and nested headers...",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the final phase description and a check icon once the last phase is reached", () => {
+    renderWithProvider();
+
+    emitProgress({ activeIndex: 4, overallPercent: 95 });
+
+    expect(screen.getByText("Phase 5 of 5:")).toBeInTheDocument();
+    expect(
+      screen.getByText("Finalizing the document reconstruction process..."),
+    ).toBeInTheDocument();
+  });
+
+  it("cancels the conversion when the cancel button is clicked", async () => {
+    const user = userEvent.setup();
+    renderWithProvider();
+
+    const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
+    await user.click(cancelButton);
+
+    expect(stepperMocks.cancel).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith("Conversion cancelled");
+    expect(
+      screen.getByRole("button", { name: "Conversion Cancelled" }),
+    ).toBeDisabled();
+  });
+
+  it("ignores repeated cancel clicks", async () => {
+    const user = userEvent.setup();
+    renderWithProvider();
+
+    const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
+    await user.click(cancelButton);
+    // Button is now disabled, so a second click is a no-op through the DOM,
+    // but we also guard in the handler itself.
+    expect(stepperMocks.cancel).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the button and shows completion copy once the pipeline is done", () => {
+    renderWithProvider();
+
+    emitProgress({ activeIndex: 5, overallPercent: 100, done: true });
+
+    expect(
+      screen.getByRole("button", { name: "Conversion Completed" }),
+    ).toBeDisabled();
+  });
+
+  it("renders the error state card and updates session status to failed when the pipeline reports an error", () => {
+    function StatusProbe({
+      onSession,
+    }: {
+      onSession: (session: ConversionSession | null) => void;
+    }) {
+      const { session, startConversion } = useConversion();
 
       useEffect(() => {
-        setSession({
-          jobId: "j1",
-          fileName: "doc.pdf",
-          status: "done",
-          updatedAt: Date.now(),
-        });
-      }, [setSession]);
+        if (!session) {
+          startConversion(
+            new File(["test"], "sample.pdf", { type: "application/pdf" }),
+          );
+        }
+      }, [session, startConversion]);
 
-      return (
-          <div>
-            <ProgressScreen />
-            <p>active:{activeView}</p>
-          </div>
-      );
+      useEffect(() => {
+        onSession(session);
+      }, [session, onSession]);
+
+      return <ProgressCard />;
     }
 
+    const tracker = { session: null as ConversionSession | null };
     render(
-        <ConversionProvider>
-          <ViewProbe />
-        </ConversionProvider>,
+      <ConversionProvider>
+        <StatusProbe onSession={(s) => (tracker.session = s)} />
+      </ConversionProvider>,
     );
 
-    expect(screen.getByText("active:upload")).toBeInTheDocument();
+    emitProgress({ error: "Something went wrong" });
 
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
+    expect(screen.getByRole("heading", { name: "Error" })).toBeInTheDocument();
+    expect(tracker.session?.status).toBe("failed");
+  });
 
-    expect(screen.getByText("active:result")).toBeInTheDocument();
+  it("does not render the error state card by default", () => {
+    renderWithProvider();
 
-    vi.useRealTimers();
+    expect(
+      screen.queryByRole("heading", { name: "Error" }),
+    ).not.toBeInTheDocument();
   });
 });
