@@ -14,6 +14,6 @@ public class TextSpan {
     private float width;
     private float height;
     private String fontName;
-    private float fontSize;
+    private float fontSize; // font size
 
 }

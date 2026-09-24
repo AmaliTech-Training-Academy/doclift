@@ -8,17 +8,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
-import com.amalitech.backend.exception.EncryptedPdfException;
-import com.amalitech.backend.exception.FileTooLargeException;
-import com.amalitech.backend.exception.InvalidPdfException;
 
-import static org.mockito.Mockito.when;
-
-import com.amalitech.backend.exception.EncryptedPdfException;
-import com.amalitech.backend.exception.FileTooLargeException;
-import com.amalitech.backend.exception.InvalidPdfException;
-
-import static org.mockito.Mockito.when;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
