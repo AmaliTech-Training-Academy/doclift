@@ -30,7 +30,7 @@ class PdfExtractionOutputTest {
 
     {
         service = new PdfExtractionServiceImpl();
-        validationService = new PdfValidationServiceImpl();
+        validationService = new PdfValidationServiceImpl(10 * 1024 * 1024);
     }
 
     @Test

@@ -24,10 +24,6 @@ public class PdfValidationServiceImpl implements PdfValidationService {
         this.maxSizeBytes = maxSizeBytes;
     }
 
-    public PdfValidationServiceImpl() {
-        this(10 * 1024 * 1024);
-    }
-
     @Override
     public int validateAndGetPageCount(Path filePath) {
         try (PDDocument document =
