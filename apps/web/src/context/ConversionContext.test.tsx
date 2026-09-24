@@ -137,4 +137,20 @@ describe("useConversion", () => {
     expect(result.current.file).toBe(file);
     expect(result.current.activeView).toBe("upload");
   });
+
+  it("tracks conversion duration on completion", () => {
+    const { result } = renderHook(() => useConversion(), { wrapper });
+    const file = new File(["pdf"], "doc.pdf", { type: "application/pdf" });
+
+    act(() => {
+      result.current.startConversion(file);
+    });
+
+    act(() => {
+      result.current.updateStatus("done", 15);
+    });
+
+    expect(result.current.session?.status).toBe("done");
+    expect(result.current.session?.durationSeconds).toBe(15);
+  });
 });

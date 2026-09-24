@@ -15,7 +15,8 @@ describe("fileStorage", () => {
         });
 
         // 1. Save draft file
-        await saveDraftFile(originalFile);
+        const saved = await saveDraftFile(originalFile);
+        expect(saved).toBe(true);
 
         // 2. Retrieve draft file and verify metadata & content
         const restoredFile = await getDraftFile();
@@ -42,7 +43,7 @@ describe("fileStorage", () => {
 
         const testFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
 
-        await expect(saveDraftFile(testFile)).resolves.not.toThrow();
+        await expect(saveDraftFile(testFile)).resolves.toBe(false);
         await expect(getDraftFile()).resolves.toBeNull();
         await expect(clearDraftFile()).resolves.not.toThrow();
 

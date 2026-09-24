@@ -10,6 +10,7 @@ import {
 } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
+import { toast } from "sonner";
 
 export type ActiveView = "upload" | "progress" | "result";
 
@@ -29,7 +30,7 @@ interface ConversionContextValue {
     session: ConversionSession | null;
     setSession: (session: ConversionSession | null) => void;
     startConversion: (fileOverride?: File | null) => ConversionSession | null;
-    updateStatus: (status: ConversionStatus) => void;
+    updateStatus: (status: ConversionStatus, durationOverride?: number) => void;
 }
 
 const ConversionContext = createContext<ConversionContextValue | null>(null);
@@ -56,7 +57,15 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const setFile = (newFile: File | null) => {
         setFileState(newFile);
         if (newFile) {
-            saveDraftFile(newFile);
+            saveDraftFile(newFile).then((saved) => {
+                if (!saved) {
+                    if (typeof toast?.warning === "function") {
+                        toast.warning("Could not save file draft for page refresh recovery.");
+                    } else if (typeof toast?.error === "function") {
+                        toast.error("Could not save file draft for page refresh recovery.");
+                    }
+                }
+            });
         } else {
             clearDraftFile();
         }
@@ -71,12 +80,15 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         const targetFile = fileOverride !== undefined ? fileOverride : file;
         if (!targetFile) return null;
 
+        const now = Date.now();
         const fileName = targetFile.name;
         const newSession: ConversionSession = {
             jobId: generateJobId(),
             fileName,
             status: "processing",
-            updatedAt: Date.now(),
+            updatedAt: now,
+            createdAt: now,
+            fileSize: targetFile.size,
         };
 
         saveConversionSession(newSession);
@@ -85,13 +97,24 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         return newSession;
     };
 
-    const updateStatus = (status: ConversionStatus) => {
+    const updateStatus = (status: ConversionStatus, durationOverride?: number) => {
         setSession((prevSession) => {
             if (!prevSession) return null;
+            const now = Date.now();
+            const createdAt = prevSession.createdAt || prevSession.updatedAt;
+            const calculatedDuration = Math.max(1, Math.round((now - createdAt) / 1000));
+            const durationSeconds =
+                durationOverride !== undefined
+                    ? durationOverride
+                    : status === "done"
+                    ? (prevSession.durationSeconds ?? calculatedDuration)
+                    : prevSession.durationSeconds;
+
             const updatedSession: ConversionSession = {
                 ...prevSession,
                 status,
-                updatedAt: Date.now(),
+                updatedAt: now,
+                durationSeconds,
             };
             saveConversionSession(updatedSession);
             return updatedSession;

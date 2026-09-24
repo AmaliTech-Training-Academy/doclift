@@ -20,7 +20,7 @@ function getDB(): Promise<IDBDatabase> {
     });
 }
 
-export async function saveDraftFile(file: File): Promise<void> {
+export async function saveDraftFile(file: File): Promise<boolean> {
     try {
         const arrayBuffer = await file.arrayBuffer();
         const db = await getDB();
@@ -33,12 +33,14 @@ export async function saveDraftFile(file: File): Promise<void> {
             lastModified: file.lastModified,
         };
         store.put(record, FILE_KEY);
-        return new Promise((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error || new Error("Save draft file error"));
         });
-    } catch {
-        // Silently catch in environments without IndexedDB support
+        return true;
+    } catch (error) {
+        console.warn("Failed to save draft file to IndexedDB:", error);
+        return false;
     }
 }
 
