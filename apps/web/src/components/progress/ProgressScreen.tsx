@@ -6,8 +6,23 @@ import { useConversion } from "@/context/ConversionContext";
 const ProgressScreen = () => {
   const { file, session, setActiveView } = useConversion();
 
-  const [timeElapsed, setTimeElapsed] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [timeElapsed, setTimeElapsed] = useState(() => {
+    if (session?.createdAt) {
+      return Math.max(0, Math.floor((Date.now() - session.createdAt) / 1000));
+    }
+    return 0;
+  });
+
+  useEffect(() => {
+    if (session?.status === "processing" || session?.status === "queued") {
+      const interval = setInterval(() => {
+        setTimeElapsed((prev) => prev + 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [session?.status]);
+
+  const timeRemaining = 0;
 
   useEffect(() => {
     if (session?.status === "done") {
@@ -18,14 +33,17 @@ const ProgressScreen = () => {
     }
   }, [session?.status, setActiveView]);
 
+  const isFailed = session?.status === "failed";
+
   return (
     <div className="w-full flex-1 px-4 py-2">
-      <HeaderBar
-        file={file}
-        timeElapsed={timeElapsed}
-        timeRemaining={timeRemaining}
-      />
-
+      {!isFailed && (
+        <HeaderBar
+          file={file}
+          timeElapsed={timeElapsed}
+          timeRemaining={timeRemaining}
+        />
+      )}
       <ProgressCard />
     </div>
   );
