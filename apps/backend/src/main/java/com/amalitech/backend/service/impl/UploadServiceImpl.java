@@ -9,7 +9,6 @@ import com.amalitech.backend.service.UploadService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.amalitech.backend.exception.FileTooLargeException;
-import com.amalitech.backend.exception.InvalidPdfException;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.nio.file.Path;
