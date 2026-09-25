@@ -20,6 +20,11 @@ export async function uploadFile(file: File): Promise<UploadApiResponse> {
     });
 
     if (!response.ok) {
+      // 413: Spring may not return a JSON body for payload too large
+      if (response.status === 413) {
+        throw new Error("File is too large. Please upload a smaller PDF.");
+      }
+
       let errorMessage = "Failed to upload document.";
       try {
         const errorData: ApiErrorResponse = await response.json();

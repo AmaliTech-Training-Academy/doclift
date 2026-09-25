@@ -44,6 +44,22 @@ describe("uploadApi", () => {
     await expect(uploadFile(mockFile)).rejects.toThrow("Only PDF files are supported.");
   });
 
+  it("handles 413 payload too large with a friendly message", async () => {
+    const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: async () => {
+        throw new Error("No JSON body");
+      },
+    } as unknown as Response);
+
+    await expect(uploadFile(mockFile)).rejects.toThrow(
+      "File is too large. Please upload a smaller PDF."
+    );
+  });
+
   it("handles API error responses when JSON error payload fails to parse", async () => {
     const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
 
