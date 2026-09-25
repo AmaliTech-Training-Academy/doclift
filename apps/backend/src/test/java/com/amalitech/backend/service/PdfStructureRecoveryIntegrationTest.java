@@ -289,6 +289,66 @@ class PdfStructureRecoveryIntegrationTest {
     }
 
     @Test
+    void shouldNotMisclassifyThreeColumnProseAsTable() throws Exception {
+
+        byte[] pdfBytes;
+
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDType1Font font = new PDType1Font(
+                    Standard14Fonts.FontName.HELVETICA
+            );
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                float[] columnX = {60f, 220f, 380f};
+                float startY = 700f;
+                float rowGap = 24f;
+
+                String[][] rows = {
+                        {"Alpha words in left", "Bravo words in middle", "Charlie words in right"},
+                        {"Delta prose continues", "Echo prose continues", "Foxtrot prose continues"},
+                        {"Gamma body sentence", "Hotel body sentence", "India body sentence"},
+                        {"Juliet flowing text", "Kilo flowing text", "Lima flowing text"}
+                };
+
+                for (int i = 0; i < rows.length; i++) {
+                    float y = startY - (i * rowGap);
+
+                    for (int c = 0; c < columnX.length; c++) {
+                        content.beginText();
+                        content.setFont(font, 12);
+                        content.newLineAtOffset(columnX[c], y);
+                        content.showText(rows[i][c]);
+                        content.endText();
+                    }
+                }
+            }
+
+            ByteArrayOutputStream output =
+                    new ByteArrayOutputStream();
+
+            document.save(output);
+            pdfBytes = output.toByteArray();
+        }
+
+        PdfExtractionResult result =
+                pdfExtractionService.extract(pdfBytes);
+
+        assertThat(result.getPages()).hasSize(1);
+
+        PageExtraction page =
+                result.getPages().getFirst();
+
+        assertThat(page.getCandidateTableRegions())
+                .as("Ordinary three-column prose must not be detected as a table")
+                .isEmpty();
+    }
+
+    @Test
     void shouldRecoverHeadingAndParagraphsFromOutlinePdf() throws Exception {
 
         try (InputStream inputStream = getClass().getResourceAsStream(

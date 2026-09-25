@@ -140,6 +140,33 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                 && tabularRows >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
     }
 
+    private boolean looksLikeMultiColumnTable(
+            List<List<TextSpan>> rows
+    ) {
+        if (rows.size() < MIN_TABLE_ROWS) {
+            return false;
+        }
+
+        int tabularRows = 0;
+
+        for (List<TextSpan> row : rows) {
+            boolean hasTabularCell = false;
+
+            for (TextSpan span : row) {
+                if (looksLikeTabularValue(span.getText())) {
+                    hasTabularCell = true;
+                    break;
+                }
+            }
+
+            if (hasTabularCell) {
+                tabularRows++;
+            }
+        }
+
+        return tabularRows >= MIN_TABLE_ROWS - 1;
+    }
+
     private boolean looksLikeTabularValue(String text) {
         if (text == null) {
             return false;
@@ -387,7 +414,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             int rowCount = end - start;
 
             if (rowCount >= MIN_TABLE_ROWS
-                    && channels.size() >= MIN_TABLE_CHANNELS) {
+                    && channels.size() >= MIN_TABLE_CHANNELS
+                    && looksLikeMultiColumnTable(rows.subList(start, end))) {
 
                 regions.add(
                         toTableRegion(
