@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
@@ -58,7 +58,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    const setFile = (newFile: File | null) => {
+    const setFile = useCallback((newFile: File | null) => {
         setFileState(newFile);
         if (newFile) {
             saveDraftFile(newFile).then((saved) => {
@@ -73,12 +73,12 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         } else {
             clearDraftFile();
         }
-    };
+    }, []);
 
-    const clearFile = () => {
+    const clearFile = useCallback(() => {
         setFileState(null);
         clearDraftFile();
-    };
+    }, []);
 
     const startConversion = async (fileOverride?: File | null): Promise<ConversionSession | null> => {
         const targetFile = fileOverride !== undefined ? fileOverride : file;
@@ -195,6 +195,9 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const openAbandonModal = useCallback(() => setIsAbandonModalOpen(true), []);
+    const closeAbandonModal = useCallback(() => setIsAbandonModalOpen(false), []);
+
     return (
         <ConversionContext.Provider
             value={{
@@ -206,8 +209,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 resetKeepFile,
                 requestReset,
                 isAbandonModalOpen,
-                openAbandonModal: () => setIsAbandonModalOpen(true),
-                closeAbandonModal: () => setIsAbandonModalOpen(false),
+                openAbandonModal,
+                closeAbandonModal,
                 activeView,
                 setActiveView,
                 session,

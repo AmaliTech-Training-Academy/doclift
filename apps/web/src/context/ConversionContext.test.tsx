@@ -41,6 +41,19 @@ describe("useConversion", () => {
     expect(result.current.activeView).toBe("progress");
   });
 
+  it("memoizes setFile and clearFile across provider re-renders", () => {
+    const { result } = renderHook(() => useConversion(), { wrapper });
+    const initialSetFile = result.current.setFile;
+    const initialClearFile = result.current.clearFile;
+
+    act(() => {
+      result.current.setActiveView("progress");
+    });
+
+    expect(result.current.setFile).toBe(initialSetFile);
+    expect(result.current.clearFile).toBe(initialClearFile);
+  });
+
   it("reset clears the file, bumps resetKey, and returns to the upload view", () => {
     const { result } = renderHook(() => useConversion(), { wrapper });
     const file = new File(["hello"], "hello.pdf", { type: "application/pdf" });

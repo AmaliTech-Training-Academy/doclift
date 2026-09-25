@@ -54,6 +54,23 @@ describe("DropZone", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("accepts a valid PDF file when file.type is an empty string", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const onDrop = vi.fn();
+    const { container } = render(<DropZone onDrop={onDrop} />);
+    const input = getFileInput(container);
+
+    const file = makeFile("%PDF-1.4\nrest of file", "report.pdf", "");
+    await user.upload(input, file);
+
+    expect(onDrop).toHaveBeenCalledWith(file);
+    expect(toast.success).toHaveBeenCalledWith(
+      "File selected",
+      expect.objectContaining({ description: expect.stringContaining("report.pdf") }),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("rejects a file with a non-pdf extension", async () => {
     // The real drop handler (dragging a file onto the zone) isn't filtered
     // by the input's `accept` attribute the way a native file dialog is, so

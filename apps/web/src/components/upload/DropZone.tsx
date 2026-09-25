@@ -86,7 +86,7 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         const currentValidationId = ++validationIdRef.current;
 
         const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
-        const hasPdfMime = file.type === "application/pdf";
+        const hasPdfMime = !file.type || file.type === "application/pdf";
 
         if (!hasPdfExtension || !hasPdfMime) {
             if (currentValidationId === validationIdRef.current) {
