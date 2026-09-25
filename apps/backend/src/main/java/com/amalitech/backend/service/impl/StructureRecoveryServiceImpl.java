@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 public class StructureRecoveryServiceImpl implements StructureRecoveryService {
@@ -20,6 +21,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float SPANNING_WIDTH_RATIO = 0.7f;
     private static final float PARAGRAPH_GAP_FACTOR = 1.2f;
     private static final float INDENT_TOLERANCE = 20f;
+    private static final float HEADING_FONT_RATIO = 1.25f;
+    private static final int HEADING_MAX_LENGTH = 120;
+    private static final Pattern LIST_PATTERN = Pattern.compile(
+            "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[A-Za-z]|[ivxIVX]+)[.)])\\s+.+"
+    );
 
     @Override
     public void recoverStructure(PageExtraction pageExtraction) {
@@ -37,12 +43,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 pageExtraction.getTextSpans()
         );
 
-        List<StructuredBlock> paragraphs = groupLinesIntoParagraphs(
-                pageExtraction.getPageIndex(),
-                lines
+        float bodyFontSize = determineBodyFontSize(
+                pageExtraction.getTextSpans()
         );
 
-        pageExtraction.getStructuredBlocks().addAll(paragraphs);
+        List<StructuredBlock> blocks = buildStructuredBlocks(
+                pageExtraction.getPageIndex(),
+                lines,
+                bodyFontSize
+        );
+
+        pageExtraction.getStructuredBlocks().addAll(blocks);
     }
 
     private StructuredBlock toParagraphBlock(
@@ -85,43 +96,116 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
     }
 
-    private List<StructuredBlock> groupLinesIntoParagraphs(
+    private List<StructuredBlock> buildStructuredBlocks(
             int pageIndex,
-            List<LogicalLine> lines
+            List<LogicalLine> lines,
+            float bodyFontSize
     ) {
         List<StructuredBlock> blocks = new ArrayList<>();
+        List<LogicalLine> paragraphLines = new ArrayList<>();
 
-        if (lines.isEmpty()) {
-            return blocks;
-        }
+        for (LogicalLine line : lines) {
 
-        List<LogicalLine> currentParagraph = new ArrayList<>();
-        currentParagraph.add(lines.getFirst());
-
-        for (int i = 1; i < lines.size(); i++) {
-            LogicalLine previous = lines.get(i - 1);
-            LogicalLine current = lines.get(i);
-
-            if (belongsToSameParagraph(previous, current)) {
-                currentParagraph.add(current);
-            } else {
-                blocks.add(
-                        toParagraphBlock(pageIndex, currentParagraph)
+            if (isHeading(line, bodyFontSize)) {
+                flushParagraph(
+                        blocks,
+                        paragraphLines,
+                        pageIndex
                 );
 
-                currentParagraph = new ArrayList<>();
-                currentParagraph.add(current);
+                blocks.add(
+                        toBlock(
+                                pageIndex,
+                                line,
+                                BlockType.HEADING
+                        )
+                );
+
+                continue;
+            }
+
+            if (isListItem(line)) {
+                flushParagraph(
+                        blocks,
+                        paragraphLines,
+                        pageIndex
+                );
+
+                blocks.add(
+                        toBlock(
+                                pageIndex,
+                                line,
+                                BlockType.LIST_ITEM
+                        )
+                );
+
+                continue;
+            }
+
+            if (paragraphLines.isEmpty()) {
+                paragraphLines.add(line);
+                continue;
+            }
+
+            LogicalLine previous =
+                    paragraphLines.getLast();
+
+            if (belongsToSameParagraph(previous, line)) {
+                paragraphLines.add(line);
+            } else {
+                flushParagraph(
+                        blocks,
+                        paragraphLines,
+                        pageIndex
+                );
+
+                paragraphLines.add(line);
             }
         }
 
-        if (!currentParagraph.isEmpty()) {
-            blocks.add(
-                    toParagraphBlock(pageIndex, currentParagraph)
-            );
-        }
+        flushParagraph(
+                blocks,
+                paragraphLines,
+                pageIndex
+        );
 
         return blocks;
     }
+    private void flushParagraph(
+            List<StructuredBlock> blocks,
+            List<LogicalLine> paragraphLines,
+            int pageIndex
+    ) {
+        if (paragraphLines.isEmpty()) {
+            return;
+        }
+
+        blocks.add(
+                toParagraphBlock(
+                        pageIndex,
+                        new ArrayList<>(paragraphLines)
+                )
+        );
+
+        paragraphLines.clear();
+    }
+    private StructuredBlock toBlock(
+            int pageIndex,
+            LogicalLine line,
+            BlockType type
+    ) {
+        return new StructuredBlock(
+                pageIndex,
+                type,
+                line.getText(),
+                line.getX(),
+                line.getY(),
+                line.getWidth(),
+                line.getHeight(),
+                new ArrayList<>(line.getSpans())
+        );
+    }
+
     private boolean belongsToSameParagraph(
             LogicalLine previous,
             LogicalLine current
@@ -267,6 +351,23 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return lines;
     }
 
+    private float determineBodyFontSize(List<TextSpan> spans) {
+        if (spans.isEmpty()) {
+            return 0f;
+        }
+
+        List<Float> sizes = spans.stream()
+                .map(TextSpan::getFontSize)
+                .filter(size -> size > 0f)
+                .sorted()
+                .toList();
+
+        if (sizes.isEmpty()) {
+            return 0f;
+        }
+
+        return sizes.get((sizes.size() - 1) / 2);
+    }
     private LogicalLine findMatchingLine(
             List<LogicalLine> lines,
             TextSpan span
@@ -278,12 +379,45 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                             * LINE_TOLERANCE_FACTOR
             );
 
+
             if (Math.abs(line.getY() - span.getY()) <= tolerance) {
                 return line;
             }
         }
 
         return null;
+    }
+
+    private boolean isListItem(LogicalLine line) {
+        String text = line.getText();
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        return LIST_PATTERN.matcher(text).matches();
+    }
+
+    private boolean isHeading(
+            LogicalLine line,
+            float bodyFontSize
+    ) {
+        String text = line.getText();
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (text.length() > HEADING_MAX_LENGTH) {
+            return false;
+        }
+
+        if (bodyFontSize <= 0f) {
+            return false;
+        }
+
+        return line.getAverageFontSize()
+                >= bodyFontSize * HEADING_FONT_RATIO;
     }
 
     private static class LogicalLine {
@@ -332,6 +466,24 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     .orElse(minX);
 
             return Math.max(0f, maxX - minX);
+        }
+
+        float getAverageFontSize() {
+            if (spans.isEmpty()) {
+                return 0f;
+            }
+
+            float total = 0f;
+            int count = 0;
+
+            for (TextSpan span : spans) {
+                if (span.getFontSize() > 0f) {
+                    total += span.getFontSize();
+                    count++;
+                }
+            }
+
+            return count == 0 ? 0f : total / count;
         }
 
         float getHeight() {
