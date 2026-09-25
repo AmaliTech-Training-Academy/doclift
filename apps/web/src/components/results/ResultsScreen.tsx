@@ -40,7 +40,7 @@ export default function ResultsScreen() {
                                     </span>
                                 )}
                                 <p className="text-sm sm:text-md text-muted-foreground">
-                                    File size • 2 Pages • {conversionTimeText}
+                                    File size ()mb • () Pages • {conversionTimeText} {/* File size and number of pages of .docx will be fetched from backend */}
                                 </p>
                             </div>
                         </div>

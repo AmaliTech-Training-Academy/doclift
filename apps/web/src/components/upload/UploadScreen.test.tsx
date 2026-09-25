@@ -98,6 +98,12 @@ describe("UploadScreen", () => {
   });
 
   it("switches to the progress view when Convert is clicked", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ jobId: 42 }),
+    } as unknown as Response);
+
     const user = userEvent.setup();
 
     function ActiveViewProbe() {
@@ -118,7 +124,9 @@ describe("UploadScreen", () => {
 
     await user.click(screen.getByRole("button", { name: /convert to word/i }));
 
-    expect(screen.getByText("active:progress")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("active:progress")).toBeInTheDocument();
+    });
   });
 
   it("renders the preservation feature cards", () => {

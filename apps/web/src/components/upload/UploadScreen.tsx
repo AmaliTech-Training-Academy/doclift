@@ -35,7 +35,7 @@ async function getPdfPageCount(file: File): Promise<number | null> {
 }
 
 export default function UploadScreen() {
-    const { file: uploadedFile, setFile: setUploadedFile, clearFile, startConversion } = useConversion();
+    const { file: uploadedFile, setFile: setUploadedFile, clearFile, startConversion, isUploading } = useConversion();
     const dropZoneRef = useRef<DropZoneHandle>(null);
     const [pageCount, setPageCount] = useState<number | null>(null);
 
@@ -126,13 +126,20 @@ export default function UploadScreen() {
                             </div>
                         </div>
                         <Button variant="danger" size="sm" onClick={handleRemoveFile} className="w-full sm:w-auto justify-center">
-                            <Trash className="size-4"/>
+                            <Trash className="size-4" />
                             <span>Remove File</span>
                         </Button>
                     </div>
                 )}
 
-                <Button size="lg" disabled={!uploadedFile} onClick={() => startConversion()} className="w-full">
+                <Button
+                    size="lg"
+                    disabled={!uploadedFile || isUploading}
+                    loading={isUploading}
+                    loadingText="Starting Conversion..."
+                    onClick={() => startConversion()}
+                    className="w-full"
+                >
                     <span>Convert to Word (.docx)</span>
                     <ArrowRight className="size-4" />
                 </Button>

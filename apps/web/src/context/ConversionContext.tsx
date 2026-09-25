@@ -1,14 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import {
-    ConversionSession,
-    ConversionStatus,
-    generateJobId,
-    saveConversionSession,
-    clearConversionSession,
-} from "@/lib/conversionSession";
+import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
+import { uploadFile } from "@/lib/uploadApi";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
 import { toast } from "sonner";
 
@@ -29,7 +24,9 @@ interface ConversionContextValue {
     setActiveView: (view: ActiveView) => void;
     session: ConversionSession | null;
     setSession: (session: ConversionSession | null) => void;
-    startConversion: (fileOverride?: File | null) => ConversionSession | null;
+    isUploading: boolean;
+    isConverting: boolean;
+    startConversion: (fileOverride?: File | null) => Promise<ConversionSession | null>;
     updateStatus: (status: ConversionStatus, durationOverride?: number) => void;
 }
 
@@ -40,7 +37,12 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const [resetKey, setResetKey] = useState(0);
     const [activeView, setActiveView] = useState<ActiveView>("upload");
     const [session, setSession] = useState<ConversionSession | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const [isAbandonModalOpen, setIsAbandonModalOpen] = useState(false);
+
+    const isConverting = Boolean(
+        session && (session.status === "processing" || session.status === "queued")
+    );
 
     useEffect(() => {
         let isMounted = true;
@@ -76,25 +78,38 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         clearDraftFile();
     };
 
-    const startConversion = (fileOverride?: File | null): ConversionSession | null => {
+    const startConversion = async (fileOverride?: File | null): Promise<ConversionSession | null> => {
         const targetFile = fileOverride !== undefined ? fileOverride : file;
-        if (!targetFile) return null;
+        if (!targetFile || isUploading || isConverting) return null;
 
-        const now = Date.now();
-        const fileName = targetFile.name;
-        const newSession: ConversionSession = {
-            jobId: generateJobId(),
-            fileName,
-            status: "processing",
-            updatedAt: now,
-            createdAt: now,
-            fileSize: targetFile.size,
-        };
+        setIsUploading(true);
 
-        saveConversionSession(newSession);
-        setSession(newSession);
-        setActiveView("progress");
-        return newSession;
+        try {
+            const res = await uploadFile(targetFile);
+            const now = Date.now();
+            const realJobId = String(res.jobId);
+            const newSession: ConversionSession = {
+                jobId: realJobId,
+                fileName: targetFile.name,
+                status: "processing",
+                updatedAt: now,
+                createdAt: now,
+                fileSize: targetFile.size,
+            };
+
+            saveConversionSession(newSession);
+            setSession(newSession);
+            setActiveView("progress");
+            setIsUploading(false);
+            return newSession;
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "Upload failed";
+            if (typeof toast?.error === "function") {
+                toast.error(errorMessage);
+            }
+            setIsUploading(false);
+            return null;
+        }
     };
 
     const updateStatus = (status: ConversionStatus, durationOverride?: number) => {
@@ -171,6 +186,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 setActiveView,
                 session,
                 setSession,
+                isUploading,
+                isConverting,
                 startConversion,
                 updateStatus,
             }}
