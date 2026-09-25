@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
     private static final float MIN_LINE_TOLERANCE = 2.0f;
+    private static final float COLUMN_SPLIT_TOLERANCE = 20f;
     private static final float LINE_TOLERANCE_FACTOR = 0.5f;
     private static final float PARAGRAPH_GAP_FACTOR = 1.2f;
     private static final float INDENT_TOLERANCE = 20f;
@@ -270,7 +271,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     );
 
             if (rowSplit != null
-                    && Math.abs(rowSplit - splitX) <= 20f) {
+                    && Math.abs(rowSplit - splitX) <= COLUMN_SPLIT_TOLERANCE) {
                 firstColumnRow = i;
                 break;
             }
@@ -286,12 +287,18 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         // Split each remaining row using the detected
-        // document-level column boundary.
+        // document-level column boundary, keeping spanning rows intact.
         for (int i = firstColumnRow;
              i < physicalRows.size();
              i++) {
 
             LogicalLine row = physicalRows.get(i);
+
+            if (isSpanningRow(row, splitX)) {
+                flushColumnSection(ordered, leftColumn, rightColumn);
+                ordered.add(row);
+                continue;
+            }
 
             List<TextSpan> leftSpans =
                     new ArrayList<>();
@@ -330,22 +337,57 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             }
         }
 
-        leftColumn.sort(
-                Comparator
-                        .comparing(LogicalLine::getY)
-                        .thenComparing(LogicalLine::getX)
-        );
-
-        rightColumn.sort(
-                Comparator
-                        .comparing(LogicalLine::getY)
-                        .thenComparing(LogicalLine::getX)
-        );
-
-        ordered.addAll(leftColumn);
-        ordered.addAll(rightColumn);
+        flushColumnSection(ordered, leftColumn, rightColumn);
 
         return ordered;
+    }
+
+    private boolean isSpanningRow(LogicalLine row, float splitX) {
+        for (TextSpan span : row.getSpans()) {
+            if (span.getX() < splitX
+                    && (span.getX() + span.getWidth()) > splitX) {
+                return true;
+            }
+        }
+
+        if (row.getX() < splitX
+                && (row.getX() + row.getWidth()) > splitX) {
+            Float rowSplit =
+                    findLargestHorizontalGapPosition(row);
+
+            if (rowSplit == null
+                    || Math.abs(rowSplit - splitX) > COLUMN_SPLIT_TOLERANCE) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void flushColumnSection(
+            List<LogicalLine> ordered,
+            List<LogicalLine> leftColumn,
+            List<LogicalLine> rightColumn
+    ) {
+        if (!leftColumn.isEmpty()) {
+            leftColumn.sort(
+                    Comparator
+                            .comparing(LogicalLine::getY)
+                            .thenComparing(LogicalLine::getX)
+            );
+            ordered.addAll(leftColumn);
+            leftColumn.clear();
+        }
+
+        if (!rightColumn.isEmpty()) {
+            rightColumn.sort(
+                    Comparator
+                            .comparing(LogicalLine::getY)
+                            .thenComparing(LogicalLine::getX)
+            );
+            ordered.addAll(rightColumn);
+            rightColumn.clear();
+        }
     }
 
     private List<LogicalLine> groupSpansIntoLines(List<TextSpan> textSpans) {
