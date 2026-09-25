@@ -169,6 +169,12 @@ describe("AbandonSessionModal component", () => {
 
 describe("ConversionContext integration with requestReset and AbandonSessionModal", () => {
     it("opens abandon session modal via requestReset when session exists and resets on confirmation", async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 201,
+            json: async () => ({ jobId: 101 }),
+        } as unknown as Response);
+
         const user = userEvent.setup();
 
         function ConsumerComponent() {
@@ -212,6 +218,12 @@ describe("ConversionContext integration with requestReset and AbandonSessionModa
     });
 
     it("retains file when confirming abandon for a failed session", async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 201,
+            json: async () => ({ jobId: 102 }),
+        } as unknown as Response);
+
         const user = userEvent.setup();
 
         function ConsumerComponent() {
@@ -219,11 +231,11 @@ describe("ConversionContext integration with requestReset and AbandonSessionModa
             return (
                 <div>
                     <button
-                        onClick={() => {
+                        onClick={async () => {
                             const f = new File(["content"], "failed.pdf", { type: "application/pdf" });
                             setFile(f);
-                            startConversion(f);
-                            setTimeout(() => updateStatus("failed"), 0);
+                            await startConversion(f);
+                            updateStatus("failed");
                         }}
                     >
                         Fail Conversion
@@ -242,8 +254,7 @@ describe("ConversionContext integration with requestReset and AbandonSessionModa
         );
 
         await user.click(screen.getByRole("button", { name: "Fail Conversion" }));
-        // await microtask for state update
-        await new Promise((r) => setTimeout(r, 10));
+        expect(screen.getByTestId("active-view")).toHaveTextContent("progress");
 
         await user.click(screen.getByRole("button", { name: "Request Reset" }));
 
