@@ -44,6 +44,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
     private static final float TABLE_CELL_GAP_FONT_FACTOR = 0.9f;
     private static final float TABLE_MIN_CHANNEL_WIDTH = 2f;
     private static final float TABLE_MIN_ROW_TOLERANCE = 2f;
+    private static final int MIN_TWO_COLUMN_TABLE_ROWS = 3;
+    private static final float COLUMN_ALIGNMENT_TOLERANCE = 20f;
 
     private final StructureRecoveryService structureRecoveryService;
 
@@ -88,6 +90,47 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return result;
     }
 
+    private boolean looksLikeTwoColumnTable(
+            List<List<TextSpan>> rows
+    ) {
+        if (rows.size() < MIN_TWO_COLUMN_TABLE_ROWS) {
+            return false;
+        }
+
+        Float expectedLeftX = null;
+        Float expectedRightX = null;
+        int matchingRows = 0;
+
+        for (List<TextSpan> row : rows) {
+            if (row.size() != 2) {
+                continue;
+            }
+
+            TextSpan left = row.get(0);
+            TextSpan right = row.get(1);
+
+            if (expectedLeftX == null) {
+                expectedLeftX = left.getX();
+                expectedRightX = right.getX();
+                matchingRows++;
+                continue;
+            }
+
+            boolean leftAligned =
+                    Math.abs(left.getX() - expectedLeftX)
+                            <= COLUMN_ALIGNMENT_TOLERANCE;
+
+            boolean rightAligned =
+                    Math.abs(right.getX() - expectedRightX)
+                            <= COLUMN_ALIGNMENT_TOLERANCE;
+
+            if (leftAligned && rightAligned) {
+                matchingRows++;
+            }
+        }
+
+        return matchingRows >= MIN_TWO_COLUMN_TABLE_ROWS;
+    }
     private List<TextSpan> extractTextSpans(int pageIndex, PDPage page) throws IOException {
         final List<TextSpan> spans = new ArrayList<>();
 
@@ -218,6 +261,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             }
         }
 
+
         private void recordImagePlacement(String imageName, PDImageXObject image) {
             Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
 
@@ -277,34 +321,87 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
      * text only shares a single channel (the gutter) and is not reported;
      * word and sentence gaps do not line up across rows.
      */
-    private List<TableRegion> detectCandidateTableRegions(int pageIndex, List<TextSpan> textSpans) {
+    private List<TableRegion> detectCandidateTableRegions(
+            int pageIndex,
+            List<TextSpan> textSpans
+    ) {
         List<TableRegion> regions = new ArrayList<>();
+
         if (textSpans.size() < 3) {
             return regions;
         }
 
         List<List<TextSpan>> rows = groupIntoRows(textSpans);
 
+        // First pass: detect tables with 3 or more columns.
         int start = 0;
+
         while (start < rows.size()) {
             List<float[]> channels = findCellGaps(rows.get(start));
             int end = start + 1;
 
-            while (end < rows.size() && channels.size() >= MIN_TABLE_CHANNELS) {
-                List<float[]> narrowed = intersectGaps(channels, findCellGaps(rows.get(end)));
+            while (end < rows.size()
+                    && channels.size() >= MIN_TABLE_CHANNELS) {
+
+                List<float[]> narrowed =
+                        intersectGaps(
+                                channels,
+                                findCellGaps(rows.get(end))
+                        );
+
                 if (narrowed.size() < MIN_TABLE_CHANNELS) {
                     break;
                 }
+
                 channels = narrowed;
                 end++;
             }
 
             int rowCount = end - start;
-            if (rowCount >= MIN_TABLE_ROWS && channels.size() >= MIN_TABLE_CHANNELS) {
-                regions.add(toTableRegion(pageIndex, rows.subList(start, end), channels.size() + 1));
+
+            if (rowCount >= MIN_TABLE_ROWS
+                    && channels.size() >= MIN_TABLE_CHANNELS) {
+
+                regions.add(
+                        toTableRegion(
+                                pageIndex,
+                                rows.subList(start, end),
+                                channels.size() + 1
+                        )
+                );
+
                 start = end;
             } else {
                 start++;
+            }
+        }
+
+        // Second pass: detect genuine 2-column tables.
+        for (int rowStart = 0; rowStart < rows.size(); rowStart++) {
+            int rowEnd = rowStart;
+
+            while (rowEnd < rows.size()
+                    && rows.get(rowEnd).size() == 2) {
+                rowEnd++;
+            }
+
+            if (rowEnd - rowStart >= MIN_TWO_COLUMN_TABLE_ROWS) {
+                List<List<TextSpan>> candidateRows =
+                        rows.subList(rowStart, rowEnd);
+
+                if (looksLikeTwoColumnTable(candidateRows)) {
+                    regions.add(
+                            toTableRegion(
+                                    pageIndex,
+                                    candidateRows,
+                                    2
+                            )
+                    );
+                }
+            }
+
+            if (rowEnd > rowStart) {
+                rowStart = rowEnd - 1;
             }
         }
 

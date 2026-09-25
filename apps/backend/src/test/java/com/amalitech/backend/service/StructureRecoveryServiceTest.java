@@ -472,4 +472,69 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks().get(2).getType())
                 .isEqualTo(BlockType.HEADING);
     }
+    @Test
+    void shouldNotTreatRepeatedLabelValueRowsAsColumns() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                span("Name:", 50, 100),
+                span("John Doe", 250, 100),
+
+                span("Email:", 50, 120),
+                span("john@example.com", 250, 120),
+
+                span("Phone:", 50, 140),
+                span("0240000000", 250, 140)
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .containsExactly(
+                        "Name: John Doe Email: john@example.com Phone: 0240000000"
+                );
+    }
+
+    @Test
+    void shouldPreserveTwoColumnTableRowsInRowOrder() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                span("Item", 50, 100),
+                span("Price", 300, 100),
+
+                span("Laptop", 50, 120),
+                span("1200", 300, 120),
+
+                span("Keyboard", 50, 140),
+                span("100", 300, 140),
+
+                span("Mouse", 50, 160),
+                span("50", 300, 160)
+        ));
+
+        page.getCandidateTableRegions().add(
+                new TableRegion(
+                        0,
+                        40,
+                        90,
+                        320,
+                        90,
+                        4,
+                        2
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .containsExactly(
+                        "Item Price",
+                        "Laptop 1200",
+                        "Keyboard 100",
+                        "Mouse 50"
+                );
+    }
 }

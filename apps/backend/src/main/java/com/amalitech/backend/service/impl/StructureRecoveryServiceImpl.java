@@ -125,9 +125,25 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         for (LogicalLine line : lines) {
 
-            // Table rows are kept row-wise and never reclassified
-            // as headings or list items.
-            if (!line.isTableRow() && isHeading(line, bodyFontSize)) {
+            if (line.isTableRow()) {
+                flushParagraph(
+                        blocks,
+                        paragraphLines,
+                        pageIndex
+                );
+
+                blocks.add(
+                        toBlock(
+                                pageIndex,
+                                line,
+                                BlockType.PARAGRAPH
+                        )
+                );
+
+                continue;
+            }
+
+            if (isHeading(line, bodyFontSize)) {
                 flushParagraph(
                         blocks,
                         paragraphLines,
@@ -145,7 +161,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 continue;
             }
 
-            if (!line.isTableRow() && isListItem(line)) {
+            if (isListItem(line)) {
                 flushParagraph(
                         blocks,
                         paragraphLines,
@@ -558,6 +574,33 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
     }
 
+    private boolean hasSubstantialContentOnBothSides(
+            LogicalLine row,
+            float splitX
+    ) {
+        float leftWidth = 0f;
+        float rightWidth = 0f;
+
+        for (TextSpan span : row.getSpans()) {
+            float spanRight = span.getX() + span.getWidth();
+
+            if (spanRight <= splitX) {
+                leftWidth += span.getWidth();
+            } else if (span.getX() >= splitX) {
+                rightWidth += span.getWidth();
+            }
+        }
+
+        if (leftWidth <= 0f || rightWidth <= 0f) {
+            return false;
+        }
+
+        float smaller = Math.min(leftWidth, rightWidth);
+        float larger = Math.max(leftWidth, rightWidth);
+
+        return smaller / larger >= 0.35f;
+    }
+
     private HorizontalGap findLargestHorizontalGap(LogicalLine line) {
         List<TextSpan> spans = new ArrayList<>(line.getSpans());
 
@@ -636,7 +679,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
 
 
-            if (interior) {
+            if (interior
+                    && hasSubstantialContentOnBothSides(
+                    row,
+                    gap.center()
+            )) {
                 gutterPositions.add(gap.center());
             }
         }
@@ -678,6 +725,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return null;
         }
 
+        if (bestSplit != null
+                && looksLikeLabelValueLayout(rows, bestSplit)) {
+            return null;
+        }
+
         return bestSplit;
     }
     private float determineBodyFontSize(List<TextSpan> spans) {
@@ -697,6 +749,48 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         return sizes.get((sizes.size() - 1) / 2);
     }
+
+    private boolean looksLikeLabelValueLayout(
+            List<LogicalLine> rows,
+            float splitX
+    ) {
+        int eligibleRows = 0;
+        int labelValueRows = 0;
+
+        for (LogicalLine row : rows) {
+            StringBuilder leftText = new StringBuilder();
+            boolean hasRight = false;
+
+            for (TextSpan span : row.getSpans()) {
+                float spanRight =
+                        span.getX() + span.getWidth();
+
+                if (spanRight <= splitX) {
+                    if (!leftText.isEmpty()) {
+                        leftText.append(' ');
+                    }
+
+                    leftText.append(span.getText().trim());
+                } else if (span.getX() >= splitX) {
+                    hasRight = true;
+                }
+            }
+
+            if (leftText.isEmpty() || !hasRight) {
+                continue;
+            }
+
+            eligibleRows++;
+
+            if (leftText.toString().trim().endsWith(":")) {
+                labelValueRows++;
+            }
+        }
+
+        return eligibleRows >= MIN_MULTI_COLUMN_ROWS
+                && labelValueRows >= Math.ceil(eligibleRows * 0.5);
+    }
+
     private LogicalLine findMatchingLine(
             List<LogicalLine> lines,
             TextSpan span

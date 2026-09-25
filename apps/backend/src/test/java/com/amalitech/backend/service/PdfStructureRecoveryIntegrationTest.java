@@ -6,6 +6,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+
+import java.io.ByteArrayOutputStream;
+
 import java.io.InputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,6 +116,86 @@ class PdfStructureRecoveryIntegrationTest {
                     .extracting(StructuredBlock::getText)
                     .contains("1");
         }
+    }
+
+    @Test
+    void shouldDetectAndPreserveTwoColumnTable() throws Exception {
+
+        byte[] pdfBytes;
+
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDType1Font font = new PDType1Font(
+                    Standard14Fonts.FontName.HELVETICA
+            );
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                float leftX = 80f;
+                float rightX = 300f;
+                float startY = 700f;
+                float rowGap = 25f;
+
+                String[][] rows = {
+                        {"Item", "Price"},
+                        {"Laptop", "1200"},
+                        {"Keyboard", "100"},
+                        {"Mouse", "50"}
+                };
+
+                for (int i = 0; i < rows.length; i++) {
+                    float y = startY - (i * rowGap);
+
+                    content.beginText();
+                    content.setFont(font, 12);
+                    content.newLineAtOffset(leftX, y);
+                    content.showText(rows[i][0]);
+                    content.endText();
+
+                    content.beginText();
+                    content.setFont(font, 12);
+                    content.newLineAtOffset(rightX, y);
+                    content.showText(rows[i][1]);
+                    content.endText();
+                }
+            }
+
+            ByteArrayOutputStream output =
+                    new ByteArrayOutputStream();
+
+            document.save(output);
+            pdfBytes = output.toByteArray();
+        }
+
+        PdfExtractionResult result =
+                pdfExtractionService.extract(pdfBytes);
+
+        assertThat(result.getPages()).hasSize(1);
+
+        PageExtraction page =
+                result.getPages().getFirst();
+
+        assertThat(page.getCandidateTableRegions())
+                .as("Two-column table should be detected")
+                .anySatisfy(region -> {
+                    assertThat(region.getColumnCount())
+                            .isEqualTo(2);
+
+                    assertThat(region.getRowCount())
+                            .isEqualTo(4);
+                });
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .containsSubsequence(
+                        "Item Price",
+                        "Laptop 1200",
+                        "Keyboard 100",
+                        "Mouse 50"
+                );
     }
 
     @Test
