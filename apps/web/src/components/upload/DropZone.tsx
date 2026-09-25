@@ -80,13 +80,13 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         },
     }));
 
-    const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
     const handleFile = async (file: File): Promise<boolean> => {
         const currentValidationId = ++validationIdRef.current;
 
         const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
-        const hasPdfMime = file.type === "application/pdf" || file.type === "";
+        const hasPdfMime = file.type === "application/pdf";
 
         if (!hasPdfExtension || !hasPdfMime) {
             if (currentValidationId === validationIdRef.current) {
@@ -109,7 +109,7 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         if (file.size > MAX_FILE_SIZE_BYTES) {
             if (currentValidationId === validationIdRef.current) {
                 toast.error("File too large", {
-                    description: "File size exceeds the 50 MB limit.",
+                    description: "File size exceeds the 10 MB limit.",
                 });
             }
             return false;

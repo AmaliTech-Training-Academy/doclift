@@ -106,7 +106,7 @@ describe("DropZone", () => {
     );
   });
 
-  it("rejects a file over the 50 MB limit", async () => {
+  it("rejects a file over the 10 MB limit", async () => {
     const user = userEvent.setup();
     const onDrop = vi.fn();
     const { container } = render(<DropZone onDrop={onDrop} />);
@@ -116,14 +116,14 @@ describe("DropZone", () => {
       "%PDF-1.4",
       "huge.pdf",
       "application/pdf",
-      51 * 1024 * 1024,
+      11 * 1024 * 1024,
     );
     await user.upload(input, file);
 
     expect(onDrop).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(
       "File too large",
-      expect.objectContaining({ description: "File size exceeds the 50 MB limit." }),
+      expect.objectContaining({ description: "File size exceeds the 10 MB limit." }),
     );
   });
 

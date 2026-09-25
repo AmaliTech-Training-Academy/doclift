@@ -44,7 +44,21 @@ describe("uploadApi", () => {
     await expect(uploadFile(mockFile)).rejects.toThrow("Only PDF files are supported.");
   });
 
-  it("handles 413 payload too large with a friendly message", async () => {
+  it("handles 413 with backend JSON message when available", async () => {
+    const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: async () => ({ code: "FILE_TOO_LARGE", message: "The uploaded PDF exceeds the maximum allowed size." }),
+    } as unknown as Response);
+
+    await expect(uploadFile(mockFile)).rejects.toThrow(
+      "The uploaded PDF exceeds the maximum allowed size."
+    );
+  });
+
+  it("handles 413 with fallback message when JSON body is missing", async () => {
     const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
 
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -56,7 +70,7 @@ describe("uploadApi", () => {
     } as unknown as Response);
 
     await expect(uploadFile(mockFile)).rejects.toThrow(
-      "File is too large. Please upload a smaller PDF."
+      "File is too large. Please upload a PDF smaller than 10MB."
     );
   });
 

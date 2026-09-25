@@ -6,6 +6,7 @@ import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
 import { FileText, ArrowLeftRight, Trash, CheckCircle, ArrowRight } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { useConversion } from "@/context/ConversionContext";
+import { toast } from "sonner";
 
 import PreservationCard from "@/components/upload/PreservationCard";
 import { preservationData } from "@/data/preservationData";
@@ -44,12 +45,24 @@ export default function UploadScreen() {
 
         let isMounted = true;
         getPdfPageCount(uploadedFile).then((count) => {
-            if (isMounted) setPageCount(count);
+            if (!isMounted) return;
+
+            if (count === 0) {
+                toast.error("Empty PDF", {
+                    description: "The uploaded PDF contains no pages.",
+                });
+                setPageCount(null);
+                setUploadedFile(null);
+                dropZoneRef.current?.clearFile();
+                return;
+            }
+
+            setPageCount(count);
         });
         return () => {
             isMounted = false;
         };
-    }, [uploadedFile]);
+    }, [uploadedFile, setUploadedFile]);
 
     const handleFileDrop = (file: File) => {
         setPageCount(null);
@@ -98,7 +111,7 @@ export default function UploadScreen() {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="size-1.5 rounded-full bg-primary shrink-0"></span>
-                        <span>Limit: <strong className="font-semibold text-foreground">Up to 50 MB</strong></span>
+                        <span>Limit: <strong className="font-semibold text-foreground">Up to 10 MB</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="size-1.5 rounded-full bg-primary shrink-0"></span>
