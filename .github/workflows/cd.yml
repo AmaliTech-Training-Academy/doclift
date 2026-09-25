@@ -6,7 +6,7 @@ name: CD
 on:
   push:
     branches:
-      - feature/DOC-2-T5-Build-PDF-extractor
+      - feature/T14-CI-CD
       - main
   workflow_dispatch: {}
 
