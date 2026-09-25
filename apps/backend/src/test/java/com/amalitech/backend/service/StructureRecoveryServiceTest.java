@@ -537,4 +537,31 @@ class StructureRecoveryServiceTest {
                         "Mouse 50"
                 );
     }
+    @Test
+    void shouldReturnToSingleColumnOrderAfterColumnSectionEnds() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                span("Left one", 50, 100),
+                span("Right one", 320, 100),
+
+                span("Left two", 50, 120),
+                span("Right two", 320, 120),
+
+                span("Left three", 50, 140),
+                span("Right three", 320, 140),
+
+                span("Single column paragraph", 50, 220)
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .containsExactly(
+                        "Left one Left two Left three",
+                        "Right one Right two Right three",
+                        "Single column paragraph"
+                );
+    }
 }

@@ -376,6 +376,24 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 continue;
             }
 
+            if (!hasNearbyColumnSupport(
+                    physicalRows,
+                    i,
+                    splitX
+            )) {
+                flushColumnSection(
+                        ordered,
+                        leftColumn,
+                        rightColumn
+                );
+
+                for (int j = i; j < physicalRows.size(); j++) {
+                    ordered.add(physicalRows.get(j));
+                }
+
+                return ordered;
+            }
+
             List<TextSpan> leftSpans =
                     new ArrayList<>();
 
@@ -418,6 +436,45 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return ordered;
     }
 
+
+    private boolean hasNearbyColumnSupport(
+            List<LogicalLine> rows,
+            int currentIndex,
+            float splitX
+    ) {
+        LogicalLine current = rows.get(currentIndex);
+
+        // If the current row itself clearly has the detected gutter,
+        // it is part of the column section.
+        if (hasGutterAt(current, splitX)) {
+            return true;
+        }
+
+        // A one-sided row can still belong to a column section if
+        // another nearby row continues the same column pattern.
+        int lookAheadLimit = Math.min(
+                rows.size(),
+                currentIndex + MIN_MULTI_COLUMN_ROWS
+        );
+
+        for (int i = currentIndex + 1;
+             i < lookAheadLimit;
+             i++) {
+
+            LogicalLine next = rows.get(i);
+
+            if (next.isTableRow()
+                    || isSpanningRow(next, splitX)) {
+                break;
+            }
+
+            if (hasGutterAt(next, splitX)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
     private boolean isSpanningRow(LogicalLine row, float splitX) {
         // Table rows act as full-width barriers so their cells are never
         // redistributed into left/right columns.
