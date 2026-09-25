@@ -153,7 +153,7 @@ class PdfStructureRecoveryIntegrationTest {
                                 .isEqualTo(BlockType.PARAGRAPH);
 
                         assertThat(block.getText())
-                                .isEqualTo("1 Foo");
+                                .isEqualTo("1 Foo 2");
                     });
 
             assertThat(blocks)
@@ -162,7 +162,7 @@ class PdfStructureRecoveryIntegrationTest {
                                 .isEqualTo(BlockType.PARAGRAPH);
 
                         assertThat(block.getText())
-                                .isEqualTo("2 Bar");
+                                .isEqualTo("2 Bar 2");
                     });
 
             // ---------------------------------------------------------
@@ -183,7 +183,7 @@ class PdfStructureRecoveryIntegrationTest {
 
                 if (firstParagraphIndex == -1
                         && block.getType() == BlockType.PARAGRAPH
-                        && block.getText().equals("1 Foo")) {
+                        && block.getText().equals("1 Foo 2")) {
                     firstParagraphIndex = i;
                 }
             }

@@ -158,18 +158,21 @@ class StructureRecoveryServiceTest {
         page.getTextSpans().addAll(List.of(
                 spanWithSize(
                         "Document Title",
-                        60,
-                        40,
+                        50,
+                        50,
                         500,
                         18,
                         "Times-Bold"
                 ),
 
-                span("Right one", 320, 100),
                 span("Left one", 50, 100),
+                span("Right one", 320, 100),
 
+                span("Left two", 50, 120),
                 span("Right two", 320, 120),
-                span("Left two", 50, 120)
+
+                span("Left three", 50, 140),
+                span("Right three", 320, 140)
         ));
 
         structureRecoveryService.recoverStructure(page);
@@ -178,8 +181,8 @@ class StructureRecoveryServiceTest {
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
                         "Document Title",
-                        "Left one Left two",
-                        "Right one Right two"
+                        "Left one Left two Left three",
+                        "Right one Right two Right three"
                 );
     }
 
@@ -188,10 +191,14 @@ class StructureRecoveryServiceTest {
         PageExtraction page = new PageExtraction(0);
 
         page.getTextSpans().addAll(List.of(
-                span("Right one", 320, 100),
                 span("Left one", 50, 100),
-                span("Right two", 320, 120),
+                span("Right one", 320, 100),
+
                 span("Left two", 50, 120),
+                span("Right two", 320, 120),
+
+                span("Left three", 50, 140),
+                span("Right three", 320, 140),
 
                 spanWithSize(
                         "Middle Section Heading",
@@ -202,10 +209,14 @@ class StructureRecoveryServiceTest {
                         "Times-Bold"
                 ),
 
-                span("Right three", 320, 300),
-                span("Left three", 50, 300),
-                span("Right four", 320, 320),
-                span("Left four", 50, 320)
+                span("Left four", 50, 300),
+                span("Right four", 320, 300),
+
+                span("Left five", 50, 320),
+                span("Right five", 320, 320),
+
+                span("Left six", 50, 340),
+                span("Right six", 320, 340)
         ));
 
         structureRecoveryService.recoverStructure(page);
@@ -213,11 +224,11 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
-                        "Left one Left two",
-                        "Right one Right two",
+                        "Left one Left two Left three",
+                        "Right one Right two Right three",
                         "Middle Section Heading",
-                        "Left three Left four",
-                        "Right three Right four"
+                        "Left four Left five Left six",
+                        "Right four Right five Right six"
                 );
 
         assertThat(page.getStructuredBlocks().get(2).getType())
@@ -231,8 +242,12 @@ class StructureRecoveryServiceTest {
         page.getTextSpans().addAll(List.of(
                 span("Right one", 320, 100),
                 span("Left one", 50, 100),
+
                 span("Right two", 320, 120),
                 span("Left two", 50, 120),
+
+                span("Right three", 320, 140),
+                span("Left three", 50, 140),
 
                 spanWithSize(
                         "Page 1 of 1 - Confidential Document",
@@ -249,8 +264,8 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
-                        "Left one Left two",
-                        "Right one Right two",
+                        "Left one Left two Left three",
+                        "Right one Right two Right three",
                         "Page 1 of 1 - Confidential Document"
                 );
     }

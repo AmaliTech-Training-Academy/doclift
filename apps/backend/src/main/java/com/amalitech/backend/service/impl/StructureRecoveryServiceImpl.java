@@ -4,6 +4,7 @@ import com.amalitech.backend.service.BlockType;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.StructureRecoveryService;
 import com.amalitech.backend.service.StructuredBlock;
+import com.amalitech.backend.service.TableRegion;
 import com.amalitech.backend.service.TextSpan;
 import org.springframework.stereotype.Service;
 
@@ -20,14 +21,28 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float LINE_TOLERANCE_FACTOR = 0.5f;
     private static final float PARAGRAPH_GAP_FACTOR = 1.2f;
     private static final float INDENT_TOLERANCE = 20f;
+    // Conventional first-line indents go up to ~0.5in (36pt); allow some slack.
+    private static final float MAX_FIRST_LINE_INDENT = 48f;
     private static final float HEADING_FONT_RATIO = 1.25f;
     private static final int HEADING_MAX_LENGTH = 120;
+    // A single capital letter followed by a period ("A. Smith") is far more
+    // often an initial than a list marker, so uppercase letters need ")"
+    // and uppercase roman numerals need at least two characters.
     private static final Pattern LIST_PATTERN = Pattern.compile(
-            "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[A-Za-z]|[ivxIVX]+)[.)])\\s+.+"
+            "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,})[.)]|[A-Z]\\))\\s+.+"
     );
     private static final float MIN_SEGMENT_GAP = 8f;
     private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;
-    private static final int MIN_MULTI_COLUMN_ROWS = 2;
+    private static final int MIN_MULTI_COLUMN_ROWS = 3;
+    // Share of rows with a large horizontal gap that must agree on the split.
+    private static final float MIN_COLUMN_AGREEMENT_RATIO = 0.5f;
+    // A column boundary must lie in the interior of the text area,
+    // expressed as a fraction of the content width.
+    private static final float MIN_COLUMN_SPLIT_POSITION = 0.3f;
+    private static final float MAX_COLUMN_SPLIT_POSITION = 0.7f;
+    // Column gutters are narrow; wide gaps come from tab stops, leaders,
+    // label/value pairs or right-aligned numbers.
+    private static final float TABLE_REGION_MARGIN = 1f;
 
 
     @Override
@@ -43,7 +58,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         List<LogicalLine> lines = buildReadingOrder(
-                pageExtraction.getTextSpans()
+                pageExtraction.getTextSpans(),
+                pageExtraction.getCandidateTableRegions()
         );
 
         float bodyFontSize = determineBodyFontSize(
@@ -109,7 +125,9 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         for (LogicalLine line : lines) {
 
-            if (isHeading(line, bodyFontSize)) {
+            // Table rows are kept row-wise and never reclassified
+            // as headings or list items.
+            if (!line.isTableRow() && isHeading(line, bodyFontSize)) {
                 flushParagraph(
                         blocks,
                         paragraphLines,
@@ -127,7 +145,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 continue;
             }
 
-            if (isListItem(line)) {
+            if (!line.isTableRow() && isListItem(line)) {
                 flushParagraph(
                         blocks,
                         paragraphLines,
@@ -153,7 +171,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine previous =
                     paragraphLines.getLast();
 
-            if (belongsToSameParagraph(previous, line)) {
+            if (belongsToSameParagraph(
+                    previous,
+                    line,
+                    paragraphLines.size() == 1
+            )) {
                 paragraphLines.add(line);
             } else {
                 flushParagraph(
@@ -211,11 +233,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
     private boolean belongsToSameParagraph(
             LogicalLine previous,
-            LogicalLine current
+            LogicalLine current,
+            boolean previousIsFirstLine
     ) {
         // A jump upward means reading order has moved into another
         // column or region, so these lines cannot share a paragraph.
         if (current.getY() < previous.getY()) {
+            return false;
+        }
+
+        // Table text never merges with flowing text around it.
+        if (current.isTableRow() != previous.isTableRow()) {
             return false;
         }
 
@@ -236,21 +264,57 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         boolean closeVertically =
                 verticalGap <= allowedGap;
 
+        float indentDelta = current.getX() - previous.getX();
+
+        // The first line of a paragraph may be indented further than the
+        // lines that follow it.
+        boolean firstLineIndent = previousIsFirstLine
+                && indentDelta < 0f
+                && -indentDelta <= MAX_FIRST_LINE_INDENT;
+
         boolean similarlyIndented =
-                Math.abs(current.getX() - previous.getX())
-                        <= INDENT_TOLERANCE;
+                Math.abs(indentDelta) <= INDENT_TOLERANCE
+                        || firstLineIndent;
 
         return closeVertically && similarlyIndented;
     }
 
     private List<LogicalLine> buildReadingOrder(
-            List<TextSpan> textSpans
+            List<TextSpan> textSpans,
+            List<TableRegion> tableRegions
     ) {
+        List<TextSpan> flowSpans = new ArrayList<>();
+        List<TextSpan> tableSpans = new ArrayList<>();
+
+        for (TextSpan span : textSpans) {
+            if (isInsideTableRegion(span, tableRegions)) {
+                tableSpans.add(span);
+            } else {
+                flowSpans.add(span);
+            }
+        }
+
+        // Column detection only looks at flowing text; table cells would
+        // otherwise look like repeated column boundaries.
         List<LogicalLine> physicalRows =
-                groupSpansIntoLines(textSpans);
+                groupSpansIntoLines(flowSpans);
 
         Float splitX =
                 detectRepeatedColumnSplit(physicalRows);
+
+        List<LogicalLine> tableRows =
+                groupSpansIntoLines(tableSpans);
+
+        for (LogicalLine tableRow : tableRows) {
+            tableRow.markAsTableRow();
+        }
+
+        physicalRows.addAll(tableRows);
+        physicalRows.sort(
+                Comparator
+                        .comparing(LogicalLine::getY)
+                        .thenComparing(LogicalLine::getX)
+        );
 
         // No repeated column boundary found.
         if (splitX == null) {
@@ -265,13 +329,9 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         // Find where the repeated two-column region begins.
         for (int i = 0; i < physicalRows.size(); i++) {
-            Float rowSplit =
-                    findLargestHorizontalGapPosition(
-                            physicalRows.get(i)
-                    );
+            LogicalLine row = physicalRows.get(i);
 
-            if (rowSplit != null
-                    && Math.abs(rowSplit - splitX) <= COLUMN_SPLIT_TOLERANCE) {
+            if (!row.isTableRow() && hasGutterAt(row, splitX)) {
                 firstColumnRow = i;
                 break;
             }
@@ -343,20 +403,81 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     }
 
     private boolean isSpanningRow(LogicalLine row, float splitX) {
+        // Table rows act as full-width barriers so their cells are never
+        // redistributed into left/right columns.
+        if (row.isTableRow()) {
+            return true;
+        }
+
+        boolean hasLeft = false;
+        boolean hasRight = false;
+
         for (TextSpan span : row.getSpans()) {
             if (span.getX() < splitX
                     && (span.getX() + span.getWidth()) > splitX) {
                 return true;
             }
+
+            if (span.getX() < splitX) {
+                hasLeft = true;
+            } else {
+                hasRight = true;
+            }
         }
 
-        if (row.getX() < splitX
-                && (row.getX() + row.getWidth()) > splitX) {
-            Float rowSplit =
-                    findLargestHorizontalGapPosition(row);
+        // Text on both sides of the split without a real gutter between
+        // them belongs to one line running across the boundary.
+        return hasLeft && hasRight && !hasGutterAt(row, splitX);
+    }
 
-            if (rowSplit == null
-                    || Math.abs(rowSplit - splitX) > COLUMN_SPLIT_TOLERANCE) {
+    /**
+     * Returns true when the row has text on both sides of {@code splitX}
+     * separated by a gap wide enough to be a column gutter.
+     */
+    private boolean hasGutterAt(LogicalLine row, float splitX) {
+        TextSpan nearestLeft = null;
+        TextSpan nearestRight = null;
+
+        for (TextSpan span : row.getSpans()) {
+            float right = span.getX() + span.getWidth();
+
+            if (span.getX() < splitX && right > splitX) {
+                return false;
+            }
+
+            if (right <= splitX) {
+                if (nearestLeft == null
+                        || right > nearestLeft.getX() + nearestLeft.getWidth()) {
+                    nearestLeft = span;
+                }
+            } else if (nearestRight == null
+                    || span.getX() < nearestRight.getX()) {
+                nearestRight = span;
+            }
+        }
+
+        if (nearestLeft == null || nearestRight == null) {
+            return false;
+        }
+
+        float gap = nearestRight.getX()
+                - (nearestLeft.getX() + nearestLeft.getWidth());
+
+        return gap > segmentGapThreshold(nearestLeft, nearestRight);
+    }
+
+    private boolean isInsideTableRegion(
+            TextSpan span,
+            List<TableRegion> tableRegions
+    ) {
+        float centerX = span.getX() + (span.getWidth() / 2f);
+        float centerY = span.getY() + (span.getHeight() / 2f);
+
+        for (TableRegion region : tableRegions) {
+            if (centerX >= region.getX() - TABLE_REGION_MARGIN
+                    && centerX <= region.getX() + region.getWidth() + TABLE_REGION_MARGIN
+                    && centerY >= region.getY() - TABLE_REGION_MARGIN
+                    && centerY <= region.getY() + region.getHeight() + TABLE_REGION_MARGIN) {
                 return true;
             }
         }
@@ -425,7 +546,19 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         return lines;
     }
-    private Float findLargestHorizontalGapPosition(LogicalLine line) {
+    private float segmentGapThreshold(TextSpan previous, TextSpan current) {
+        float referenceFontSize = Math.max(
+                previous.getFontSize(),
+                current.getFontSize()
+        );
+
+        return Math.max(
+                MIN_SEGMENT_GAP,
+                referenceFontSize * SEGMENT_GAP_FONT_FACTOR
+        );
+    }
+
+    private HorizontalGap findLargestHorizontalGap(LogicalLine line) {
         List<TextSpan> spans = new ArrayList<>(line.getSpans());
 
         spans.sort(Comparator.comparing(TextSpan::getX));
@@ -434,8 +567,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return null;
         }
 
-        float largestGap = 0f;
-        Float splitPosition = null;
+        HorizontalGap largest = null;
 
         for (int i = 1; i < spans.size(); i++) {
             TextSpan previous = spans.get(i - 1);
@@ -447,62 +579,106 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             float gap =
                     current.getX() - previousRight;
 
-            float referenceFontSize = Math.max(
-                    previous.getFontSize(),
-                    current.getFontSize()
-            );
-
-            float threshold = Math.max(
-                    MIN_SEGMENT_GAP,
-                    referenceFontSize * SEGMENT_GAP_FONT_FACTOR
-            );
-
-            if (gap > threshold && gap > largestGap) {
-                largestGap = gap;
-
-                splitPosition =
-                        previousRight + (gap / 2f);
+            if (gap > segmentGapThreshold(previous, current)
+                    && (largest == null || gap > largest.width())) {
+                largest = new HorizontalGap(previousRight, current.getX());
             }
         }
 
-        return splitPosition;
+        return largest;
     }
+
+    /**
+     * Looks for a column boundary shared by many rows. A split is only
+     * accepted when enough rows agree on it, when it lies in the interior
+     * of the text area and when the agreeing gaps are narrow gutters rather
+     * than tab stops, leaders or right-aligned values.
+     */
     private Float detectRepeatedColumnSplit(
             List<LogicalLine> rows
     ) {
-        List<Float> candidates = new ArrayList<>();
-
-        for (LogicalLine row : rows) {
-            Float candidate =
-                    findLargestHorizontalGapPosition(row);
-
-            if (candidate != null) {
-                candidates.add(candidate);
-            }
-        }
-
-        if (candidates.size() < MIN_MULTI_COLUMN_ROWS) {
+        if (rows.isEmpty()) {
             return null;
         }
 
-        final float splitTolerance = 20f;
+        float contentLeft = Float.MAX_VALUE;
+        float contentRight = -Float.MAX_VALUE;
 
-        for (Float candidate : candidates) {
-            int matches = 0;
+        for (LogicalLine row : rows) {
+            contentLeft = Math.min(contentLeft, row.getX());
+            contentRight = Math.max(contentRight, row.getX() + row.getWidth());
+        }
 
-            for (Float other : candidates) {
-                if (Math.abs(candidate - other)
-                        <= splitTolerance) {
-                    matches++;
-                }
+        float contentWidth = contentRight - contentLeft;
+
+        if (contentWidth <= 0f) {
+            return null;
+        }
+
+        int candidateRows = 0;
+        List<Float> gutterPositions = new ArrayList<>();
+
+        for (LogicalLine row : rows) {
+            HorizontalGap gap = findLargestHorizontalGap(row);
+
+            if (gap == null) {
+                continue;
             }
 
-            if (matches >= MIN_MULTI_COLUMN_ROWS) {
-                return candidate;
+            candidateRows++;
+
+            float relativePosition =
+                    (gap.center() - contentLeft) / contentWidth;
+
+            boolean interior =
+                    relativePosition >= MIN_COLUMN_SPLIT_POSITION
+                            && relativePosition <= MAX_COLUMN_SPLIT_POSITION;
+
+
+
+            if (interior) {
+                gutterPositions.add(gap.center());
             }
         }
 
-        return null;
+        if (candidateRows < MIN_MULTI_COLUMN_ROWS) {
+            return null;
+        }
+
+        float contentCenter = contentLeft + (contentWidth / 2f);
+
+        Float bestSplit = null;
+        int bestSupport = 0;
+
+        for (Float candidate : gutterPositions) {
+            int support = 0;
+            float total = 0f;
+
+            for (Float other : gutterPositions) {
+                if (Math.abs(candidate - other) <= COLUMN_SPLIT_TOLERANCE) {
+                    support++;
+                    total += other;
+                }
+            }
+
+            float split = total / support;
+
+            // Prefer the best-supported split, then the most central one.
+            if (support > bestSupport
+                    || (support == bestSupport
+                    && Math.abs(split - contentCenter)
+                    < Math.abs(bestSplit - contentCenter))) {
+                bestSupport = support;
+                bestSplit = split;
+            }
+        }
+
+        if (bestSupport < MIN_MULTI_COLUMN_ROWS
+                || bestSupport < candidateRows * MIN_COLUMN_AGREEMENT_RATIO) {
+            return null;
+        }
+
+        return bestSplit;
     }
     private float determineBodyFontSize(List<TextSpan> spans) {
         if (spans.isEmpty()) {
@@ -525,6 +701,12 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             List<LogicalLine> lines,
             TextSpan span
     ) {
+        LogicalLine closest = null;
+        float closestDistance = Float.MAX_VALUE;
+
+        // Pick the nearest line within tolerance rather than the first one,
+        // so a span is not attached to a neighbouring line that merely
+        // happens to be close enough.
         for (LogicalLine line : lines) {
             float tolerance = Math.max(
                     MIN_LINE_TOLERANCE,
@@ -532,13 +714,15 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                             * LINE_TOLERANCE_FACTOR
             );
 
+            float distance = Math.abs(line.getY() - span.getY());
 
-            if (Math.abs(line.getY() - span.getY()) <= tolerance) {
-                return line;
+            if (distance <= tolerance && distance < closestDistance) {
+                closest = line;
+                closestDistance = distance;
             }
         }
 
-        return null;
+        return closest;
     }
 
     private boolean isListItem(LogicalLine line) {
@@ -569,16 +753,47 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return false;
         }
 
-        return line.getAverageFontSize()
+        // Every span must be large: a single oversized word (drop cap,
+        // inline emphasis) must not turn a paragraph line into a heading
+        // and split the paragraph mid-flow.
+        return line.getMinFontSize()
                 >= bodyFontSize * HEADING_FONT_RATIO;
+    }
+
+    private record HorizontalGap(float left, float right) {
+
+        float width() {
+            return right - left;
+        }
+
+        float center() {
+            return left + (width() / 2f);
+        }
     }
 
     private static class LogicalLine {
 
         private final List<TextSpan> spans = new ArrayList<>();
+        private boolean tableRow;
 
         void add(TextSpan span) {
             spans.add(span);
+        }
+
+        void markAsTableRow() {
+            tableRow = true;
+        }
+
+        boolean isTableRow() {
+            return tableRow;
+        }
+
+        float getMinFontSize() {
+            return spans.stream()
+                    .map(TextSpan::getFontSize)
+                    .filter(size -> size > 0f)
+                    .min(Float::compare)
+                    .orElse(0f);
         }
 
         void sortLeftToRight() {
@@ -619,24 +834,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     .orElse(minX);
 
             return Math.max(0f, maxX - minX);
-        }
-
-        float getAverageFontSize() {
-            if (spans.isEmpty()) {
-                return 0f;
-            }
-
-            float total = 0f;
-            int count = 0;
-
-            for (TextSpan span : spans) {
-                if (span.getFontSize() > 0f) {
-                    total += span.getFontSize();
-                    count++;
-                }
-            }
-
-            return count == 0 ? 0f : total / count;
         }
 
         float getHeight() {

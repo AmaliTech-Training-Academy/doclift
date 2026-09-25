@@ -31,12 +31,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class PdfExtractionServiceImpl implements PdfExtractionService {
+
+    private static final int MIN_TABLE_ROWS = 3;
+    // Two shared whitespace channels = at least three aligned columns.
+    private static final int MIN_TABLE_CHANNELS = 2;
+    private static final float TABLE_MIN_CELL_GAP = 8f;
+    private static final float TABLE_CELL_GAP_FONT_FACTOR = 0.9f;
+    private static final float TABLE_MIN_CHANNEL_WIDTH = 2f;
+    private static final float TABLE_MIN_ROW_TOLERANCE = 2f;
 
     private final StructureRecoveryService structureRecoveryService;
 
@@ -144,8 +151,10 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         };
 
         stripper.setSortByPosition(true);
-        stripper.setStartPage(pageIndex + 1);
-        stripper.setEndPage(pageIndex + 1);
+        // processPage() handles exactly this page. Setting start/end page here
+        // would be compared against the stripper's own page counter, which a
+        // fresh stripper never advances, so every page after the first would
+        // be skipped.
         stripper.processPage(page);
         return spans;
     }
@@ -262,41 +271,136 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return gap > Math.max(1f, spaceWidth * 0.5f);
     }
 
+    /**
+     * Detects runs of consecutive text rows that share at least two vertical
+     * whitespace channels, i.e. three or more aligned columns. Two-column body
+     * text only shares a single channel (the gutter) and is not reported;
+     * word and sentence gaps do not line up across rows.
+     */
     private List<TableRegion> detectCandidateTableRegions(int pageIndex, List<TextSpan> textSpans) {
         List<TableRegion> regions = new ArrayList<>();
         if (textSpans.size() < 3) {
             return regions;
         }
 
-        Map<Integer, Integer> xBuckets = new HashMap<>();
+        List<List<TextSpan>> rows = groupIntoRows(textSpans);
+
+        int start = 0;
+        while (start < rows.size()) {
+            List<float[]> channels = findCellGaps(rows.get(start));
+            int end = start + 1;
+
+            while (end < rows.size() && channels.size() >= MIN_TABLE_CHANNELS) {
+                List<float[]> narrowed = intersectGaps(channels, findCellGaps(rows.get(end)));
+                if (narrowed.size() < MIN_TABLE_CHANNELS) {
+                    break;
+                }
+                channels = narrowed;
+                end++;
+            }
+
+            int rowCount = end - start;
+            if (rowCount >= MIN_TABLE_ROWS && channels.size() >= MIN_TABLE_CHANNELS) {
+                regions.add(toTableRegion(pageIndex, rows.subList(start, end), channels.size() + 1));
+                start = end;
+            } else {
+                start++;
+            }
+        }
+
+        return regions;
+    }
+
+    private List<List<TextSpan>> groupIntoRows(List<TextSpan> textSpans) {
+        List<TextSpan> sorted = new ArrayList<>(textSpans);
+        sorted.sort(Comparator.comparing(TextSpan::getY).thenComparing(TextSpan::getX));
+
+        List<List<TextSpan>> rows = new ArrayList<>();
+        List<TextSpan> current = new ArrayList<>();
+        float currentY = 0f;
+
+        for (TextSpan span : sorted) {
+            float tolerance = Math.max(TABLE_MIN_ROW_TOLERANCE, span.getHeight() * 0.5f);
+            if (!current.isEmpty() && Math.abs(span.getY() - currentY) > tolerance) {
+                rows.add(current);
+                current = new ArrayList<>();
+            }
+            if (current.isEmpty()) {
+                currentY = span.getY();
+            }
+            current.add(span);
+        }
+
+        if (!current.isEmpty()) {
+            rows.add(current);
+        }
+
+        for (List<TextSpan> row : rows) {
+            row.sort(Comparator.comparing(TextSpan::getX));
+        }
+
+        return rows;
+    }
+
+    private List<float[]> findCellGaps(List<TextSpan> row) {
+        List<float[]> gaps = new ArrayList<>();
+        float right = -Float.MAX_VALUE;
+        float fontSize = 0f;
+
+        for (TextSpan span : row) {
+            if (right != -Float.MAX_VALUE) {
+                float threshold = Math.max(
+                        TABLE_MIN_CELL_GAP,
+                        Math.max(fontSize, span.getFontSize()) * TABLE_CELL_GAP_FONT_FACTOR
+                );
+                if (span.getX() - right > threshold) {
+                    gaps.add(new float[]{right, span.getX()});
+                }
+            }
+            right = Math.max(right, span.getX() + span.getWidth());
+            fontSize = span.getFontSize();
+        }
+
+        return gaps;
+    }
+
+    private List<float[]> intersectGaps(List<float[]> channels, List<float[]> gaps) {
+        List<float[]> result = new ArrayList<>();
+        for (float[] channel : channels) {
+            for (float[] gap : gaps) {
+                float left = Math.max(channel[0], gap[0]);
+                float right = Math.min(channel[1], gap[1]);
+                if (right - left >= TABLE_MIN_CHANNEL_WIDTH) {
+                    result.add(new float[]{left, right});
+                }
+            }
+        }
+        return result;
+    }
+
+    private TableRegion toTableRegion(int pageIndex, List<List<TextSpan>> rows, int columnCount) {
         float minX = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE;
         float minY = Float.MAX_VALUE;
         float maxY = -Float.MAX_VALUE;
 
-        for (TextSpan span : textSpans) {
-            minX = Math.min(minX, span.getX());
-            maxX = Math.max(maxX, span.getX() + span.getWidth());
-            minY = Math.min(minY, span.getY());
-            maxY = Math.max(maxY, span.getY() + span.getHeight());
-
-            int bucket = Math.round((span.getX() + (span.getWidth() / 2f)) / 80f);
-            xBuckets.put(bucket, xBuckets.getOrDefault(bucket, 0) + 1);
+        for (List<TextSpan> row : rows) {
+            for (TextSpan span : row) {
+                minX = Math.min(minX, span.getX());
+                maxX = Math.max(maxX, span.getX() + span.getWidth());
+                minY = Math.min(minY, span.getY());
+                maxY = Math.max(maxY, span.getY() + span.getHeight());
+            }
         }
 
-        long distinctColumns = xBuckets.size();
-        if (distinctColumns >= 2) {
-            regions.add(new TableRegion(
-                    pageIndex,
-                    minX,
-                    minY,
-                    Math.max(0f, maxX - minX),
-                    Math.max(0f, maxY - minY),
-                    Math.max(2, (int) Math.ceil(textSpans.size() / 3.0)),
-                    Math.max(2, (int) distinctColumns)
-            ));
-        }
-
-        return regions;
+        return new TableRegion(
+                pageIndex,
+                minX,
+                minY,
+                Math.max(0f, maxX - minX),
+                Math.max(0f, maxY - minY),
+                rows.size(),
+                columnCount
+        );
     }
 }
