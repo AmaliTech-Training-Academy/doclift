@@ -9,7 +9,16 @@ export interface ApiErrorResponse {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
-export async function uploadFile(file: File): Promise<UploadApiResponse> {
+async function extractMessage(response: Response): Promise<string | null> {
+  try {
+    const errorData: ApiErrorResponse = await response.json();
+    return errorData.message || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function uploadFile(file: File, signal?: AbortSignal): Promise<UploadApiResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -17,33 +26,21 @@ export async function uploadFile(file: File): Promise<UploadApiResponse> {
     const response = await fetch(`${API_BASE_URL}/api/v1/uploads`, {
       method: "POST",
       body: formData,
+      signal,
     });
 
     if (!response.ok) {
-      // some proxy layers may strip it — fall back to a hardcoded message.
+      const backendMessage = await extractMessage(response);
+
       if (response.status === 413) {
-        let backendMessage: string | null = null;
-        try {
-          const errorData: ApiErrorResponse = await response.json();
-          if (errorData.message) backendMessage = errorData.message;
-        } catch {
-          // JSON body absent or malformed — use fallback below
-        }
         throw new Error(
           backendMessage ?? "File is too large. Please upload a PDF smaller than 10MB."
         );
       }
 
-      let errorMessage = "Failed to upload document.";
-      try {
-        const errorData: ApiErrorResponse = await response.json();
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-      } catch {
-        errorMessage = `Upload failed with status code ${response.status}.`;
-      }
-      throw new Error(errorMessage);
+      throw new Error(
+        backendMessage ?? `Upload failed with status code ${response.status}.`
+      );
     }
 
     const data: UploadApiResponse = await response.json();

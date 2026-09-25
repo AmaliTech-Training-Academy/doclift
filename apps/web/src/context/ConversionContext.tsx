@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
@@ -39,6 +39,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<ConversionSession | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isAbandonModalOpen, setIsAbandonModalOpen] = useState(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const isUploadingRef = useRef(false);
 
     const isConverting = Boolean(
         session && (session.status === "processing" || session.status === "queued")
@@ -80,12 +82,19 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 
     const startConversion = async (fileOverride?: File | null): Promise<ConversionSession | null> => {
         const targetFile = fileOverride !== undefined ? fileOverride : file;
-        if (!targetFile || isUploading || isConverting) return null;
+        if (!targetFile || isUploadingRef.current || isConverting) return null;
 
+        isUploadingRef.current = true;
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
         setIsUploading(true);
 
         try {
-            const res = await uploadFile(targetFile);
+            const res = await uploadFile(targetFile, controller.signal);
+
+            // If reset() was called while the request was in flight, bail out.
+            if (controller.signal.aborted) return null;
+
             const now = Date.now();
             const realJobId = String(res.jobId);
             const newSession: ConversionSession = {
@@ -97,18 +106,28 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 fileSize: targetFile.size,
             };
 
-            saveConversionSession(newSession);
+            try {
+                saveConversionSession(newSession);
+            } catch (storageErr) {
+                console.warn("Could not persist conversion session to storage:", storageErr);
+                toast.warning("Progress may be lost if the page is refreshed.");
+            }
+
             setSession(newSession);
             setActiveView("progress");
-            setIsUploading(false);
             return newSession;
         } catch (err: unknown) {
+            if (err instanceof Error && err.name === "AbortError") return null;
+
             const errorMessage = err instanceof Error ? err.message : "Upload failed";
             if (typeof toast?.error === "function") {
                 toast.error(errorMessage);
             }
-            setIsUploading(false);
             return null;
+        } finally {
+            isUploadingRef.current = false;
+            abortControllerRef.current = null;
+            setIsUploading(false);
         }
     };
 
@@ -137,6 +156,11 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     };
 
     const reset = () => {
+        // Cancel any in-flight upload before clearing state.
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        isUploadingRef.current = false;
+        setIsUploading(false);
         setFile(null);
         setSession(null);
         clearConversionSession();
@@ -146,6 +170,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     };
 
     const resetKeepFile = () => {
+        isUploadingRef.current = false;
+        setIsUploading(false);
         setSession(null);
         clearConversionSession();
         setResetKey((k) => k + 1);
@@ -154,7 +180,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     };
 
     const requestReset = () => {
-        if (session) {
+        if (session || isUploading) {
             setIsAbandonModalOpen(true);
         } else {
             reset();
