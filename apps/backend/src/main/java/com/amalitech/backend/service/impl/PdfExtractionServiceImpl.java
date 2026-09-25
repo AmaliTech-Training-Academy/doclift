@@ -1,5 +1,6 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.service.*;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSBase;
@@ -11,12 +12,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.springframework.stereotype.Service;
-import com.amalitech.backend.service.ExtractedImage;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.PdfExtractionResult;
-import com.amalitech.backend.service.TableRegion;
-import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.PdfExtractionService;
+
 import java.awt.geom.Point2D;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -41,6 +37,14 @@ import java.util.Map;
 
 @Service
 public class PdfExtractionServiceImpl implements PdfExtractionService {
+
+    private final StructureRecoveryService structureRecoveryService;
+
+    public PdfExtractionServiceImpl(
+            StructureRecoveryService structureRecoveryService
+    ) {
+        this.structureRecoveryService = structureRecoveryService;
+    }
 
     @Override
     public PdfExtractionResult extract(byte[] pdfBytes) throws IOException {
@@ -68,6 +72,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
             pageExtraction.getImages().addAll(extractImages(pageIndex, page));
             pageExtraction.getCandidateTableRegions().addAll(detectCandidateTableRegions(pageIndex, textSpans));
+
+            structureRecoveryService.recoverStructure(pageExtraction);
 
             result.getPages().add(pageExtraction);
         }

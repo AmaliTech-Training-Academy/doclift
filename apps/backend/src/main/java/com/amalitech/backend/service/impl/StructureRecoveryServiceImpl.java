@@ -17,8 +17,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
     private static final float MIN_LINE_TOLERANCE = 2.0f;
     private static final float LINE_TOLERANCE_FACTOR = 0.5f;
-    private static final float COLUMN_GAP_THRESHOLD = 120f;
-    private static final float SPANNING_WIDTH_RATIO = 0.7f;
     private static final float PARAGRAPH_GAP_FACTOR = 1.2f;
     private static final float INDENT_TOLERANCE = 20f;
     private static final float HEADING_FONT_RATIO = 1.25f;
@@ -26,6 +24,10 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final Pattern LIST_PATTERN = Pattern.compile(
             "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[A-Za-z]|[ivxIVX]+)[.)])\\s+.+"
     );
+    private static final float MIN_SEGMENT_GAP = 8f;
+    private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;
+    private static final int MIN_MULTI_COLUMN_ROWS = 2;
+
 
     @Override
     public void recoverStructure(PageExtraction pageExtraction) {
@@ -210,18 +212,28 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine previous,
             LogicalLine current
     ) {
-        float previousBottom = previous.getY() + previous.getHeight();
+        // A jump upward means reading order has moved into another
+        // column or region, so these lines cannot share a paragraph.
+        if (current.getY() < previous.getY()) {
+            return false;
+        }
 
-        float verticalGap = current.getY() - previousBottom;
+        float previousBottom =
+                previous.getY() + previous.getHeight();
+
+        float verticalGap =
+                current.getY() - previousBottom;
 
         float referenceHeight = Math.max(
                 previous.getAverageHeight(),
                 current.getAverageHeight()
         );
 
-        float allowedGap = referenceHeight * PARAGRAPH_GAP_FACTOR;
+        float allowedGap =
+                referenceHeight * PARAGRAPH_GAP_FACTOR;
 
-        boolean closeVertically = verticalGap <= allowedGap;
+        boolean closeVertically =
+                verticalGap <= allowedGap;
 
         boolean similarlyIndented =
                 Math.abs(current.getX() - previous.getX())
@@ -230,91 +242,112 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return closeVertically && similarlyIndented;
     }
 
-    private List<LogicalLine> buildReadingOrder(List<TextSpan> textSpans) {
-        List<TextSpan> spanningSpans = findSpanningSpans(textSpans);
+    private List<LogicalLine> buildReadingOrder(
+            List<TextSpan> textSpans
+    ) {
+        List<LogicalLine> physicalRows =
+                groupSpansIntoLines(textSpans);
 
-        List<TextSpan> remainingSpans = new ArrayList<>(textSpans);
-        remainingSpans.removeAll(spanningSpans);
+        Float splitX =
+                detectRepeatedColumnSplit(physicalRows);
 
-        List<LogicalLine> orderedLines = new ArrayList<>();
-
-        if (!spanningSpans.isEmpty()) {
-            orderedLines.addAll(groupSpansIntoLines(spanningSpans));
+        // No repeated column boundary found.
+        if (splitX == null) {
+            return physicalRows;
         }
 
-        List<List<TextSpan>> columns = detectColumns(remainingSpans);
+        List<LogicalLine> ordered = new ArrayList<>();
+        List<LogicalLine> leftColumn = new ArrayList<>();
+        List<LogicalLine> rightColumn = new ArrayList<>();
 
-        for (List<TextSpan> column : columns) {
-            orderedLines.addAll(groupSpansIntoLines(column));
-        }
+        int firstColumnRow = -1;
 
-        return orderedLines;
-    }
+        // Find where the repeated two-column region begins.
+        for (int i = 0; i < physicalRows.size(); i++) {
+            Float rowSplit =
+                    findLargestHorizontalGapPosition(
+                            physicalRows.get(i)
+                    );
 
-    private List<TextSpan> findSpanningSpans(List<TextSpan> textSpans) {
-        if (textSpans.isEmpty()) {
-            return List.of();
-        }
-
-        float minX = textSpans.stream()
-                .map(TextSpan::getX)
-                .min(Float::compare)
-                .orElse(0f);
-
-        float maxRight = textSpans.stream()
-                .map(span -> span.getX() + span.getWidth())
-                .max(Float::compare)
-                .orElse(0f);
-
-        float contentWidth = maxRight - minX;
-
-        if (contentWidth <= 0f) {
-            return List.of();
-        }
-
-        List<TextSpan> spanning = new ArrayList<>();
-
-        for (TextSpan span : textSpans) {
-            float spanRatio = span.getWidth() / contentWidth;
-
-            if (spanRatio >= SPANNING_WIDTH_RATIO) {
-                spanning.add(span);
+            if (rowSplit != null
+                    && Math.abs(rowSplit - splitX) <= 20f) {
+                firstColumnRow = i;
+                break;
             }
         }
 
-        return spanning;
-    }
+        if (firstColumnRow == -1) {
+            return physicalRows;
+        }
 
-    private List<List<TextSpan>> detectColumns(List<TextSpan> textSpans) {
-        List<TextSpan> sortedByX = new ArrayList<>(textSpans);
+        // Keep title/author/date/etc. above the columns.
+        for (int i = 0; i < firstColumnRow; i++) {
+            ordered.add(physicalRows.get(i));
+        }
 
-        sortedByX.sort(Comparator.comparing(TextSpan::getX));
+        // Split each remaining row using the detected
+        // document-level column boundary.
+        for (int i = firstColumnRow;
+             i < physicalRows.size();
+             i++) {
 
-        List<List<TextSpan>> columns = new ArrayList<>();
+            LogicalLine row = physicalRows.get(i);
 
-        List<TextSpan> currentColumn = new ArrayList<>();
+            List<TextSpan> leftSpans =
+                    new ArrayList<>();
 
-        Float previousX = null;
+            List<TextSpan> rightSpans =
+                    new ArrayList<>();
 
-        for (TextSpan span : sortedByX) {
-            if (previousX != null
-                    && span.getX() - previousX > COLUMN_GAP_THRESHOLD
-                    && !currentColumn.isEmpty()) {
-
-                columns.add(currentColumn);
-                currentColumn = new ArrayList<>();
+            for (TextSpan span : row.getSpans()) {
+                if (span.getX() < splitX) {
+                    leftSpans.add(span);
+                } else {
+                    rightSpans.add(span);
+                }
             }
 
-            currentColumn.add(span);
-            previousX = span.getX();
+            if (!leftSpans.isEmpty()) {
+                LogicalLine left = new LogicalLine();
+
+                for (TextSpan span : leftSpans) {
+                    left.add(span);
+                }
+
+                left.sortLeftToRight();
+                leftColumn.add(left);
+            }
+
+            if (!rightSpans.isEmpty()) {
+                LogicalLine right = new LogicalLine();
+
+                for (TextSpan span : rightSpans) {
+                    right.add(span);
+                }
+
+                right.sortLeftToRight();
+                rightColumn.add(right);
+            }
         }
 
-        if (!currentColumn.isEmpty()) {
-            columns.add(currentColumn);
-        }
+        leftColumn.sort(
+                Comparator
+                        .comparing(LogicalLine::getY)
+                        .thenComparing(LogicalLine::getX)
+        );
 
-        return columns;
+        rightColumn.sort(
+                Comparator
+                        .comparing(LogicalLine::getY)
+                        .thenComparing(LogicalLine::getX)
+        );
+
+        ordered.addAll(leftColumn);
+        ordered.addAll(rightColumn);
+
+        return ordered;
     }
+
     private List<LogicalLine> groupSpansIntoLines(List<TextSpan> textSpans) {
         List<TextSpan> sortedSpans = new ArrayList<>(textSpans);
 
@@ -350,7 +383,85 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         return lines;
     }
+    private Float findLargestHorizontalGapPosition(LogicalLine line) {
+        List<TextSpan> spans = new ArrayList<>(line.getSpans());
 
+        spans.sort(Comparator.comparing(TextSpan::getX));
+
+        if (spans.size() < 2) {
+            return null;
+        }
+
+        float largestGap = 0f;
+        Float splitPosition = null;
+
+        for (int i = 1; i < spans.size(); i++) {
+            TextSpan previous = spans.get(i - 1);
+            TextSpan current = spans.get(i);
+
+            float previousRight =
+                    previous.getX() + previous.getWidth();
+
+            float gap =
+                    current.getX() - previousRight;
+
+            float referenceFontSize = Math.max(
+                    previous.getFontSize(),
+                    current.getFontSize()
+            );
+
+            float threshold = Math.max(
+                    MIN_SEGMENT_GAP,
+                    referenceFontSize * SEGMENT_GAP_FONT_FACTOR
+            );
+
+            if (gap > threshold && gap > largestGap) {
+                largestGap = gap;
+
+                splitPosition =
+                        previousRight + (gap / 2f);
+            }
+        }
+
+        return splitPosition;
+    }
+    private Float detectRepeatedColumnSplit(
+            List<LogicalLine> rows
+    ) {
+        List<Float> candidates = new ArrayList<>();
+
+        for (LogicalLine row : rows) {
+            Float candidate =
+                    findLargestHorizontalGapPosition(row);
+
+            if (candidate != null) {
+                candidates.add(candidate);
+            }
+        }
+
+        if (candidates.size() < MIN_MULTI_COLUMN_ROWS) {
+            return null;
+        }
+
+        final float splitTolerance = 20f;
+
+        for (Float candidate : candidates) {
+            int matches = 0;
+
+            for (Float other : candidates) {
+                if (Math.abs(candidate - other)
+                        <= splitTolerance) {
+                    matches++;
+                }
+            }
+
+            if (matches >= MIN_MULTI_COLUMN_ROWS) {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
     private float determineBodyFontSize(List<TextSpan> spans) {
         if (spans.isEmpty()) {
             return 0f;
