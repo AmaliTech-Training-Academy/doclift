@@ -131,6 +131,7 @@ jobs:
           port: ${{ secrets.EC2_PORT || 22 }}
           script: |
             set -e
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
             cd /opt/doclift
             export BACKEND_IMAGE=${{ needs.build-backend.outputs.image }}
             export FRONTEND_IMAGE=${{ needs.build-frontend.outputs.image }}
