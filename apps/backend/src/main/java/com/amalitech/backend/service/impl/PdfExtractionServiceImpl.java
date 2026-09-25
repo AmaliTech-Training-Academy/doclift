@@ -99,7 +99,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         Float expectedLeftX = null;
         Float expectedRightX = null;
-        int matchingRows = 0;
+
+        int alignedRows = 0;
+        int tabularRows = 0;
 
         for (List<TextSpan> row : rows) {
             if (row.size() != 2) {
@@ -112,8 +114,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             if (expectedLeftX == null) {
                 expectedLeftX = left.getX();
                 expectedRightX = right.getX();
-                matchingRows++;
-                continue;
             }
 
             boolean leftAligned =
@@ -124,13 +124,40 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     Math.abs(right.getX() - expectedRightX)
                             <= COLUMN_ALIGNMENT_TOLERANCE;
 
-            if (leftAligned && rightAligned) {
-                matchingRows++;
+            if (!leftAligned || !rightAligned) {
+                continue;
+            }
+
+            alignedRows++;
+
+            if (looksLikeTabularValue(left.getText())
+                    || looksLikeTabularValue(right.getText())) {
+                tabularRows++;
             }
         }
 
-        return matchingRows >= MIN_TWO_COLUMN_TABLE_ROWS;
+        return alignedRows >= MIN_TWO_COLUMN_TABLE_ROWS
+                && tabularRows >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
     }
+
+    private boolean looksLikeTabularValue(String text) {
+        if (text == null) {
+            return false;
+        }
+
+        String value = text.trim();
+
+        if (value.isEmpty()) {
+            return false;
+        }
+
+        return value.matches(
+                "^[\\p{Sc}]?\\d[\\d,]*(?:\\.\\d+)?%?$"
+                        + "|^\\d{1,2}[/-]\\d{1,2}(?:[/-]\\d{2,4})?$"
+                        + "|^[A-Z0-9_-]{1,12}$"
+        );
+    }
+
     private List<TextSpan> extractTextSpans(int pageIndex, PDPage page) throws IOException {
         final List<TextSpan> spans = new ArrayList<>();
 

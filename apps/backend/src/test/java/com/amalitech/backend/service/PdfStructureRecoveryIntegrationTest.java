@@ -199,6 +199,96 @@ class PdfStructureRecoveryIntegrationTest {
     }
 
     @Test
+    void shouldNotMisclassifyTwoColumnProseAsTable() throws Exception {
+
+        byte[] pdfBytes;
+
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDType1Font font = new PDType1Font(
+                    Standard14Fonts.FontName.HELVETICA
+            );
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                float leftX = 60f;
+                float rightX = 320f;
+                float startY = 700f;
+                float rowGap = 25f;
+
+                String[][] rows = {
+                        {
+                                "This is ordinary left column prose",
+                                "This is ordinary right column prose"
+                        },
+                        {
+                                "The text continues on the left side",
+                                "The text continues on the right side"
+                        },
+                        {
+                                "Another sentence appears in this column",
+                                "Another sentence appears in that column"
+                        },
+                        {
+                                "The document contains flowing body text",
+                                "Both columns contain flowing body text"
+                        }
+                };
+
+                for (int i = 0; i < rows.length; i++) {
+                    float y = startY - (i * rowGap);
+
+                    content.beginText();
+                    content.setFont(font, 12);
+                    content.newLineAtOffset(leftX, y);
+                    content.showText(rows[i][0]);
+                    content.endText();
+
+                    content.beginText();
+                    content.setFont(font, 12);
+                    content.newLineAtOffset(rightX, y);
+                    content.showText(rows[i][1]);
+                    content.endText();
+                }
+            }
+
+            ByteArrayOutputStream output =
+                    new ByteArrayOutputStream();
+
+            document.save(output);
+            pdfBytes = output.toByteArray();
+        }
+
+        PdfExtractionResult result =
+                pdfExtractionService.extract(pdfBytes);
+
+        assertThat(result.getPages()).hasSize(1);
+
+        PageExtraction page =
+                result.getPages().getFirst();
+
+        assertThat(page.getCandidateTableRegions())
+                .as("Ordinary two-column prose must not be detected as a table")
+                .isEmpty();
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .containsSubsequence(
+                        "This is ordinary left column prose",
+                        "The text continues on the left side",
+                        "Another sentence appears in this column",
+                        "The document contains flowing body text",
+                        "This is ordinary right column prose",
+                        "The text continues on the right side",
+                        "Another sentence appears in that column",
+                        "Both columns contain flowing body text"
+                );
+    }
+
+    @Test
     void shouldRecoverHeadingAndParagraphsFromOutlinePdf() throws Exception {
 
         try (InputStream inputStream = getClass().getResourceAsStream(
