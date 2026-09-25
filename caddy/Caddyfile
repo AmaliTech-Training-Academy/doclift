@@ -1,0 +1,16 @@
+{
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Order matters: backend routes are matched first so the Next.js
+	# catch-all below never shadows the API and produces a false 404.
+	route {
+		reverse_proxy /api/* backend:8080
+		reverse_proxy /v3/api-docs* backend:8080
+		reverse_proxy /swagger-ui* backend:8080
+		reverse_proxy frontend:3000
+	}
+}
