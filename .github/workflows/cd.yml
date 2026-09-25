@@ -1,0 +1,106 @@
+name: CD
+
+# NOTE: this currently deploys straight from the feature branch (no PR/approval
+# gate yet). Switch the branch below to `main` once this workflow has been
+# reviewed and normal branch protection is in place.
+on:
+  push:
+    branches:
+      - feature/DOC-2-T5-Build-PDF-extractor
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-backend:
+    name: Build & push backend image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image name
+        id: image
+        run: |
+          name="${REGISTRY}/$(echo '${{ github.repository_owner }}/doclift-backend' | tr '[:upper:]' '[:lower:]')"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "tag=$name:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./apps/backend
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.tag }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  build-frontend:
+    name: Build & push frontend image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image name
+        id: image
+        run: |
+          name="${REGISTRY}/$(echo '${{ github.repository_owner }}/doclift-frontend' | tr '[:upper:]' '[:lower:]')"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "tag=$name:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.tag }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    name: Deploy to EC2
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and redeploy via docker compose
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            set -e
+            cd /opt/doclift
+            export BACKEND_IMAGE=${{ needs.build-backend.outputs.image }}
+            export FRONTEND_IMAGE=${{ needs.build-frontend.outputs.image }}
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f

@@ -1,2 +1,5 @@
 # IntelliJ IDEA project files
 /.idea/
+
+# Local environment overrides for docker-compose
+.env
