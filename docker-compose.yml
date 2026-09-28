@@ -29,12 +29,19 @@ services:
       - backend_uploads:/app/uploads
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
 
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/amalitech-training-academy/doclift-frontend:latest}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     expose:
       - "3000"
 
@@ -42,8 +49,10 @@ services:
     image: ${CADDY_IMAGE:-ghcr.io/amalitech-training-academy/doclift-caddy:latest}
     restart: unless-stopped
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. 1-2-3-4.nip.io}
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
