@@ -1,8 +1,5 @@
 name: CD
 
-# NOTE: this currently deploys straight from the feature branch (no PR/approval
-# gate yet). Switch the branch below to `main` once this workflow has been
-# reviewed and normal branch protection is in place.
 on:
   push:
     branches:
