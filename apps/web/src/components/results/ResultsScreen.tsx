@@ -14,6 +14,12 @@ export default function ResultsScreen() {
     const durationSeconds = session?.durationSeconds ?? 20;
     const conversionTimeText = `${durationSeconds}s conversion time`;
 
+    const fileSizeText = session?.fileSize
+        ? session.fileSize < 1024 * 1024
+            ? `${(session.fileSize / 1024).toFixed(1)} KB`
+            : `${(session.fileSize / (1024 * 1024)).toFixed(1)} MB`
+        : null;
+
     return (
         <div className="flex-1 space-y-4 p-4">
             {/* Header row */}
@@ -40,7 +46,7 @@ export default function ResultsScreen() {
                                     </span>
                                 )}
                                 <p className="text-sm sm:text-md text-muted-foreground">
-                                    File size • 2 Pages • {conversionTimeText}
+                                    {fileSizeText} • {conversionTimeText} {/* ToDo: File size and number of pages of .docx will be fetched from backend */}
                                 </p>
                             </div>
                         </div>
