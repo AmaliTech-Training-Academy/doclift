@@ -11,17 +11,17 @@ import {
 } from "../ui/Stepper";
 import Button from "../ui/Button";
 import ErrorStateCard from "./ErrorStateCard";
-import { useConversion } from "@/context/ConversionContext";
 
 import { useConversion } from "@/context/ConversionContext";
 
 const ProgressCard = () => {
-  const { reset: resetConversion } = useConversion();
+  const { updateStatus, session } = useConversion();
   const stepperRef = useRef<VerticalStepperDemoHandle>(null);
   const [cancelled, setCancelled] = useState(false);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
   const done = progress?.done ?? false;
-  const error = progress?.error;
+
+  const isFailed = session?.status === "failed" || Boolean(progress?.error);
 
   const handleCancel = () => {
     if (cancelled) return;
@@ -29,13 +29,6 @@ const ProgressCard = () => {
     setCancelled(true);
     updateStatus("failed");
     toast.error("Conversion cancelled");
-  };
-
-  const handleRetry = () => {
-    setCancelled(false);
-    setProgress(null);
-    stepperRef.current?.reset?.();
-    resetConversion();
   };
 
   const handleProgress = useCallback((state: PipelineProgress) => {
@@ -77,12 +70,8 @@ const ProgressCard = () => {
   const currentStepIndex = Math.min(progress?.activeIndex ?? 0, totalSteps - 1);
   const isFinalPhase = currentStepIndex + 1 === totalSteps;
 
-  if (error) {
-    return (
-      <div className="flex justify-center">
-        <ErrorStateCard error={error} reset={handleRetry} />
-      </div>
-    );
+  if (isFailed) {
+    return <ErrorStateCard />;
   }
 
   return (
@@ -94,31 +83,31 @@ const ProgressCard = () => {
           <h1 className="text-lg md:text-3xl font-semibold">
             Reconstructing Document Structures
           </h1>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 self-end">
             {overallPercent}%{" "}
-            <span className="text-sm text-muted-foreground">completed</span>
+            <span className="text-sm text-[#434655]">completed</span>
           </h1>
         </div>
         {/*Progress Bar Track  */}
         <div>
           <Progress
             value={overallPercent}
-            className="bg-secondary mx-2 w-auto *:bg-primary"
+            className="bg-[#E5EEFF] mx-2 w-auto *:bg-[#2563EB]"
           />
         </div>
         {/* Current Stage Callout */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-1 p-4">
           <div className="flex items-center gap-1 shrink-0">
             {isFinalPhase ? (
-              <CheckIcon className="w-4 h-4 text-primary" />
+              <CheckIcon className="w-4 h-4 text-[#004AC6]" />
             ) : (
-              <Spinner className="w-4 h-4 text-primary" />
+              <Spinner className="w-4 h-4 text-[#004AC6]" />
             )}
             <p className="font-bold text-sm">
               Phase {currentStepIndex + 1} of {totalSteps}:
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-[#434655]">
             {steps[currentStepIndex]?.description}
           </p>
         </div>
@@ -127,10 +116,10 @@ const ProgressCard = () => {
           <VerticalStepperDemo ref={stepperRef} onProgress={handleProgress} />
         </div>
         {/* Pipeline Footer */}
-        <Card className="mx-2 my-6  bg-secondary">
+        <Card className="mx-2 my-6  bg-[#EFF4FF]">
           <div className="flex flex-row items-center gap-4 p-4">
-            <div className="rounded-full bg-secondary p-2 shrink-0">
-              <BadgeCheck className="text-primary" />
+            <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
+              <BadgeCheck className="text-blue-500" />
             </div>
             <div className="flex flex-col">
               <p className="font-bold">Native Flow Fidelity Guarantee</p>
