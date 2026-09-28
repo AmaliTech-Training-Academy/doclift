@@ -41,19 +41,17 @@ describe("FidelityMetricCard", () => {
         const { container } = render(<FidelityMetricCard item={highlightedItem} />);
 
         const card = container.firstChild as HTMLElement;
-        expect(card.className).toContain("border-yellow-300");
-        expect(card.className).toContain("bg-yellow-50");
+        expect(card.className).toContain("bg-info");
 
         const noteBadge = screen.getByText("1 Spacing Adjustment");
-        expect(noteBadge.className).toContain("bg-yellow-200");
-        expect(noteBadge.className).toContain("text-yellow-800");
+        expect(noteBadge.className).toContain("bg-info");
+        expect(noteBadge.className).toContain("text-info-foreground");
     });
 
     it("does not apply highlight styling when highlight is falsy", () => {
         const { container } = render(<FidelityMetricCard item={defaultItem} />);
 
         const card = container.firstChild as HTMLElement;
-        expect(card.className).not.toContain("border-yellow-300");
-        expect(card.className).not.toContain("bg-yellow-50");
+        expect(card.className).not.toContain("bg-info");
     });
 });

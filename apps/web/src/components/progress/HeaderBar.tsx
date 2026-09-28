@@ -60,19 +60,28 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
               {/* Arrow Indicator  */}
               <div className="flex flex-col items-center justify-center gap-1 p-1 shrink-0">
                 <ArrowRight className="size-5 sm:size-6 text-primary rotate-90 sm:rotate-0" />
-                <p className="text-[10px] sm:text-xs hidden sm:block tracking-widest text-muted-foreground">DOCX</p>
+                <p className="text-xs hidden sm:block tracking-widest text-muted-foreground">DOCX</p>
               </div>
               {/* Target File */}
               <button
                 type="button"
-                onClick={() => setActiveView("result")}
-                className="cursor-pointer rounded-lg shadow-lg border border-primary transition-all hover:scale-101 hover:opacity-80 text-left min-w-0 flex-1"
+                disabled={!isDone}
+                onClick={() => {
+                  if (isDone) {
+                    setActiveView("result");
+                  }
+                }}
+                className={`text-left min-w-0 flex-1 rounded-lg border transition-all ${
+                  isDone
+                    ? "cursor-pointer border-primary shadow-lg hover:scale-101 hover:opacity-80"
+                    : "cursor-not-allowed border-muted-foreground opacity-60"
+                }`}
                 aria-label={`Open ${targetFileName}`}
               >
                 <FileInfoCard
                   icon={FileTypeCorner}
-                  iconClassName="text-primary"
-                  iconContainerClassName="bg-primary-background"
+                  iconClassName="text-blue-600"
+                  iconContainerClassName="bg-blue-200"
                   name={targetFileName}
                   description={targetFileDescription}
                 />

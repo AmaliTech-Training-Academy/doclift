@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, useImperativeHandle, useEffect } from "react";
 import type { PipelineProgress } from "../ui/Stepper";
@@ -129,7 +129,7 @@ describe("ProgressCard", () => {
     ).toBeDisabled();
   });
 
-  it("renders the error state card and updates session status to failed when the pipeline reports an error", () => {
+  it("renders the error state card and updates session status to failed when the pipeline reports an error", async () => {
     function StatusProbe({
       onSession,
     }: {
@@ -152,12 +152,20 @@ describe("ProgressCard", () => {
       return <ProgressCard />;
     }
 
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ jobId: 999 }),
+    } as unknown as Response);
+
     const tracker = { session: null as ConversionSession | null };
     render(
       <ConversionProvider>
         <StatusProbe onSession={(s) => (tracker.session = s)} />
       </ConversionProvider>,
     );
+
+    await waitFor(() => expect(tracker.session).not.toBeNull());
 
     emitProgress({ error: "Something went wrong" });
 

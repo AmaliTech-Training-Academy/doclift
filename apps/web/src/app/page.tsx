@@ -20,26 +20,22 @@ export default function Home() {
 
         setSession(session);
 
-        if (session.status === "processing" || session.status === "queued") {
+        if (session.status === "processing" || session.status === "queued" || session.status === "failed") {
             setActiveView("progress");
         } else if (session.status === "done") {
             setActiveView("result");
-        } else if (session.status === "failed" || session.status === "expired") {
+        } else if (session.status === "expired") {
             clearConversionSession();
             setSession(null);
             setActiveView("upload");
         }
     }, [setActiveView, setSession]);
 
-  const { reset } = useConversion();
-
   return (
-  
-    <main className="min-h-dvh flex flex-col">
+    <main className="min-h-[calc(100dvh-140px)] flex flex-col">
       {activeView === "upload" && <UploadScreen key={resetKey} />}
       {activeView === "progress" && <ProgressScreen />}
       {activeView === "result" && <ResultsScreen />}
     </main>
-  
   );
 }

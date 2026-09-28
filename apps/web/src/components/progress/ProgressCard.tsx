@@ -107,7 +107,7 @@ const ProgressCard = () => {
               Phase {currentStepIndex + 1} of {totalSteps}:
             </p>
           </div>
-          <p className="text-sm text-[#434655]">
+          <p className="text-sm text-muted-foreground">
             {steps[currentStepIndex]?.description}
           </p>
         </div>

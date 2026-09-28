@@ -1,0 +1,10 @@
+### Upload PDF
+POST http://localhost:8080/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="minimal-document.pdf"
+Content-Type: application/pdf
+
+< ../../../../resources/sample-files-main/001-trivial/minimal-document.pdf
+--WebAppBoundary--

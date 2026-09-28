@@ -80,13 +80,13 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         },
     }));
 
-    const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
     const handleFile = async (file: File): Promise<boolean> => {
         const currentValidationId = ++validationIdRef.current;
 
         const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
-        const hasPdfMime = file.type === "application/pdf" || file.type === "";
+        const hasPdfMime = !file.type || file.type === "application/pdf";
 
         if (!hasPdfExtension || !hasPdfMime) {
             if (currentValidationId === validationIdRef.current) {
@@ -109,7 +109,7 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
         if (file.size > MAX_FILE_SIZE_BYTES) {
             if (currentValidationId === validationIdRef.current) {
                 toast.error("File too large", {
-                    description: "File size exceeds the 50 MB limit.",
+                    description: "File size exceeds the 10 MB limit.",
                 });
             }
             return false;
@@ -209,9 +209,9 @@ const DropZone = forwardRef<DropZoneHandle, DropZoneProps>(function DropZone(
             onDrop={handleDrop}
             className={cn(
                 "group relative w-full p-8 sm:p-10 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 select-none",
-                "bg-blue-50/40 border-blue-200/80 hover:bg-blue-50/80 hover:border-blue-400 hover:shadow-xs",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-                isDragActive && "border-primary bg-blue-100/70 scale-[1.01] shadow-lg"
+                "bg-secondary/40 border-primary-background hover:bg-secondary hover:border-primary hover:shadow-xs",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                isDragActive && "border-primary bg-primary-background scale-[1.01] shadow-lg"
             )}
         >
             <div className="pointer-events-none flex flex-col items-center justify-center w-full">

@@ -5,6 +5,9 @@ export type ConversionSession = {
     fileName: string;
     status: ConversionStatus;
     updatedAt: number;
+    createdAt?: number;
+    durationSeconds?: number;
+    fileSize?: number;
 };
 
 const STORAGE_KEY = "doclift-active-conversion";
