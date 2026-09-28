@@ -23,7 +23,7 @@ export async function uploadFile(file: File, signal?: AbortSignal): Promise<Uplo
   formData.append("file", file);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/uploads`, {
+    const response = await fetch(`/api/v1/uploads`, {
       method: "POST",
       body: formData,
       signal,

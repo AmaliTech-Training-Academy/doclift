@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "proxy": "http://localhost:8081",
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

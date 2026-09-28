@@ -149,6 +149,10 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 status,
                 updatedAt: now,
                 durationSeconds,
+                completedAt:
+                    status === "done"
+                        ? (prevSession.completedAt ?? now)
+                        : prevSession.completedAt,
             };
             saveConversionSession(updatedSession);
             return updatedSession;
