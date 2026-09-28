@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import {cn} from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { Spinner } from "./Spinner";
 
 type ButtonVariant =
   | "primary"
@@ -16,6 +17,7 @@ interface ButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
+  loadingText?: string;
   disabled?: boolean;
   onClick?: () => void;
   type?: "button" | "submit" | "reset";
@@ -27,6 +29,7 @@ export default function Button({
   variant = "primary",
   size = "md",
   loading = false,
+  loadingText,
   disabled = false,
   onClick,
   type = "button",
@@ -58,7 +61,10 @@ export default function Button({
       }
     >
       {loading ? (
-        <span>Loading...</span>
+        <>
+          <Spinner className="size-4" />
+          <span>{loadingText || "Loading..."}</span>
+        </>
       ) : (
         children
       )}
