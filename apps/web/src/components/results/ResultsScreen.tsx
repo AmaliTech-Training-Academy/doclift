@@ -36,7 +36,7 @@ export default function ResultsScreen() {
   return (
     <div className="flex-1 space-y-4 p-4">
       {/* Header row */}
-      <div className="bg-white w-full mx-auto max-w-5xl flex flex-col space-y-4 p-4 rounded-xl">
+      <div className="bg-white w-full mx-auto max-w-5xl flex flex-col space-y-4 p-4 rounded-xl shadow-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex flex-col gap-2 min-w-0 w-full flex-1">
             <div className="w-fit flex flex-col text-sm sm:flex-row gap-2 bg-primary-background p-1.5 rounded-lg sm:items-center">
@@ -85,7 +85,7 @@ export default function ResultsScreen() {
       </div>
 
       {/* Checklist + Fidelity two-column section */}
-      <div className="w-full mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="w-full mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 gap-4 shadow-sm rounded-xl">
         {/* Left — Structural Conversion Checklist */}
         <div className="flex flex-col space-y-3 bg-white p-4 rounded-xl">
           <div className="flex flex-row justify-between items-center mb-3">
