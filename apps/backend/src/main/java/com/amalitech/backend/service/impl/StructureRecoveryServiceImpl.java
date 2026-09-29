@@ -21,27 +21,18 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float LINE_TOLERANCE_FACTOR = 0.5f;
     private static final float PARAGRAPH_GAP_FACTOR = 1.2f;
     private static final float INDENT_TOLERANCE = 20f;
-    // Conventional first-line indents go up to ~0.5in (36pt); allow some slack.
     private static final float MAX_FIRST_LINE_INDENT = 48f;
     private static final float HEADING_FONT_RATIO = 1.25f;
     private static final int HEADING_MAX_LENGTH = 120;
-    // A single capital letter followed by a period ("A. Smith") is far more
-    // often an initial than a list marker, so uppercase letters need ")"
-    // and uppercase roman numerals need at least two characters.
     private static final Pattern LIST_PATTERN = Pattern.compile(
             "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,})[.)]|[A-Z]\\))\\s+.+"
     );
     private static final float MIN_SEGMENT_GAP = 8f;
     private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;
     private static final int MIN_MULTI_COLUMN_ROWS = 3;
-    // Share of rows with a large horizontal gap that must agree on the split.
     private static final float MIN_COLUMN_AGREEMENT_RATIO = 0.5f;
-    // A column boundary must lie in the interior of the text area,
-    // expressed as a fraction of the content width.
     private static final float MIN_COLUMN_SPLIT_POSITION = 0.3f;
     private static final float MAX_COLUMN_SPLIT_POSITION = 0.7f;
-    // Column gutters are narrow; wide gaps come from tab stops, leaders,
-    // label/value pairs or right-aligned numbers.
     private static final float TABLE_REGION_MARGIN = 1f;
 
 
@@ -252,13 +243,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine current,
             boolean previousIsFirstLine
     ) {
-        // A jump upward means reading order has moved into another
-        // column or region, so these lines cannot share a paragraph.
+
         if (current.getY() < previous.getY()) {
             return false;
         }
 
-        // Table text never merges with flowing text around it.
         if (current.isTableRow() != previous.isTableRow()) {
             return false;
         }
@@ -282,8 +271,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         float indentDelta = current.getX() - previous.getX();
 
-        // The first line of a paragraph may be indented further than the
-        // lines that follow it.
+
         boolean firstLineIndent = previousIsFirstLine
                 && indentDelta < 0f
                 && -indentDelta <= MAX_FIRST_LINE_INDENT;
@@ -310,8 +298,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             }
         }
 
-        // Column detection only looks at flowing text; table cells would
-        // otherwise look like repeated column boundaries.
+
         List<LogicalLine> physicalRows =
                 groupSpansIntoLines(flowSpans);
 
@@ -332,7 +319,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                         .thenComparing(LogicalLine::getX)
         );
 
-        // No repeated column boundary found.
         if (splitX == null) {
             return physicalRows;
         }
@@ -343,7 +329,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         int firstColumnRow = -1;
 
-        // Find where the repeated two-column region begins.
         for (int i = 0; i < physicalRows.size(); i++) {
             LogicalLine row = physicalRows.get(i);
 
@@ -357,13 +342,10 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return physicalRows;
         }
 
-        // Keep title/author/date/etc. above the columns.
         for (int i = 0; i < firstColumnRow; i++) {
             ordered.add(physicalRows.get(i));
         }
 
-        // Split each remaining row using the detected
-        // document-level column boundary, keeping spanning rows intact.
         for (int i = firstColumnRow;
              i < physicalRows.size();
              i++) {
@@ -443,15 +425,10 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             float splitX
     ) {
         LogicalLine current = rows.get(currentIndex);
-
-        // If the current row itself clearly has the detected gutter,
-        // it is part of the column section.
         if (hasGutterAt(current, splitX)) {
             return true;
         }
 
-        // A one-sided row can still belong to a column section if
-        // another nearby row continues the same column pattern.
         int lookAheadLimit = Math.min(
                 rows.size(),
                 currentIndex + MIN_MULTI_COLUMN_ROWS
@@ -476,8 +453,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return false;
     }
     private boolean isSpanningRow(LogicalLine row, float splitX) {
-        // Table rows act as full-width barriers so their cells are never
-        // redistributed into left/right columns.
         if (row.isTableRow()) {
             return true;
         }
@@ -498,15 +473,10 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             }
         }
 
-        // Text on both sides of the split without a real gutter between
-        // them belongs to one line running across the boundary.
+
         return hasLeft && hasRight && !hasGutterAt(row, splitX);
     }
 
-    /**
-     * Returns true when the row has text on both sides of {@code splitX}
-     * separated by a gap wide enough to be a column gutter.
-     */
     private boolean hasGutterAt(LogicalLine row, float splitX) {
         TextSpan nearestLeft = null;
         TextSpan nearestRight = null;
@@ -688,12 +658,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return largest;
     }
 
-    /**
-     * Looks for a column boundary shared by many rows. A split is only
-     * accepted when enough rows agree on it, when it lies in the interior
-     * of the text area and when the agreeing gaps are narrow gutters rather
-     * than tab stops, leaders or right-aligned values.
-     */
     private Float detectRepeatedColumnSplit(
             List<LogicalLine> rows
     ) {
@@ -767,7 +731,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
             float split = total / support;
 
-            // Prefer the best-supported split, then the most central one.
+
             if (support > bestSupport
                     || (support == bestSupport
                     && Math.abs(split - contentCenter)
@@ -854,10 +818,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     ) {
         LogicalLine closest = null;
         float closestDistance = Float.MAX_VALUE;
-
-        // Pick the nearest line within tolerance rather than the first one,
-        // so a span is not attached to a neighbouring line that merely
-        // happens to be close enough.
         for (LogicalLine line : lines) {
             float tolerance = Math.max(
                     MIN_LINE_TOLERANCE,
@@ -904,9 +864,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return false;
         }
 
-        // Every span must be large: a single oversized word (drop cap,
-        // inline emphasis) must not turn a paragraph line into a heading
-        // and split the paragraph mid-flow.
         return line.getMinFontSize()
                 >= bodyFontSize * HEADING_FONT_RATIO;
     }
