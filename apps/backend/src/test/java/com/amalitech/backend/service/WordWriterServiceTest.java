@@ -445,6 +445,12 @@ class WordWriterServiceTest {
                             .getText()
             ).isEqualTo("Third step");
 
+            assertThat(
+                    document.getParagraphs()
+                            .get(0)
+                            .getStyle()
+            ).isEqualTo("Normal");
+
             assertThat(first.getNumID())
                     .isNotNull();
 

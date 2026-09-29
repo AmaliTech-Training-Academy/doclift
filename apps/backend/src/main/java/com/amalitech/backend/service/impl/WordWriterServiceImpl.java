@@ -327,6 +327,8 @@ private void writeBlock(
 
     if (block.getType() == BlockType.HEADING) {
         paragraph.setStyle("Heading1");
+    } else {
+        paragraph.setStyle("Normal");
     }
 
     if (block.getType() == BlockType.LIST_ITEM) {
