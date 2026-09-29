@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import java.util.List;
+
 @Service
 public class WordWriterServiceImpl implements WordWriterService {
 
@@ -64,8 +66,40 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
-    private BigInteger createBulletNumbering(
-            XWPFDocument document
+
+
+    private boolean hasLaterNonBlankListContent(
+            List<TextSpan> spans,
+            int startIndex
+    ) {
+
+        for (int i = startIndex; i < spans.size(); i++) {
+
+            String text =
+                    spans.get(i).getText();
+
+            if (text == null) {
+                continue;
+            }
+
+            String cleaned =
+                    LIST_MARKER_PATTERN
+                            .matcher(text)
+                            .replaceFirst("");
+
+            if (!cleaned.isBlank()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private BigInteger createNumbering(
+            XWPFDocument document,
+            STNumberFormat.Enum format,
+            String levelText,
+            BigInteger start
     ) {
 
         XWPFNumbering numbering =
@@ -79,13 +113,6 @@ public class WordWriterServiceImpl implements WordWriterService {
         CTAbstractNum abstractNum =
                 CTAbstractNum.Factory.newInstance();
 
-        BigInteger abstractNumId =
-                BigInteger.ZERO;
-
-        abstractNum.setAbstractNumId(
-                abstractNumId
-        );
-
         CTLvl level =
                 abstractNum.addNewLvl();
 
@@ -93,19 +120,21 @@ public class WordWriterServiceImpl implements WordWriterService {
                 BigInteger.ZERO
         );
 
+        if (start != null) {
+            level.addNewStart()
+                    .setVal(start);
+        }
+
         level.addNewNumFmt()
-                .setVal(
-                        STNumberFormat.BULLET
-                );
+                .setVal(format);
 
         level.addNewLvlText()
-                .setVal("•");
+                .setVal(levelText);
 
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
-
-        BigInteger createdAbstractId =
+        BigInteger abstractNumId =
                 numbering.addAbstractNum(
                         new XWPFAbstractNum(
                                 abstractNum
@@ -113,63 +142,29 @@ public class WordWriterServiceImpl implements WordWriterService {
                 );
 
         return numbering.addNum(
-                createdAbstractId
+                abstractNumId
+        );
+    }
+
+    private BigInteger createBulletNumbering(
+            XWPFDocument document
+    ) {
+        return createNumbering(
+                document,
+                STNumberFormat.BULLET,
+                "•",
+                null
         );
     }
 
     private BigInteger createNumberedNumbering(
             XWPFDocument document
     ) {
-
-        XWPFNumbering numbering =
-                document.getNumbering();
-
-        if (numbering == null) {
-            numbering =
-                    document.createNumbering();
-        }
-
-        CTAbstractNum abstractNum =
-                CTAbstractNum.Factory.newInstance();
-
-        BigInteger abstractNumId =
-                BigInteger.ONE;
-
-        abstractNum.setAbstractNumId(
-                abstractNumId
-        );
-
-        CTLvl level =
-                abstractNum.addNewLvl();
-
-        level.setIlvl(
-                BigInteger.ZERO
-        );
-
-        level.addNewStart()
-                .setVal(BigInteger.ONE);
-
-        level.addNewNumFmt()
-                .setVal(
-                        STNumberFormat.DECIMAL
-                );
-
-        level.addNewLvlText()
-                .setVal("%1.");
-
-        level.addNewLvlJc()
-                .setVal(STJc.LEFT);
-
-
-        BigInteger createdAbstractId =
-                numbering.addAbstractNum(
-                        new org.apache.poi.xwpf.usermodel.XWPFAbstractNum(
-                                abstractNum
-                        )
-                );
-
-        return numbering.addNum(
-                createdAbstractId
+        return createNumbering(
+                document,
+                STNumberFormat.DECIMAL,
+                "%1.",
+                BigInteger.ONE
         );
     }
 
@@ -208,17 +203,31 @@ public class WordWriterServiceImpl implements WordWriterService {
 
             run.setText(
                     removeListMarker(block.getText())
+                            .strip()
             );
 
             return;
         }
 
         boolean markerRemoved = false;
+        boolean firstContentWritten = false;
+
         String previousText = null;
 
-        for (TextSpan span : block.getSpans()) {
+        List<TextSpan> spans =
+                block.getSpans();
 
-            String text = span.getText();
+        for (int i = 0; i < spans.size(); i++) {
+
+            TextSpan span =
+                    spans.get(i);
+
+            String text =
+                    span.getText();
+
+            if (text == null) {
+                continue;
+            }
 
             if (!markerRemoved) {
 
@@ -235,7 +244,32 @@ public class WordWriterServiceImpl implements WordWriterService {
                 }
             }
 
-            if (text == null || text.isBlank()) {
+            if (text.isBlank()) {
+                continue;
+            }
+
+            /*
+             * If the marker occupied its own formatting span,
+             * the following span may begin with the separator
+             * whitespace. Remove that whitespace from the first
+             * actual list-content run.
+             */
+            if (!firstContentWritten) {
+                text = text.stripLeading();
+            }
+
+            /*
+             * Remove trailing whitespace only from the final
+             * non-blank content span.
+             */
+            if (!hasLaterNonBlankListContent(
+                    spans,
+                    i + 1
+            )) {
+                text = text.stripTrailing();
+            }
+
+            if (text.isEmpty()) {
                 continue;
             }
 
@@ -254,6 +288,7 @@ public class WordWriterServiceImpl implements WordWriterService {
             applyFormatting(run, span);
 
             previousText = text;
+            firstContentWritten = true;
         }
     }
 
@@ -358,18 +393,42 @@ private void writeBlock(
             XWPFRun run =
                     paragraph.createRun();
 
-            run.setText(block.getText());
+            run.setText(
+                    block.getText() == null
+                            ? ""
+                            : block.getText().strip()
+            );
 
             return;
         }
 
+        List<TextSpan> spans =
+                block.getSpans().stream()
+                        .filter(span ->
+                                span.getText() != null
+                                        && !span.getText().isBlank()
+                        )
+                        .toList();
+
         String previousText = null;
 
-        for (TextSpan span : block.getSpans()) {
+        for (int i = 0; i < spans.size(); i++) {
 
-            String text = span.getText();
+            TextSpan span =
+                    spans.get(i);
 
-            if (text == null || text.isBlank()) {
+            String text =
+                    span.getText();
+
+            if (i == 0) {
+                text = text.stripLeading();
+            }
+
+            if (i == spans.size() - 1) {
+                text = text.stripTrailing();
+            }
+
+            if (text.isEmpty()) {
                 continue;
             }
 

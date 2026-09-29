@@ -89,6 +89,117 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return result;
     }
 
+    private List<DetectionCell> reconstructDetectionCells(
+            List<TextSpan> row
+    ) {
+
+        List<DetectionCell> cells =
+                new ArrayList<>();
+
+        if (row == null || row.isEmpty()) {
+            return cells;
+        }
+
+        List<TextSpan> sorted =
+                new ArrayList<>(row);
+
+        sorted.sort(
+                Comparator.comparing(TextSpan::getX)
+        );
+
+        StringBuilder currentText =
+                new StringBuilder();
+
+        float currentLeft = sorted.getFirst().getX();
+        float currentRight =
+                sorted.getFirst().getX()
+                        + sorted.getFirst().getWidth();
+
+        float previousFontSize =
+                sorted.getFirst().getFontSize();
+
+        currentText.append(
+                sorted.getFirst().getText()
+        );
+
+        for (int i = 1; i < sorted.size(); i++) {
+
+            TextSpan previous =
+                    sorted.get(i - 1);
+
+            TextSpan current =
+                    sorted.get(i);
+
+            float previousRight =
+                    previous.getX()
+                            + previous.getWidth();
+
+            float gap =
+                    current.getX()
+                            - previousRight;
+
+            float threshold =
+                    Math.max(
+                            TABLE_MIN_CELL_GAP,
+                            Math.max(
+                                    previousFontSize,
+                                    current.getFontSize()
+                            ) * TABLE_CELL_GAP_FONT_FACTOR
+                    );
+
+            if (gap > threshold) {
+
+                cells.add(
+                        new DetectionCell(
+                                currentText.toString(),
+                                currentLeft,
+                                Math.max(
+                                        0f,
+                                        currentRight - currentLeft
+                                )
+                        )
+                );
+
+                currentText =
+                        new StringBuilder();
+
+                currentLeft =
+                        current.getX();
+
+                currentRight =
+                        current.getX()
+                                + current.getWidth();
+            }
+
+            currentText.append(
+                    current.getText()
+            );
+
+            currentRight =
+                    Math.max(
+                            currentRight,
+                            current.getX()
+                                    + current.getWidth()
+                    );
+
+            previousFontSize =
+                    current.getFontSize();
+        }
+
+        cells.add(
+                new DetectionCell(
+                        currentText.toString(),
+                        currentLeft,
+                        Math.max(
+                                0f,
+                                currentRight - currentLeft
+                        )
+                )
+        );
+
+        return cells;
+    }
+
     private boolean isBoldFont(String fontName) {
         if (fontName == null) {
             return false;
@@ -101,6 +212,38 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                 || normalized.contains("heavy");
     }
 
+    private boolean isBold(TextPosition position) {
+
+        if (position.getFont() != null
+                && position.getFont().getFontDescriptor() != null
+                && position.getFont()
+                .getFontDescriptor()
+                .isForceBold()) {
+
+            return true;
+        }
+
+        return isBoldFont(
+                getFontName(position)
+        );
+    }
+
+    private boolean isItalic(TextPosition position) {
+
+        if (position.getFont() != null
+                && position.getFont().getFontDescriptor() != null
+                && position.getFont()
+                .getFontDescriptor()
+                .isItalic()) {
+
+            return true;
+        }
+
+        return isItalicFont(
+                getFontName(position)
+        );
+    }
+
     private boolean isItalicFont(String fontName) {
         if (fontName == null) {
             return false;
@@ -111,6 +254,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return normalized.contains("italic")
                 || normalized.contains("oblique");
     }
+
 
     private boolean hasSameFormatting(
             TextPosition first,
@@ -207,7 +351,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
 
         TextPosition first =
-                positions.get(0);
+                positions.getFirst();
 
         String fontName =
                 getFontName(first);
@@ -225,8 +369,10 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                         Math.max(0f, maxY - minY),
                         fontName,
                         fontSize,
-                        isBoldFont(fontName),
-                        isItalicFont(fontName),
+                        isBold(first),
+                        isItalic(first),
+                        // TODO: PDF underline detection requires analysing graphical line content.
+                        //  Extraction is not yet implemented
                         false
                 )
         );
@@ -235,6 +381,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
     private boolean looksLikeTwoColumnTable(
             List<List<TextSpan>> rows
     ) {
+
         if (rows.size() < MIN_TWO_COLUMN_TABLE_ROWS) {
             return false;
         }
@@ -246,25 +393,36 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         int tabularRows = 0;
 
         for (List<TextSpan> row : rows) {
-            if (row.size() != 2) {
+
+            List<DetectionCell> cells =
+                    reconstructDetectionCells(row);
+
+            if (cells.size() != 2) {
                 continue;
             }
 
-            TextSpan left = row.get(0);
-            TextSpan right = row.get(1);
+            DetectionCell left =
+                    cells.get(0);
+
+            DetectionCell right =
+                    cells.get(1);
 
             if (expectedLeftX == null) {
-                expectedLeftX = left.getX();
-                expectedRightX = right.getX();
+                expectedLeftX = left.x();
+                expectedRightX = right.x();
             }
 
             boolean leftAligned =
-                    Math.abs(left.getX() - expectedLeftX)
-                            <= COLUMN_ALIGNMENT_TOLERANCE;
+                    Math.abs(
+                            left.x()
+                                    - expectedLeftX
+                    ) <= COLUMN_ALIGNMENT_TOLERANCE;
 
             boolean rightAligned =
-                    Math.abs(right.getX() - expectedRightX)
-                            <= COLUMN_ALIGNMENT_TOLERANCE;
+                    Math.abs(
+                            right.x()
+                                    - expectedRightX
+                    ) <= COLUMN_ALIGNMENT_TOLERANCE;
 
             if (!leftAligned || !rightAligned) {
                 continue;
@@ -272,19 +430,21 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
             alignedRows++;
 
-            if (looksLikeTabularValue(left.getText())
-                    || looksLikeTabularValue(right.getText())) {
+            if (looksLikeTabularValue(left.text())
+                    || looksLikeTabularValue(right.text())) {
                 tabularRows++;
             }
         }
 
         return alignedRows >= MIN_TWO_COLUMN_TABLE_ROWS
-                && tabularRows >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
+                && tabularRows
+                >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
     }
 
     private boolean looksLikeMultiColumnTable(
             List<List<TextSpan>> rows
     ) {
+
         if (rows.size() < MIN_TABLE_ROWS) {
             return false;
         }
@@ -292,10 +452,17 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         int tabularRows = 0;
 
         for (List<TextSpan> row : rows) {
+
+            List<DetectionCell> cells =
+                    reconstructDetectionCells(row);
+
             boolean hasTabularCell = false;
 
-            for (TextSpan span : row) {
-                if (looksLikeTabularValue(span.getText())) {
+            for (DetectionCell cell : cells) {
+
+                if (looksLikeTabularValue(
+                        cell.text()
+                )) {
                     hasTabularCell = true;
                     break;
                 }
@@ -358,7 +525,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     }
 
                     TextPosition previous =
-                            currentRun.get(currentRun.size() - 1);
+                            currentRun.getLast();
 
                     if (hasSameFormatting(previous, position)) {
                         currentRun.add(position);
@@ -374,13 +541,11 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     }
                 }
 
-                if (!currentRun.isEmpty()) {
-                    addTextSpanFromRun(
-                            spans,
-                            pageIndex,
-                            currentRun
-                    );
-                }
+                addTextSpanFromRun(
+                        spans,
+                        pageIndex,
+                        currentRun
+                );
             }
         };
 
@@ -416,31 +581,30 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         @Override
         protected void processOperator(Operator operator, List<COSBase> operands) throws IOException {
             if (!"Do".equals(operator.getName()) || operands.isEmpty()
-                    || !(operands.get(0) instanceof COSName objectName)) {
+                    || !(operands.getFirst() instanceof COSName objectName)) {
                 super.processOperator(operator, operands);
                 return;
             }
 
             PDXObject xObject = getResources().getXObject(objectName);
-            if (xObject == null) {
-                return;
-            }
+            switch (xObject) {
+                case null -> {
 
-            if (xObject instanceof PDImageXObject image) {
-                recordImagePlacement(objectName.getName(), image);
-            } else if (xObject instanceof PDFormXObject form) {
-                COSBase formKey = form.getCOSObject();
-                if (formsInProgress.contains(formKey)) {
-
-                    return;
                 }
-                formsInProgress.push(formKey);
-                try {
-                    showForm(form);
-                } finally {
-                    formsInProgress.pop();
+                case PDImageXObject image -> recordImagePlacement(objectName.getName(), image);
+                case PDFormXObject form -> {
+                    COSBase formKey = form.getCOSObject();
+                    formsInProgress.push(formKey);
+                    try {
+                        showForm(form);
+                    } finally {
+                        formsInProgress.pop();
+                    }
+                }
+                default -> {
                 }
             }
+
         }
 
 
@@ -555,7 +719,10 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             int rowEnd = rowStart;
 
             while (rowEnd < rows.size()
-                    && rows.get(rowEnd).size() == 2) {
+                    && reconstructDetectionCells(
+                    rows.get(rowEnd)
+            ).size() == 2) {
+
                 rowEnd++;
             }
 

@@ -77,6 +77,185 @@ class WordWriterServiceTest {
     }
 
     @Test
+    void shouldTrimWhitespaceAtParagraphBoundariesButPreserveInternalSpacing()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        StructuredBlock paragraph =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Hello wonderful world",
+                        50,
+                        100,
+                        250,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        " Hello",
+                                        50,
+                                        100,
+                                        50,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        " wonderful ",
+                                        100,
+                                        100,
+                                        80,
+                                        12,
+                                        "Helvetica-Bold",
+                                        12,
+                                        true,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        "world ",
+                                        180,
+                                        100,
+                                        50,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        page.getStructuredBlocks().add(paragraph);
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+
+            String text =
+                    document.getParagraphs()
+                            .get(0)
+                            .getText();
+
+            assertThat(text)
+                    .isEqualTo("Hello wonderful world");
+
+            assertThat(text)
+                    .doesNotStartWith(" ")
+                    .doesNotEndWith(" ");
+        }
+    }
+
+    @Test
+    void shouldTrimLeadingWhitespaceAfterSeparateListMarkerSpan()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        StructuredBlock listItem =
+                new StructuredBlock(
+                        0,
+                        BlockType.LIST_ITEM,
+                        "1. First step",
+                        50,
+                        100,
+                        150,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "1.",
+                                        50,
+                                        100,
+                                        15,
+                                        12,
+                                        "Helvetica-Bold",
+                                        12,
+                                        true,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        " First",
+                                        70,
+                                        100,
+                                        40,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        " step ",
+                                        115,
+                                        100,
+                                        35,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        page.getStructuredBlocks().add(listItem);
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+
+            XWPFParagraph paragraph =
+                    document.getParagraphs().get(0);
+
+            assertThat(paragraph.getNumID())
+                    .isNotNull();
+
+            assertThat(paragraph.getText())
+                    .isEqualTo("First step");
+
+            assertThat(paragraph.getText())
+                    .doesNotStartWith(" ")
+                    .doesNotEndWith(" ");
+        }
+    }
+
+    @Test
     void shouldPreserveCharacterFormatting() throws Exception {
 
         PdfExtractionResult extractionResult =
