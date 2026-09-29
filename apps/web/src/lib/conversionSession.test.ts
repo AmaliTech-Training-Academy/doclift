@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
-    generateJobId,
     saveConversionSession,
     getConversionSession,
     clearConversionSession,
@@ -10,17 +9,6 @@ import {
 describe("conversionSession lib", () => {
     beforeEach(() => {
         localStorage.clear();
-    });
-
-    describe("generateJobId", () => {
-        it("generates a unique job ID starting with conv_", () => {
-            const id1 = generateJobId();
-            const id2 = generateJobId();
-
-            expect(id1).toMatch(/^conv_/);
-            expect(id2).toMatch(/^conv_/);
-            expect(id1).not.toBe(id2);
-        });
     });
 
     describe("saveConversionSession and getConversionSession", () => {

@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import { SummaryCard } from "./SummaryCard";
 import { Image as ImageIcon, Type, ShieldCheck } from "lucide-react";
 import type { SummaryCardItem } from "@/data/resultsData";
 
 describe("SummaryCard", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it("renders common content: title, badge, description, and icon", () => {
         const item: SummaryCardItem = {
             id: 1,
@@ -79,5 +83,38 @@ describe("SummaryCard", () => {
 
         const progressBar = container.querySelector('div[style*="width: 65%"]');
         expect(progressBar).toBeInTheDocument();
+    });
+
+    it("counts down the purge timer from completedAt", () => {
+        vi.useFakeTimers();
+        const completedAt = new Date("2026-01-01T00:00:00Z").getTime();
+        vi.setSystemTime(completedAt + 15 * 60 * 1000);
+
+        const item: SummaryCardItem = {
+            id: 5,
+            title: "Secure Session Lifespan",
+            description: "Cache purges after 60 minutes.",
+            icon: ShieldCheck,
+            badge: "00:00",
+            variant: "session",
+            progress: 100,
+        };
+
+        const { container } = render(<SummaryCard item={item} completedAt={completedAt} />);
+
+        expect(screen.getAllByText("45:00")).toHaveLength(2);
+        expect(screen.getByText("Auto-purges in 45m")).toBeInTheDocument();
+        expect(container.querySelector('div[style*="width: 75%"]')).toBeInTheDocument();
+
+        act(() => {
+            vi.advanceTimersByTime(1000);
+        });
+        expect(screen.getAllByText("44:59")).toHaveLength(2);
+
+        act(() => {
+            vi.advanceTimersByTime(45 * 60 * 1000);
+        });
+        expect(screen.getByText("Purged")).toBeInTheDocument();
+        expect(container.querySelector('div[style*="width: 0%"]')).toBeInTheDocument();
     });
 });

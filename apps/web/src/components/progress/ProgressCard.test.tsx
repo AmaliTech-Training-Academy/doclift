@@ -12,7 +12,7 @@ const stepperMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../ui/Stepper", () => ({
-  VerticalStepperDemo: forwardRef(function MockStepper(
+  StepperDemo: forwardRef(function MockStepper(
     props: { onProgress?: (state: PipelineProgress) => void },
     ref,
   ) {
@@ -93,17 +93,17 @@ describe("ProgressCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("cancels the conversion when the cancel button is clicked", async () => {
+  it("cancels the conversion when the simulate failure button is clicked", async () => {
     const user = userEvent.setup();
     renderWithProvider();
 
-    const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
+    const cancelButton = screen.getByRole("button", { name: /simulate failure/i });
     await user.click(cancelButton);
 
     expect(stepperMocks.cancel).toHaveBeenCalledTimes(1);
-    expect(toast.error).toHaveBeenCalledWith("Conversion cancelled");
+    expect(toast.error).toHaveBeenCalledWith("Conversion failed");
     expect(
-      screen.getByRole("button", { name: "Conversion Cancelled" }),
+      screen.getByRole("button", { name: "Simulated failure" }),
     ).toBeDisabled();
   });
 
@@ -111,7 +111,7 @@ describe("ProgressCard", () => {
     const user = userEvent.setup();
     renderWithProvider();
 
-    const cancelButton = screen.getByRole("button", { name: /cancel conversion/i });
+    const cancelButton = screen.getByRole("button", { name: /simulate failure/i });
     await user.click(cancelButton);
     // Button is now disabled, so a second click is a no-op through the DOM,
     // but we also guard in the handler itself.
