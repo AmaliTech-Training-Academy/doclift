@@ -114,7 +114,10 @@ class StructureRecoveryServiceTest {
                 50,
                 10,
                 "Times-Roman",
-                11
+                11,
+                false,
+                false,
+                false
         );
     }
 
@@ -322,7 +325,10 @@ class StructureRecoveryServiceTest {
                 width,
                 16,
                 fontName,
-                fontSize
+                fontSize,
+                false,
+                false,
+                false
         );
     }
 

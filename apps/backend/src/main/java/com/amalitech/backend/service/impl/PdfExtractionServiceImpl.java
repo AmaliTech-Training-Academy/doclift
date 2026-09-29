@@ -38,7 +38,6 @@ import java.util.List;
 public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     private static final int MIN_TABLE_ROWS = 3;
-    // Two shared whitespace channels = at least three aligned columns.
     private static final int MIN_TABLE_CHANNELS = 2;
     private static final float TABLE_MIN_CELL_GAP = 8f;
     private static final float TABLE_CELL_GAP_FONT_FACTOR = 0.9f;
@@ -88,6 +87,149 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
 
         return result;
+    }
+
+    private boolean isBoldFont(String fontName) {
+        if (fontName == null) {
+            return false;
+        }
+
+        String normalized = fontName.toLowerCase();
+
+        return normalized.contains("bold")
+                || normalized.contains("black")
+                || normalized.contains("heavy");
+    }
+
+    private boolean isItalicFont(String fontName) {
+        if (fontName == null) {
+            return false;
+        }
+
+        String normalized = fontName.toLowerCase();
+
+        return normalized.contains("italic")
+                || normalized.contains("oblique");
+    }
+
+    private boolean hasSameFormatting(
+            TextPosition first,
+            TextPosition second
+    ) {
+        String firstFont = getFontName(first);
+        String secondFont = getFontName(second);
+
+        boolean sameFont =
+                firstFont.equals(secondFont);
+
+        boolean sameSize =
+                Math.abs(
+                        first.getFontSizeInPt()
+                                - second.getFontSizeInPt()
+                ) < 0.01f;
+
+        return sameFont && sameSize;
+    }
+
+    private String getFontName(TextPosition position) {
+        if (position.getFont() == null
+                || position.getFont().getName() == null) {
+            return "unknown";
+        }
+
+        return position.getFont().getName();
+    }
+
+    private void addTextSpanFromRun(
+            List<TextSpan> spans,
+            int pageIndex,
+            List<TextPosition> positions
+    ) {
+        if (positions == null || positions.isEmpty()) {
+            return;
+        }
+
+        StringBuilder textBuilder = new StringBuilder();
+
+        float minX = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE;
+        float minY = Float.MAX_VALUE;
+        float maxY = -Float.MAX_VALUE;
+
+        TextPosition previousPosition = null;
+
+        for (TextPosition position : positions) {
+            String unicode = position.getUnicode();
+
+            if (unicode != null) {
+                if (needsWordSeparator(
+                        previousPosition,
+                        position,
+                        textBuilder
+                )) {
+                    textBuilder.append(' ');
+                }
+
+                textBuilder.append(unicode);
+            }
+
+            minX = Math.min(
+                    minX,
+                    position.getXDirAdj()
+            );
+
+            maxX = Math.max(
+                    maxX,
+                    position.getXDirAdj()
+                            + position.getWidthDirAdj()
+            );
+
+            minY = Math.min(
+                    minY,
+                    position.getYDirAdj()
+            );
+
+            maxY = Math.max(
+                    maxY,
+                    position.getYDirAdj()
+                            + position.getHeightDir()
+            );
+
+            previousPosition = position;
+        }
+
+        String extractedText =
+                textBuilder.toString().trim();
+
+        if (extractedText.isEmpty()
+                || minX == Float.MAX_VALUE) {
+            return;
+        }
+
+        TextPosition first =
+                positions.get(0);
+
+        String fontName =
+                getFontName(first);
+
+        float fontSize =
+                first.getFontSizeInPt();
+
+        spans.add(
+                new TextSpan(
+                        pageIndex,
+                        extractedText,
+                        minX,
+                        minY,
+                        Math.max(0f, maxX - minX),
+                        Math.max(0f, maxY - minY),
+                        fontName,
+                        fontSize,
+                        isBoldFont(fontName),
+                        isItalicFont(fontName),
+                        false
+                )
+        );
     }
 
     private boolean looksLikeTwoColumnTable(
@@ -185,7 +327,11 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         );
     }
 
-    private List<TextSpan> extractTextSpans(int pageIndex, PDPage page) throws IOException {
+    private List<TextSpan> extractTextSpans(
+            int pageIndex,
+            PDPage page
+    ) throws IOException {
+
         final List<TextSpan> spans = new ArrayList<>();
 
         PDFTextStripper stripper = new PDFTextStripper() {
@@ -194,65 +340,53 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             }
 
             @Override
-            protected void writeString(String string, List<TextPosition> textPositions) {
+            protected void writeString(
+                    String string,
+                    List<TextPosition> textPositions
+            ) {
                 if (textPositions == null || textPositions.isEmpty()) {
                     return;
                 }
 
-                StringBuilder textBuilder = new StringBuilder();
-                float minX = Float.MAX_VALUE;
-                float maxX = -Float.MAX_VALUE;
-                float minY = Float.MAX_VALUE;
-                float maxY = -Float.MAX_VALUE;
-                String fontName = null;
-                float fontSize = 0f;
+                List<TextPosition> currentRun = new ArrayList<>();
 
-                TextPosition previousPosition = null;
                 for (TextPosition position : textPositions) {
-                    String unicode = position.getUnicode();
-                    if (unicode != null) {
-                        if (needsWordSeparator(previousPosition, position, textBuilder)) {
-                            textBuilder.append(' ');
-                        }
-                        textBuilder.append(unicode);
+
+                    if (currentRun.isEmpty()) {
+                        currentRun.add(position);
+                        continue;
                     }
 
-                    minX = Math.min(minX, position.getXDirAdj());
-                    maxX = Math.max(maxX, position.getXDirAdj() + position.getWidthDirAdj());
-                    minY = Math.min(minY, position.getYDirAdj());
-                    maxY = Math.max(maxY, position.getYDirAdj() + position.getHeightDir());
+                    TextPosition previous =
+                            currentRun.get(currentRun.size() - 1);
 
-                    if (position.getFont() != null && position.getFont().getName() != null) {
-                        fontName = position.getFont().getName();
+                    if (hasSameFormatting(previous, position)) {
+                        currentRun.add(position);
+                    } else {
+                        addTextSpanFromRun(
+                                spans,
+                                pageIndex,
+                                currentRun
+                        );
+
+                        currentRun = new ArrayList<>();
+                        currentRun.add(position);
                     }
-                    fontSize = Math.max(fontSize, position.getFontSizeInPt());
-                    previousPosition = position;
                 }
 
-                String extractedText = textBuilder.toString().trim();
-                if (extractedText.isEmpty() || minX == Float.MAX_VALUE) {
-                    return;
+                if (!currentRun.isEmpty()) {
+                    addTextSpanFromRun(
+                            spans,
+                            pageIndex,
+                            currentRun
+                    );
                 }
-
-                spans.add(new TextSpan(
-                        pageIndex,
-                        extractedText,
-                        minX,
-                        minY,
-                        Math.max(0f, maxX - minX),
-                        Math.max(0f, maxY - minY),
-                        fontName == null ? "unknown" : fontName,
-                        fontSize
-                ));
             }
         };
 
         stripper.setSortByPosition(true);
-        // processPage() handles exactly this page. Setting start/end page here
-        // would be compared against the stripper's own page counter, which a
-        // fresh stripper never advances, so every page after the first would
-        // be skipped.
         stripper.processPage(page);
+
         return spans;
     }
 
@@ -263,12 +397,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return images;
     }
 
-    /**
-     * Walks the page content stream (including nested Form XObjects) and records, for every
-     * image "Do" invocation, the image's actual on-page position and size in PDF point-space,
-     * derived from the current transformation matrix (CTM) at that point in the stream —
-     * as opposed to the resource's raw pixel dimensions.
-     */
     private static class ImageLocationStreamEngine extends PDFStreamEngine {
 
         private final int pageIndex;
@@ -303,7 +431,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             } else if (xObject instanceof PDFormXObject form) {
                 COSBase formKey = form.getCOSObject();
                 if (formsInProgress.contains(formKey)) {
-                    // Self-referential form; skip to avoid infinite recursion.
+
                     return;
                 }
                 formsInProgress.push(formKey);
@@ -319,9 +447,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         private void recordImagePlacement(String imageName, PDImageXObject image) {
             Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
 
-            // Transform all four corners of the unit square (the space an image is drawn into)
-            // rather than reading getScaleX()/getScaleY() directly, so rotated or sheared
-            // placements still produce a correct axis-aligned bounding box.
             float minX = Float.MAX_VALUE;
             float maxX = -Float.MAX_VALUE;
             float minY = Float.MAX_VALUE;
@@ -369,12 +494,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return gap > Math.max(1f, spaceWidth * 0.5f);
     }
 
-    /**
-     * Detects runs of consecutive text rows that share at least two vertical
-     * whitespace channels, i.e. three or more aligned columns. Two-column body
-     * text only shares a single channel (the gutter) and is not reported;
-     * word and sentence gaps do not line up across rows.
-     */
+
     private List<TableRegion> detectCandidateTableRegions(
             int pageIndex,
             List<TextSpan> textSpans
@@ -387,7 +507,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         List<List<TextSpan>> rows = groupIntoRows(textSpans);
 
-        // First pass: detect tables with 3 or more columns.
         int start = 0;
 
         while (start < rows.size()) {
@@ -431,7 +550,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             }
         }
 
-        // Second pass: detect genuine 2-column tables.
+
         for (int rowStart = 0; rowStart < rows.size(); rowStart++) {
             int rowEnd = rowStart;
 
