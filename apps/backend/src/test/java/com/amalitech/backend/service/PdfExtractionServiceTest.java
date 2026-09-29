@@ -78,7 +78,7 @@ class PdfExtractionServiceTest {
                 .hasSize(3);
 
         assertThat(page.getTextSpans().get(0).getText())
-                .isEqualTo("This is");
+                .isEqualTo("This is ");
 
         assertThat(page.getTextSpans().get(0).isBold())
                 .isFalse();
@@ -90,7 +90,7 @@ class PdfExtractionServiceTest {
                 .isTrue();
 
         assertThat(page.getTextSpans().get(2).getText())
-                .isEqualTo("text");
+                .isEqualTo(" text");
 
         assertThat(page.getTextSpans().get(2).isBold())
                 .isFalse();

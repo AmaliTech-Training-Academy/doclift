@@ -173,6 +173,28 @@ public class WordWriterServiceImpl implements WordWriterService {
         );
     }
 
+    private boolean needsSpaceBetweenRuns(
+            String previous,
+            String current
+    ) {
+
+        if (previous == null
+                || previous.isEmpty()
+                || current == null
+                || current.isEmpty()) {
+            return false;
+        }
+
+        char previousLast =
+                previous.charAt(previous.length() - 1);
+
+        char currentFirst =
+                current.charAt(0);
+
+        return !Character.isWhitespace(previousLast)
+                && !Character.isWhitespace(currentFirst);
+    }
+
     private void writeListRuns(
             XWPFParagraph paragraph,
             StructuredBlock block
@@ -192,6 +214,7 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         boolean markerRemoved = false;
+        String previousText = null;
 
         for (TextSpan span : block.getSpans()) {
 
@@ -202,11 +225,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                 String cleaned =
                         removeListMarker(text);
 
-                /*
-                 * A marker such as "1." may exist in a span by itself.
-                 * In that case cleaned becomes empty, but we still know
-                 * the source marker has now been consumed.
-                 */
                 if (!cleaned.equals(text)
                         || LIST_MARKER_PATTERN
                         .matcher(text)
@@ -221,12 +239,21 @@ public class WordWriterServiceImpl implements WordWriterService {
                 continue;
             }
 
+            if (needsSpaceBetweenRuns(
+                    previousText,
+                    text
+            )) {
+                text = " " + text;
+            }
+
             XWPFRun run =
                     paragraph.createRun();
 
             run.setText(text);
 
             applyFormatting(run, span);
+
+            previousText = text;
         }
     }
 
@@ -334,14 +361,31 @@ private void writeBlock(
             return;
         }
 
+        String previousText = null;
+
         for (TextSpan span : block.getSpans()) {
+
+            String text = span.getText();
+
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+
+            if (needsSpaceBetweenRuns(
+                    previousText,
+                    text
+            )) {
+                text = " " + text;
+            }
 
             XWPFRun run =
                     paragraph.createRun();
 
-            run.setText(span.getText());
+            run.setText(text);
 
-           applyFormatting(run, span);
+            applyFormatting(run, span);
+
+            previousText = text;
         }
     }
 }

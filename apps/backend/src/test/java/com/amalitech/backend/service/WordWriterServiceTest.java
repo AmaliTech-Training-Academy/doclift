@@ -280,6 +280,116 @@ class WordWriterServiceTest {
     }
 
 
+    @Test
+    void shouldInsertSpacesBetweenSeparateTextSpans()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        StructuredBlock paragraph =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Hello, here is some text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Hello,",
+                                        50,
+                                        100,
+                                        40,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        "here",
+                                        95,
+                                        100,
+                                        30,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        "is",
+                                        130,
+                                        100,
+                                        15,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        "some",
+                                        150,
+                                        100,
+                                        35,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                ),
+                                new TextSpan(
+                                        0,
+                                        "text",
+                                        190,
+                                        100,
+                                        30,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        page.getStructuredBlocks().add(paragraph);
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+
+            assertThat(
+                    document.getParagraphs()
+                            .get(0)
+                            .getText()
+            ).isEqualTo(
+                    "Hello, here is some text"
+            );
+        }
+    }
 
     @Test
     void shouldCreateNumberedList() throws Exception {

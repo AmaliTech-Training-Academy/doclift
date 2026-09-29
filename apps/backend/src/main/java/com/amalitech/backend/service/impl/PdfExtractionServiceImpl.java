@@ -199,9 +199,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
 
         String extractedText =
-                textBuilder.toString().trim();
+                textBuilder.toString();
 
-        if (extractedText.isEmpty()
+        if (extractedText.isBlank()
                 || minX == Float.MAX_VALUE) {
             return;
         }
