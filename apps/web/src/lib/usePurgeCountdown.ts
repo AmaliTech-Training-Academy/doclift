@@ -25,7 +25,7 @@ export function usePurgeCountdown(
     };
   }, [completedAt]);
 
-  if (completedAt === undefined) return null;
+  if (!completedAt) return null;
  
   const elapsed = Math.max(0, Math.floor((now - completedAt) / 1000));
   return Math.max(0, ttlSeconds - elapsed);
