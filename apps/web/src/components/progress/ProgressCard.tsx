@@ -5,8 +5,8 @@ import { Progress } from "../ui/Progress";
 import { Spinner } from "../ui/Spinner";
 import { CheckIcon, BadgeCheck, X } from "lucide-react";
 import {
-  VerticalStepperDemo,
-  type VerticalStepperDemoHandle,
+  StepperDemo,
+  type StepperDemoHandle,
   type PipelineProgress,
 } from "../ui/Stepper";
 import Button from "../ui/Button";
@@ -16,24 +16,24 @@ import { useConversion } from "@/context/ConversionContext";
 
 const ProgressCard = () => {
   const { updateStatus, session } = useConversion();
-  const stepperRef = useRef<VerticalStepperDemoHandle>(null);
-  const [cancelled, setCancelled] = useState(false);
+  const stepperRef = useRef<StepperDemoHandle>(null);
+  const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
   const done = progress?.done ?? false;
 
   const isFailed = session?.status === "failed" || Boolean(progress?.error);
 
   const handleCancel = () => {
-    if (cancelled) return;
+    if (failed) return;
     stepperRef.current?.cancel();
-    setCancelled(true);
+    setFailed(true);
     updateStatus("failed");
-    toast.error("Conversion cancelled");
+    toast.error("Conversion failed");
   };
 
   const handleProgress = useCallback((state: PipelineProgress) => {
     setProgress(state);
-    if (state.error || state.cancelled) {
+    if (state.error || state.failed) {
       updateStatus("failed");
     } else if (state.done) {
       updateStatus("done");
@@ -79,29 +79,29 @@ const ProgressCard = () => {
       {/* Main card */}
       <Card className="my-6 w-full max-w-5xl mx-auto flex flex-col p-4 sm:p-6">
         {/* Header and Percentage */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
-          <h1 className="text-lg md:text-3xl font-semibold">
+        <h1 className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-10 p-4">
+          <span className="text-lg md:text-3xl font-semibold">
             Reconstructing Document Structures
-          </h1>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 self-end">
+          </span>
+          <span className="text-2xl md:text-3xl font-bold text-foreground self-end">
             {overallPercent}%{" "}
-            <span className="text-sm text-[#434655]">completed</span>
-          </h1>
-        </div>
+            <span className="text-sm text-muted-foreground">completed</span>
+          </span>
+        </h1>
         {/*Progress Bar Track  */}
         <div>
           <Progress
             value={overallPercent}
-            className="bg-[#E5EEFF] mx-2 w-auto *:bg-[#2563EB]"
+            className="bg-primary-background mx-2 w-auto *:bg-primary"
           />
         </div>
         {/* Current Stage Callout */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-1 p-4">
           <div className="flex items-center gap-1 shrink-0">
             {isFinalPhase ? (
-              <CheckIcon className="w-4 h-4 text-[#004AC6]" />
+              <CheckIcon className="w-4 h-4 text-primary" />
             ) : (
-              <Spinner className="w-4 h-4 text-[#004AC6]" />
+              <Spinner className="w-4 h-4 text-primary" />
             )}
             <p className="font-bold text-sm">
               Phase {currentStepIndex + 1} of {totalSteps}:
@@ -113,17 +113,17 @@ const ProgressCard = () => {
         </div>
         {/* Timeline Stepper */}
         <div className="-mx-4">
-          <VerticalStepperDemo ref={stepperRef} onProgress={handleProgress} />
+          <StepperDemo ref={stepperRef} onProgress={handleProgress} />
         </div>
         {/* Pipeline Footer */}
-        <Card className="mx-2 my-6  bg-[#EFF4FF]">
+        <Card className="mx-2 my-6 bg-secondary border-secondary">
           <div className="flex flex-row items-center gap-4 p-4">
-            <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
-              <BadgeCheck className="text-blue-500" />
+            <div className="rounded-full bg-primary-background p-2 shrink-0">
+              <BadgeCheck className="text-primary" />
             </div>
             <div className="flex flex-col">
               <p className="font-bold">Native Flow Fidelity Guarantee</p>
-              <p className="text-sm ">
+              <p className="text-sm text-muted-foreground">
                 DocLift reconstructs actual Word document objects (tables,
                 paragraphs, list definitions) rather than static text boxes.
                 Once finished, document text reflows naturally when edited in
@@ -138,14 +138,14 @@ const ProgressCard = () => {
             variant="danger"
             className="disabled:hover:text-inherit w-80"
             onClick={handleCancel}
-            disabled={cancelled || done}
+            disabled={failed || done}
           >
             <X />
-            {cancelled
-              ? "Conversion Cancelled"
+            {failed
+              ? "Simulated failure"
               : done
                 ? "Conversion Completed"
-                : "Cancel Conversion"}
+                : "Simulate failure"}
           </Button>
         </div>
       </Card>
