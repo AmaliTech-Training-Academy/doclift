@@ -4,6 +4,7 @@ import type { NextConfig } from "next";
 const BACKEND_ORIGIN = process.env.BACKEND_URL ?? "http://127.0.0.1:8080";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async rewrites() {
     return [
       {
