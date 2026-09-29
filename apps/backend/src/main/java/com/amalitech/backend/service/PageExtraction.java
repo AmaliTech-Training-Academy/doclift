@@ -15,6 +15,7 @@ public class PageExtraction {
     private final List<TextSpan> textSpans = new ArrayList<>();
     private final List<ExtractedImage> images = new ArrayList<>();
     private final List<TableRegion> candidateTableRegions = new ArrayList<>();
+    private final List<StructuredBlock> structuredBlocks = new ArrayList<>();
 
     public PageExtraction(int pageIndex) {
         this.pageIndex = pageIndex;
