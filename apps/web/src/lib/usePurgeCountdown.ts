@@ -14,7 +14,7 @@ export function usePurgeCountdown(
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (completedAt === undefined) return;
+    if (!completedAt) return;
     const tick = () => setNow(Date.now());
     // Refresh right away so a stale `now` doesn't linger for a full second.
     const timeout = setTimeout(tick, 0);
@@ -25,7 +25,7 @@ export function usePurgeCountdown(
     };
   }, [completedAt]);
 
-  if (completedAt === undefined) return null;
+  if (!completedAt) return null;
  
   const elapsed = Math.max(0, Math.floor((now - completedAt) / 1000));
   return Math.max(0, ttlSeconds - elapsed);
