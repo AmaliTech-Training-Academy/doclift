@@ -1,5 +1,6 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.service.*;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSBase;
@@ -11,12 +12,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.springframework.stereotype.Service;
-import com.amalitech.backend.service.ExtractedImage;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.PdfExtractionResult;
-import com.amalitech.backend.service.TableRegion;
-import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.PdfExtractionService;
+
 import java.awt.geom.Point2D;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -35,12 +31,29 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class PdfExtractionServiceImpl implements PdfExtractionService {
+
+    private static final int MIN_TABLE_ROWS = 3;
+    // Two shared whitespace channels = at least three aligned columns.
+    private static final int MIN_TABLE_CHANNELS = 2;
+    private static final float TABLE_MIN_CELL_GAP = 8f;
+    private static final float TABLE_CELL_GAP_FONT_FACTOR = 0.9f;
+    private static final float TABLE_MIN_CHANNEL_WIDTH = 2f;
+    private static final float TABLE_MIN_ROW_TOLERANCE = 2f;
+    private static final int MIN_TWO_COLUMN_TABLE_ROWS = 3;
+    private static final float COLUMN_ALIGNMENT_TOLERANCE = 20f;
+
+    private final StructureRecoveryService structureRecoveryService;
+
+    public PdfExtractionServiceImpl(
+            StructureRecoveryService structureRecoveryService
+    ) {
+        this.structureRecoveryService = structureRecoveryService;
+    }
 
     @Override
     public PdfExtractionResult extract(byte[] pdfBytes) throws IOException {
@@ -69,10 +82,107 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             pageExtraction.getImages().addAll(extractImages(pageIndex, page));
             pageExtraction.getCandidateTableRegions().addAll(detectCandidateTableRegions(pageIndex, textSpans));
 
+            structureRecoveryService.recoverStructure(pageExtraction);
+
             result.getPages().add(pageExtraction);
         }
 
         return result;
+    }
+
+    private boolean looksLikeTwoColumnTable(
+            List<List<TextSpan>> rows
+    ) {
+        if (rows.size() < MIN_TWO_COLUMN_TABLE_ROWS) {
+            return false;
+        }
+
+        Float expectedLeftX = null;
+        Float expectedRightX = null;
+
+        int alignedRows = 0;
+        int tabularRows = 0;
+
+        for (List<TextSpan> row : rows) {
+            if (row.size() != 2) {
+                continue;
+            }
+
+            TextSpan left = row.get(0);
+            TextSpan right = row.get(1);
+
+            if (expectedLeftX == null) {
+                expectedLeftX = left.getX();
+                expectedRightX = right.getX();
+            }
+
+            boolean leftAligned =
+                    Math.abs(left.getX() - expectedLeftX)
+                            <= COLUMN_ALIGNMENT_TOLERANCE;
+
+            boolean rightAligned =
+                    Math.abs(right.getX() - expectedRightX)
+                            <= COLUMN_ALIGNMENT_TOLERANCE;
+
+            if (!leftAligned || !rightAligned) {
+                continue;
+            }
+
+            alignedRows++;
+
+            if (looksLikeTabularValue(left.getText())
+                    || looksLikeTabularValue(right.getText())) {
+                tabularRows++;
+            }
+        }
+
+        return alignedRows >= MIN_TWO_COLUMN_TABLE_ROWS
+                && tabularRows >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
+    }
+
+    private boolean looksLikeMultiColumnTable(
+            List<List<TextSpan>> rows
+    ) {
+        if (rows.size() < MIN_TABLE_ROWS) {
+            return false;
+        }
+
+        int tabularRows = 0;
+
+        for (List<TextSpan> row : rows) {
+            boolean hasTabularCell = false;
+
+            for (TextSpan span : row) {
+                if (looksLikeTabularValue(span.getText())) {
+                    hasTabularCell = true;
+                    break;
+                }
+            }
+
+            if (hasTabularCell) {
+                tabularRows++;
+            }
+        }
+
+        return tabularRows >= MIN_TABLE_ROWS - 1;
+    }
+
+    private boolean looksLikeTabularValue(String text) {
+        if (text == null) {
+            return false;
+        }
+
+        String value = text.trim();
+
+        if (value.isEmpty()) {
+            return false;
+        }
+
+        return value.matches(
+                "^[\\p{Sc}]?\\d[\\d,]*(?:\\.\\d+)?%?$"
+                        + "|^\\d{1,2}[/-]\\d{1,2}(?:[/-]\\d{2,4})?$"
+                        + "|^[A-Z0-9_-]{1,12}$"
+        );
     }
 
     private List<TextSpan> extractTextSpans(int pageIndex, PDPage page) throws IOException {
@@ -138,8 +248,10 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         };
 
         stripper.setSortByPosition(true);
-        stripper.setStartPage(pageIndex + 1);
-        stripper.setEndPage(pageIndex + 1);
+        // processPage() handles exactly this page. Setting start/end page here
+        // would be compared against the stripper's own page counter, which a
+        // fresh stripper never advances, so every page after the first would
+        // be skipped.
         stripper.processPage(page);
         return spans;
     }
@@ -203,6 +315,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             }
         }
 
+
         private void recordImagePlacement(String imageName, PDImageXObject image) {
             Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
 
@@ -256,41 +369,190 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return gap > Math.max(1f, spaceWidth * 0.5f);
     }
 
-    private List<TableRegion> detectCandidateTableRegions(int pageIndex, List<TextSpan> textSpans) {
+    /**
+     * Detects runs of consecutive text rows that share at least two vertical
+     * whitespace channels, i.e. three or more aligned columns. Two-column body
+     * text only shares a single channel (the gutter) and is not reported;
+     * word and sentence gaps do not line up across rows.
+     */
+    private List<TableRegion> detectCandidateTableRegions(
+            int pageIndex,
+            List<TextSpan> textSpans
+    ) {
         List<TableRegion> regions = new ArrayList<>();
+
         if (textSpans.size() < 3) {
             return regions;
         }
 
-        Map<Integer, Integer> xBuckets = new HashMap<>();
+        List<List<TextSpan>> rows = groupIntoRows(textSpans);
+
+        // First pass: detect tables with 3 or more columns.
+        int start = 0;
+
+        while (start < rows.size()) {
+            List<float[]> channels = findCellGaps(rows.get(start));
+            int end = start + 1;
+
+            while (end < rows.size()
+                    && channels.size() >= MIN_TABLE_CHANNELS) {
+
+                List<float[]> narrowed =
+                        intersectGaps(
+                                channels,
+                                findCellGaps(rows.get(end))
+                        );
+
+                if (narrowed.size() < MIN_TABLE_CHANNELS) {
+                    break;
+                }
+
+                channels = narrowed;
+                end++;
+            }
+
+            int rowCount = end - start;
+
+            if (rowCount >= MIN_TABLE_ROWS
+                    && channels.size() >= MIN_TABLE_CHANNELS
+                    && looksLikeMultiColumnTable(rows.subList(start, end))) {
+
+                regions.add(
+                        toTableRegion(
+                                pageIndex,
+                                rows.subList(start, end),
+                                channels.size() + 1
+                        )
+                );
+
+                start = end;
+            } else {
+                start++;
+            }
+        }
+
+        // Second pass: detect genuine 2-column tables.
+        for (int rowStart = 0; rowStart < rows.size(); rowStart++) {
+            int rowEnd = rowStart;
+
+            while (rowEnd < rows.size()
+                    && rows.get(rowEnd).size() == 2) {
+                rowEnd++;
+            }
+
+            if (rowEnd - rowStart >= MIN_TWO_COLUMN_TABLE_ROWS) {
+                List<List<TextSpan>> candidateRows =
+                        rows.subList(rowStart, rowEnd);
+
+                if (looksLikeTwoColumnTable(candidateRows)) {
+                    regions.add(
+                            toTableRegion(
+                                    pageIndex,
+                                    candidateRows,
+                                    2
+                            )
+                    );
+                }
+            }
+
+            if (rowEnd > rowStart) {
+                rowStart = rowEnd - 1;
+            }
+        }
+
+        return regions;
+    }
+
+    private List<List<TextSpan>> groupIntoRows(List<TextSpan> textSpans) {
+        List<TextSpan> sorted = new ArrayList<>(textSpans);
+        sorted.sort(Comparator.comparing(TextSpan::getY).thenComparing(TextSpan::getX));
+
+        List<List<TextSpan>> rows = new ArrayList<>();
+        List<TextSpan> current = new ArrayList<>();
+        float currentY = 0f;
+
+        for (TextSpan span : sorted) {
+            float tolerance = Math.max(TABLE_MIN_ROW_TOLERANCE, span.getHeight() * 0.5f);
+            if (!current.isEmpty() && Math.abs(span.getY() - currentY) > tolerance) {
+                rows.add(current);
+                current = new ArrayList<>();
+            }
+            if (current.isEmpty()) {
+                currentY = span.getY();
+            }
+            current.add(span);
+        }
+
+        if (!current.isEmpty()) {
+            rows.add(current);
+        }
+
+        for (List<TextSpan> row : rows) {
+            row.sort(Comparator.comparing(TextSpan::getX));
+        }
+
+        return rows;
+    }
+
+    private List<float[]> findCellGaps(List<TextSpan> row) {
+        List<float[]> gaps = new ArrayList<>();
+        float right = -Float.MAX_VALUE;
+        float fontSize = 0f;
+
+        for (TextSpan span : row) {
+            if (right != -Float.MAX_VALUE) {
+                float threshold = Math.max(
+                        TABLE_MIN_CELL_GAP,
+                        Math.max(fontSize, span.getFontSize()) * TABLE_CELL_GAP_FONT_FACTOR
+                );
+                if (span.getX() - right > threshold) {
+                    gaps.add(new float[]{right, span.getX()});
+                }
+            }
+            right = Math.max(right, span.getX() + span.getWidth());
+            fontSize = span.getFontSize();
+        }
+
+        return gaps;
+    }
+
+    private List<float[]> intersectGaps(List<float[]> channels, List<float[]> gaps) {
+        List<float[]> result = new ArrayList<>();
+        for (float[] channel : channels) {
+            for (float[] gap : gaps) {
+                float left = Math.max(channel[0], gap[0]);
+                float right = Math.min(channel[1], gap[1]);
+                if (right - left >= TABLE_MIN_CHANNEL_WIDTH) {
+                    result.add(new float[]{left, right});
+                }
+            }
+        }
+        return result;
+    }
+
+    private TableRegion toTableRegion(int pageIndex, List<List<TextSpan>> rows, int columnCount) {
         float minX = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE;
         float minY = Float.MAX_VALUE;
         float maxY = -Float.MAX_VALUE;
 
-        for (TextSpan span : textSpans) {
-            minX = Math.min(minX, span.getX());
-            maxX = Math.max(maxX, span.getX() + span.getWidth());
-            minY = Math.min(minY, span.getY());
-            maxY = Math.max(maxY, span.getY() + span.getHeight());
-
-            int bucket = Math.round((span.getX() + (span.getWidth() / 2f)) / 80f);
-            xBuckets.put(bucket, xBuckets.getOrDefault(bucket, 0) + 1);
+        for (List<TextSpan> row : rows) {
+            for (TextSpan span : row) {
+                minX = Math.min(minX, span.getX());
+                maxX = Math.max(maxX, span.getX() + span.getWidth());
+                minY = Math.min(minY, span.getY());
+                maxY = Math.max(maxY, span.getY() + span.getHeight());
+            }
         }
 
-        long distinctColumns = xBuckets.size();
-        if (distinctColumns >= 2) {
-            regions.add(new TableRegion(
-                    pageIndex,
-                    minX,
-                    minY,
-                    Math.max(0f, maxX - minX),
-                    Math.max(0f, maxY - minY),
-                    Math.max(2, (int) Math.ceil(textSpans.size() / 3.0)),
-                    Math.max(2, (int) distinctColumns)
-            ));
-        }
-
-        return regions;
+        return new TableRegion(
+                pageIndex,
+                minX,
+                minY,
+                Math.max(0f, maxX - minX),
+                Math.max(0f, maxY - minY),
+                rows.size(),
+                columnCount
+        );
     }
 }

@@ -2,6 +2,7 @@ package com.amalitech.backend.service;
 
 import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
 import com.amalitech.backend.service.impl.PdfValidationServiceImpl;
+import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -29,7 +30,9 @@ class PdfExtractionOutputTest {
     private PdfValidationService validationService;
 
     {
-        service = new PdfExtractionServiceImpl();
+        service = new PdfExtractionServiceImpl(
+                new StructureRecoveryServiceImpl()
+        );
         validationService = new PdfValidationServiceImpl(10 * 1024 * 1024);
     }
 

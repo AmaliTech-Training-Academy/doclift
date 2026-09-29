@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
-@RequestMapping("/api/v1/uploads")
+@RequestMapping("/api/v1")
 @Tag(
         name = "PDF Upload",
         description = "Endpoints for uploading PDF documents"
@@ -45,7 +45,7 @@ public class UploadController {
             responseCode = "500",
             description = "Internal storage or server error"
     )
-    @PostMapping
+    @PostMapping("/uploads")
     public ResponseEntity<UploadResponse> uploadPdf(
             @RequestParam("file") MultipartFile file
     ) {
