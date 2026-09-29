@@ -85,23 +85,23 @@ const ProgressCard = () => {
           </h1>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 self-end">
             {overallPercent}%{" "}
-            <span className="text-sm text-muted-foreground">completed</span>
+            <span className="text-sm text-[#434655]">completed</span>
           </h1>
         </div>
         {/*Progress Bar Track  */}
         <div>
           <Progress
             value={overallPercent}
-            className="bg-secondary mx-2 w-auto *:bg-primary"
+            className="bg-[#E5EEFF] mx-2 w-auto *:bg-[#2563EB]"
           />
         </div>
         {/* Current Stage Callout */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-1 p-4">
           <div className="flex items-center gap-1 shrink-0">
             {isFinalPhase ? (
-              <CheckIcon className="w-4 h-4 text-primary" />
+              <CheckIcon className="w-4 h-4 text-[#004AC6]" />
             ) : (
-              <Spinner className="w-4 h-4 text-primary" />
+              <Spinner className="w-4 h-4 text-[#004AC6]" />
             )}
             <p className="font-bold text-sm">
               Phase {currentStepIndex + 1} of {totalSteps}:
@@ -116,10 +116,10 @@ const ProgressCard = () => {
           <VerticalStepperDemo ref={stepperRef} onProgress={handleProgress} />
         </div>
         {/* Pipeline Footer */}
-        <Card className="mx-2 my-6  bg-secondary">
+        <Card className="mx-2 my-6  bg-[#EFF4FF]">
           <div className="flex flex-row items-center gap-4 p-4">
-            <div className="rounded-full bg-secondary p-2 shrink-0">
-              <BadgeCheck className="text-primary" />
+            <div className="rounded-full bg-[#E5EEFF] p-2 shrink-0">
+              <BadgeCheck className="text-blue-500" />
             </div>
             <div className="flex flex-col">
               <p className="font-bold">Native Flow Fidelity Guarantee</p>

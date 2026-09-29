@@ -7,6 +7,8 @@ export type ConversionSession = {
     updatedAt: number;
     createdAt?: number;
     durationSeconds?: number;
+    /** Epoch ms when the conversion finished; starts the purge countdown. */
+    completedAt?: number;
     fileSize?: number;
 };
 
