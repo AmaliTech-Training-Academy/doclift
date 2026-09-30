@@ -7,13 +7,21 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class TextSpan {
+
     private int pageIndex;
     private String text;
+
     private float x;
     private float y;
     private float width;
     private float height;
-    private String fontName;
-    private float fontSize; // font size
 
+    private String fontName;
+    private float fontSize;
+
+    private boolean bold;
+    private boolean italic;
+    private boolean underline;
+
+    private boolean wordSeparatorBefore;
 }

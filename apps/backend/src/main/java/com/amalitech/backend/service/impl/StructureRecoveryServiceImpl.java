@@ -425,6 +425,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             float splitX
     ) {
         LogicalLine current = rows.get(currentIndex);
+
         if (hasGutterAt(current, splitX)) {
             return true;
         }
@@ -746,8 +747,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return null;
         }
 
-        if (bestSplit != null
-                && looksLikeLabelValueLayout(rows, bestSplit)) {
+        if (looksLikeLabelValueLayout(rows, bestSplit)) {
             return null;
         }
 
@@ -818,6 +818,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     ) {
         LogicalLine closest = null;
         float closestDistance = Float.MAX_VALUE;
+
         for (LogicalLine line : lines) {
             float tolerance = Math.max(
                     MIN_LINE_TOLERANCE,
@@ -839,7 +840,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private boolean isListItem(LogicalLine line) {
         String text = line.getText();
 
-        if (text == null || text.isBlank()) {
+        if (text.isBlank()) {
             return false;
         }
 
@@ -852,7 +853,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     ) {
         String text = line.getText();
 
-        if (text == null || text.isBlank()) {
+        if (text.isBlank()) {
             return false;
         }
 
@@ -977,20 +978,55 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         String getText() {
-            StringBuilder builder = new StringBuilder();
+
+            StringBuilder builder =
+                    new StringBuilder();
+
+            boolean previousEndedWithWhitespace =
+                    false;
 
             for (TextSpan span : spans) {
-                String text = span.getText();
 
-                if (text == null || text.isBlank()) {
+                String text =
+                        span.getText();
+
+                if (text == null
+                        || text.isBlank()) {
                     continue;
                 }
 
-                if (!builder.isEmpty()) {
+                boolean startsWithWhitespace =
+                        Character.isWhitespace(
+                                text.charAt(0)
+                        );
+
+                boolean endsWithWhitespace =
+                        Character.isWhitespace(
+                                text.charAt(
+                                        text.length() - 1
+                                )
+                        );
+
+                String cleaned =
+                        text.strip();
+
+                if (!builder.isEmpty()
+                        && (span.isWordSeparatorBefore()
+                        || previousEndedWithWhitespace
+                        || startsWithWhitespace)
+                        && !Character.isWhitespace(
+                        builder.charAt(
+                                builder.length() - 1
+                        )
+                )) {
+
                     builder.append(' ');
                 }
 
-                builder.append(text.trim());
+                builder.append(cleaned);
+
+                previousEndedWithWhitespace =
+                        endsWithWhitespace;
             }
 
             return builder.toString();

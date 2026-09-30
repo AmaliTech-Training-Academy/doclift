@@ -38,7 +38,6 @@ import java.util.List;
 public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     private static final int MIN_TABLE_ROWS = 3;
-    // Two shared whitespace channels = at least three aligned columns.
     private static final int MIN_TABLE_CHANNELS = 2;
     private static final float TABLE_MIN_CELL_GAP = 8f;
     private static final float TABLE_CELL_GAP_FONT_FACTOR = 0.9f;
@@ -90,9 +89,341 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return result;
     }
 
+    private List<DetectionCell> reconstructDetectionCells(
+            List<TextSpan> row
+    ) {
+
+        List<DetectionCell> cells =
+                new ArrayList<>();
+
+        if (row == null || row.isEmpty()) {
+            return cells;
+        }
+
+        List<TextSpan> sorted =
+                new ArrayList<>(row);
+
+        sorted.sort(
+                Comparator.comparing(TextSpan::getX)
+        );
+
+        StringBuilder currentText =
+                new StringBuilder();
+
+        float currentLeft = sorted.getFirst().getX();
+        float currentRight =
+                sorted.getFirst().getX()
+                        + sorted.getFirst().getWidth();
+
+        float previousFontSize =
+                sorted.getFirst().getFontSize();
+
+        currentText.append(
+                sorted.getFirst().getText()
+        );
+
+        for (int i = 1; i < sorted.size(); i++) {
+
+            TextSpan previous =
+                    sorted.get(i - 1);
+
+            TextSpan current =
+                    sorted.get(i);
+
+            float previousRight =
+                    previous.getX()
+                            + previous.getWidth();
+
+            float gap =
+                    current.getX()
+                            - previousRight;
+
+            float threshold =
+                    Math.max(
+                            TABLE_MIN_CELL_GAP,
+                            Math.max(
+                                    previousFontSize,
+                                    current.getFontSize()
+                            ) * TABLE_CELL_GAP_FONT_FACTOR
+                    );
+
+            if (gap > threshold) {
+
+                cells.add(
+                        new DetectionCell(
+                                currentText.toString(),
+                                currentLeft,
+                                Math.max(
+                                        0f,
+                                        currentRight - currentLeft
+                                )
+                        )
+                );
+
+                currentText =
+                        new StringBuilder();
+
+                currentLeft =
+                        current.getX();
+
+                currentRight =
+                        current.getX()
+                                + current.getWidth();
+            }
+
+            currentText.append(
+                    current.getText()
+            );
+
+            currentRight =
+                    Math.max(
+                            currentRight,
+                            current.getX()
+                                    + current.getWidth()
+                    );
+
+            previousFontSize =
+                    current.getFontSize();
+        }
+
+        cells.add(
+                new DetectionCell(
+                        currentText.toString(),
+                        currentLeft,
+                        Math.max(
+                                0f,
+                                currentRight - currentLeft
+                        )
+                )
+        );
+
+        return cells;
+    }
+
+    private boolean isWhitespaceOnlyRun(
+            List<TextPosition> positions
+    ) {
+
+        if (positions == null
+                || positions.isEmpty()) {
+            return false;
+        }
+
+        for (TextPosition position : positions) {
+
+            String unicode =
+                    position.getUnicode();
+
+            if (unicode != null
+                    && !unicode.isBlank()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isBoldFont(String fontName) {
+        if (fontName == null) {
+            return false;
+        }
+
+        String normalized = fontName.toLowerCase();
+
+        return normalized.contains("bold")
+                || normalized.contains("black")
+                || normalized.contains("heavy");
+    }
+
+    private boolean isBold(TextPosition position) {
+
+        if (position.getFont() != null
+                && position.getFont().getFontDescriptor() != null
+                && position.getFont()
+                .getFontDescriptor()
+                .isForceBold()) {
+
+            return true;
+        }
+
+        return isBoldFont(
+                getFontName(position)
+        );
+    }
+
+    private boolean isItalic(TextPosition position) {
+
+        if (position.getFont() != null
+                && position.getFont().getFontDescriptor() != null
+                && position.getFont()
+                .getFontDescriptor()
+                .isItalic()) {
+
+            return true;
+        }
+
+        return isItalicFont(
+                getFontName(position)
+        );
+    }
+
+    private boolean isItalicFont(String fontName) {
+        if (fontName == null) {
+            return false;
+        }
+
+        String normalized = fontName.toLowerCase();
+
+        return normalized.contains("italic")
+                || normalized.contains("oblique");
+    }
+
+
+    private boolean hasSameFormatting(
+            TextPosition first,
+            TextPosition second
+    ) {
+        String firstFont = getFontName(first);
+        String secondFont = getFontName(second);
+
+        boolean sameFont =
+                firstFont.equals(secondFont);
+
+        boolean sameSize =
+                Math.abs(
+                        first.getFontSizeInPt()
+                                - second.getFontSizeInPt()
+                ) < 0.01f;
+
+        return sameFont && sameSize;
+    }
+
+    private String getFontName(TextPosition position) {
+        if (position.getFont() == null
+                || position.getFont().getName() == null) {
+            return "unknown";
+        }
+
+        return position.getFont().getName();
+    }
+
+    private boolean addTextSpanFromRun(
+            List<TextSpan> spans,
+            int pageIndex,
+            List<TextPosition> positions,
+            TextPosition previousPositionBeforeRun,
+            boolean forceWordSeparatorBefore
+    ) {
+
+        if (positions == null || positions.isEmpty()) {
+            return false;
+        }
+
+        boolean wordSeparatorBefore =
+                forceWordSeparatorBefore
+                        || (
+                        previousPositionBeforeRun != null
+                                && needsWordSeparator(
+                                previousPositionBeforeRun,
+                                positions.getFirst()
+                        )
+                );
+
+        StringBuilder textBuilder =
+                new StringBuilder();
+
+        float minX = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE;
+        float minY = Float.MAX_VALUE;
+        float maxY = -Float.MAX_VALUE;
+
+        TextPosition previousPosition = null;
+
+        for (TextPosition position : positions) {
+
+            String unicode =
+                    position.getUnicode();
+
+            if (unicode != null) {
+
+                if (needsWordSeparator(
+                        previousPosition,
+                        position
+                )) {
+                    textBuilder.append(' ');
+                }
+
+                textBuilder.append(unicode);
+            }
+
+            minX = Math.min(
+                    minX,
+                    position.getXDirAdj()
+            );
+
+            maxX = Math.max(
+                    maxX,
+                    position.getXDirAdj()
+                            + position.getWidthDirAdj()
+            );
+
+            minY = Math.min(
+                    minY,
+                    position.getYDirAdj()
+            );
+
+            maxY = Math.max(
+                    maxY,
+                    position.getYDirAdj()
+                            + position.getHeightDir()
+            );
+
+            previousPosition = position;
+        }
+
+        String extractedText =
+                textBuilder.toString();
+
+        if (extractedText.isBlank()
+                || minX == Float.MAX_VALUE) {
+            return false;
+        }
+
+        TextPosition first =
+                positions.getFirst();
+
+        spans.add(
+                new TextSpan(
+                        pageIndex,
+                        extractedText,
+                        minX,
+                        minY,
+                        Math.max(
+                                0f,
+                                maxX - minX
+                        ),
+                        Math.max(
+                                0f,
+                                maxY - minY
+                        ),
+                        getFontName(first),
+                        first.getFontSizeInPt(),
+                        isBold(first),
+                        isItalic(first),
+
+                        // TODO: Implement underline detection and recovery
+                        false,
+                        wordSeparatorBefore
+                )
+        );
+
+        return true;
+    }
+
     private boolean looksLikeTwoColumnTable(
             List<List<TextSpan>> rows
     ) {
+
         if (rows.size() < MIN_TWO_COLUMN_TABLE_ROWS) {
             return false;
         }
@@ -104,25 +435,36 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         int tabularRows = 0;
 
         for (List<TextSpan> row : rows) {
-            if (row.size() != 2) {
+
+            List<DetectionCell> cells =
+                    reconstructDetectionCells(row);
+
+            if (cells.size() != 2) {
                 continue;
             }
 
-            TextSpan left = row.get(0);
-            TextSpan right = row.get(1);
+            DetectionCell left =
+                    cells.get(0);
+
+            DetectionCell right =
+                    cells.get(1);
 
             if (expectedLeftX == null) {
-                expectedLeftX = left.getX();
-                expectedRightX = right.getX();
+                expectedLeftX = left.x();
+                expectedRightX = right.x();
             }
 
             boolean leftAligned =
-                    Math.abs(left.getX() - expectedLeftX)
-                            <= COLUMN_ALIGNMENT_TOLERANCE;
+                    Math.abs(
+                            left.x()
+                                    - expectedLeftX
+                    ) <= COLUMN_ALIGNMENT_TOLERANCE;
 
             boolean rightAligned =
-                    Math.abs(right.getX() - expectedRightX)
-                            <= COLUMN_ALIGNMENT_TOLERANCE;
+                    Math.abs(
+                            right.x()
+                                    - expectedRightX
+                    ) <= COLUMN_ALIGNMENT_TOLERANCE;
 
             if (!leftAligned || !rightAligned) {
                 continue;
@@ -130,19 +472,21 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
             alignedRows++;
 
-            if (looksLikeTabularValue(left.getText())
-                    || looksLikeTabularValue(right.getText())) {
+            if (looksLikeTabularValue(left.text())
+                    || looksLikeTabularValue(right.text())) {
                 tabularRows++;
             }
         }
 
         return alignedRows >= MIN_TWO_COLUMN_TABLE_ROWS
-                && tabularRows >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
+                && tabularRows
+                >= MIN_TWO_COLUMN_TABLE_ROWS - 1;
     }
 
     private boolean looksLikeMultiColumnTable(
             List<List<TextSpan>> rows
     ) {
+
         if (rows.size() < MIN_TABLE_ROWS) {
             return false;
         }
@@ -150,10 +494,17 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         int tabularRows = 0;
 
         for (List<TextSpan> row : rows) {
+
+            List<DetectionCell> cells =
+                    reconstructDetectionCells(row);
+
             boolean hasTabularCell = false;
 
-            for (TextSpan span : row) {
-                if (looksLikeTabularValue(span.getText())) {
+            for (DetectionCell cell : cells) {
+
+                if (looksLikeTabularValue(
+                        cell.text()
+                )) {
                     hasTabularCell = true;
                     break;
                 }
@@ -185,74 +536,128 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         );
     }
 
-    private List<TextSpan> extractTextSpans(int pageIndex, PDPage page) throws IOException {
+    private List<TextSpan> extractTextSpans(
+            int pageIndex,
+            PDPage page
+    ) throws IOException {
+
         final List<TextSpan> spans = new ArrayList<>();
 
         PDFTextStripper stripper = new PDFTextStripper() {
+
+            private TextPosition lastTextPosition;
+            private boolean pendingWhitespaceSeparator;
+
             {
                 this.output = new StringWriter();
             }
 
             @Override
-            protected void writeString(String string, List<TextPosition> textPositions) {
-                if (textPositions == null || textPositions.isEmpty()) {
+            protected void writeString(
+                    String string,
+                    List<TextPosition> textPositions
+            ) {
+
+                if (textPositions == null
+                        || textPositions.isEmpty()) {
                     return;
                 }
 
-                StringBuilder textBuilder = new StringBuilder();
-                float minX = Float.MAX_VALUE;
-                float maxX = -Float.MAX_VALUE;
-                float minY = Float.MAX_VALUE;
-                float maxY = -Float.MAX_VALUE;
-                String fontName = null;
-                float fontSize = 0f;
+                List<TextPosition> currentRun =
+                        new ArrayList<>();
 
-                TextPosition previousPosition = null;
+                TextPosition previousPositionBeforeRun =
+                        lastTextPosition;
+
                 for (TextPosition position : textPositions) {
-                    String unicode = position.getUnicode();
-                    if (unicode != null) {
-                        if (needsWordSeparator(previousPosition, position, textBuilder)) {
-                            textBuilder.append(' ');
+
+                    if (currentRun.isEmpty()) {
+                        currentRun.add(position);
+                        continue;
+                    }
+
+                    TextPosition previous =
+                            currentRun.getLast();
+
+                    if (hasSameFormatting(
+                            previous,
+                            position
+                    )) {
+
+                        currentRun.add(position);
+
+                    } else {
+
+                        boolean whitespaceOnly =
+                                isWhitespaceOnlyRun(
+                                        currentRun
+                                );
+
+                        boolean added =
+                                addTextSpanFromRun(
+                                        spans,
+                                        pageIndex,
+                                        currentRun,
+                                        previousPositionBeforeRun,
+                                        pendingWhitespaceSeparator
+                                );
+
+                        if (whitespaceOnly) {
+                            pendingWhitespaceSeparator = true;
+                        } else if (added) {
+                            pendingWhitespaceSeparator = false;
                         }
-                        textBuilder.append(unicode);
-                    }
 
-                    minX = Math.min(minX, position.getXDirAdj());
-                    maxX = Math.max(maxX, position.getXDirAdj() + position.getWidthDirAdj());
-                    minY = Math.min(minY, position.getYDirAdj());
-                    maxY = Math.max(maxY, position.getYDirAdj() + position.getHeightDir());
+                        previousPositionBeforeRun =
+                                currentRun.getLast();
 
-                    if (position.getFont() != null && position.getFont().getName() != null) {
-                        fontName = position.getFont().getName();
+                        currentRun =
+                                new ArrayList<>();
+
+                        currentRun.add(position);
                     }
-                    fontSize = Math.max(fontSize, position.getFontSizeInPt());
-                    previousPosition = position;
                 }
 
-                String extractedText = textBuilder.toString().trim();
-                if (extractedText.isEmpty() || minX == Float.MAX_VALUE) {
-                    return;
+                if (!currentRun.isEmpty()) {
+
+                    boolean whitespaceOnly =
+                            isWhitespaceOnlyRun(
+                                    currentRun
+                            );
+
+                    boolean added =
+                            addTextSpanFromRun(
+                                    spans,
+                                    pageIndex,
+                                    currentRun,
+                                    previousPositionBeforeRun,
+                                    pendingWhitespaceSeparator
+                            );
+
+                    if (whitespaceOnly) {
+                        pendingWhitespaceSeparator = true;
+                    } else if (added) {
+                        pendingWhitespaceSeparator = false;
+                    }
                 }
 
-                spans.add(new TextSpan(
-                        pageIndex,
-                        extractedText,
-                        minX,
-                        minY,
-                        Math.max(0f, maxX - minX),
-                        Math.max(0f, maxY - minY),
-                        fontName == null ? "unknown" : fontName,
-                        fontSize
-                ));
+                lastTextPosition =
+                        textPositions.getLast();
             }
+        @Override
+        protected void writeLineSeparator()
+        throws IOException {
+
+            lastTextPosition = null;
+            pendingWhitespaceSeparator = false;
+
+            super.writeLineSeparator();
+        }
         };
 
         stripper.setSortByPosition(true);
-        // processPage() handles exactly this page. Setting start/end page here
-        // would be compared against the stripper's own page counter, which a
-        // fresh stripper never advances, so every page after the first would
-        // be skipped.
         stripper.processPage(page);
+
         return spans;
     }
 
@@ -263,12 +668,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return images;
     }
 
-    /**
-     * Walks the page content stream (including nested Form XObjects) and records, for every
-     * image "Do" invocation, the image's actual on-page position and size in PDF point-space,
-     * derived from the current transformation matrix (CTM) at that point in the stream —
-     * as opposed to the resource's raw pixel dimensions.
-     */
     private static class ImageLocationStreamEngine extends PDFStreamEngine {
 
         private final int pageIndex;
@@ -288,40 +687,36 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         @Override
         protected void processOperator(Operator operator, List<COSBase> operands) throws IOException {
             if (!"Do".equals(operator.getName()) || operands.isEmpty()
-                    || !(operands.get(0) instanceof COSName objectName)) {
+                    || !(operands.getFirst() instanceof COSName objectName)) {
                 super.processOperator(operator, operands);
                 return;
             }
 
             PDXObject xObject = getResources().getXObject(objectName);
-            if (xObject == null) {
-                return;
+            switch (xObject) {
+                case null -> {
+
+                }
+                case PDImageXObject image -> recordImagePlacement(objectName.getName(), image);
+                case PDFormXObject form -> {
+                    COSBase formKey = form.getCOSObject();
+                    formsInProgress.push(formKey);
+                    try {
+                        showForm(form);
+                    } finally {
+                        formsInProgress.pop();
+                    }
+                }
+                default -> {
+                }
             }
 
-            if (xObject instanceof PDImageXObject image) {
-                recordImagePlacement(objectName.getName(), image);
-            } else if (xObject instanceof PDFormXObject form) {
-                COSBase formKey = form.getCOSObject();
-                if (formsInProgress.contains(formKey)) {
-                    // Self-referential form; skip to avoid infinite recursion.
-                    return;
-                }
-                formsInProgress.push(formKey);
-                try {
-                    showForm(form);
-                } finally {
-                    formsInProgress.pop();
-                }
-            }
         }
 
 
         private void recordImagePlacement(String imageName, PDImageXObject image) {
             Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
 
-            // Transform all four corners of the unit square (the space an image is drawn into)
-            // rather than reading getScaleX()/getScaleY() directly, so rotated or sheared
-            // placements still produce a correct axis-aligned bounding box.
             float minX = Float.MAX_VALUE;
             float maxX = -Float.MAX_VALUE;
             float minY = Float.MAX_VALUE;
@@ -352,29 +747,43 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     private boolean needsWordSeparator(
             TextPosition previous,
-            TextPosition current,
-            StringBuilder textBuilder
+            TextPosition current
     ) {
         if (previous == null
-                || textBuilder.isEmpty()
-                || Character.isWhitespace(textBuilder.charAt(textBuilder.length() - 1))
+                || current == null
+                || previous.getUnicode() == null
+                || previous.getUnicode().isEmpty()
                 || current.getUnicode() == null
                 || current.getUnicode().isBlank()) {
             return false;
         }
 
-        float gap = current.getXDirAdj()
-                - (previous.getXDirAdj() + previous.getWidthDirAdj());
-        float spaceWidth = Math.max(previous.getWidthOfSpace(), current.getWidthOfSpace());
-        return gap > Math.max(1f, spaceWidth * 0.5f);
+        String previousUnicode = previous.getUnicode();
+
+        if (Character.isWhitespace(
+                previousUnicode.charAt(previousUnicode.length() - 1)
+        )) {
+            return false;
+        }
+
+        float gap =
+                current.getXDirAdj()
+                        - (previous.getXDirAdj()
+                        + previous.getWidthDirAdj());
+
+        float spaceWidth =
+                Math.max(
+                        previous.getWidthOfSpace(),
+                        current.getWidthOfSpace()
+                );
+
+        return gap > Math.max(
+                1f,
+                spaceWidth * 0.5f
+        );
     }
 
-    /**
-     * Detects runs of consecutive text rows that share at least two vertical
-     * whitespace channels, i.e. three or more aligned columns. Two-column body
-     * text only shares a single channel (the gutter) and is not reported;
-     * word and sentence gaps do not line up across rows.
-     */
+
     private List<TableRegion> detectCandidateTableRegions(
             int pageIndex,
             List<TextSpan> textSpans
@@ -387,7 +796,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         List<List<TextSpan>> rows = groupIntoRows(textSpans);
 
-        // First pass: detect tables with 3 or more columns.
         int start = 0;
 
         while (start < rows.size()) {
@@ -431,12 +839,15 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             }
         }
 
-        // Second pass: detect genuine 2-column tables.
+
         for (int rowStart = 0; rowStart < rows.size(); rowStart++) {
             int rowEnd = rowStart;
 
             while (rowEnd < rows.size()
-                    && rows.get(rowEnd).size() == 2) {
+                    && reconstructDetectionCells(
+                    rows.get(rowEnd)
+            ).size() == 2) {
+
                 rowEnd++;
             }
 
