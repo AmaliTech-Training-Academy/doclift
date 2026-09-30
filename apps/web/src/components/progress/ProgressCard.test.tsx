@@ -177,7 +177,9 @@ describe("ProgressCard", () => {
 
     emitProgress({ error: "Something went wrong" });
 
-    expect(screen.getByRole("heading", { name: "Error" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /conversion couldn't be completed/i }),
+    ).toBeInTheDocument();
     expect(tracker.session?.status).toBe("failed");
   });
 
@@ -185,7 +187,7 @@ describe("ProgressCard", () => {
     renderWithProvider();
 
     expect(
-      screen.queryByRole("heading", { name: "Error" }),
+      screen.queryByRole("heading", { name: /conversion couldn't be completed/i }),
     ).not.toBeInTheDocument();
   });
 });

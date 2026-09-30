@@ -3,9 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import UploadScreen from "./UploadScreen";
 import { ConversionProvider, useConversion } from "@/context/ConversionContext";
+import { toast } from "sonner";
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("pdfjs-dist", () => ({
@@ -95,6 +96,9 @@ describe("UploadScreen", () => {
     expect(
       screen.getByRole("button", { name: /convert to word/i }),
     ).toBeDisabled();
+    expect(toast.info).toHaveBeenCalledWith("File removed", {
+      description: "report.pdf has been removed.",
+    });
   });
 
   it("switches to the progress view when Convert is clicked", async () => {
@@ -135,5 +139,25 @@ describe("UploadScreen", () => {
     expect(screen.getByText("What DocLift Preserves")).toBeInTheDocument();
     expect(screen.getByText("Reading Order")).toBeInTheDocument();
     expect(screen.getByText("Embedded Images")).toBeInTheDocument();
+  });
+
+  it("renders the valid files accordion and expands on click to reveal guidelines", async () => {
+    const user = userEvent.setup();
+    renderWithProvider();
+
+    const accordionBtn = screen.getByRole("button", {
+      name: /valid files you can upload for conversion/i,
+    });
+    expect(accordionBtn).toBeInTheDocument();
+    expect(accordionBtn).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(accordionBtn);
+
+    expect(accordionBtn).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/File Format:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Digital Text Layer:/i)).toBeInTheDocument();
+    expect(screen.getByText(/File Size:/i)).toBeInTheDocument();
+    expect(screen.getByText(/No Password \/ Encryption:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Page Count:/i)).toBeInTheDocument();
   });
 });
