@@ -1,36 +1,8 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
-import { createRef } from "react";
-import VerticalStepper, {
-  VerticalStepperDemo,
-  type Step,
-  type VerticalStepperDemoHandle,
-  type PipelineProgress,
-} from "./Stepper";
+import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import Stepper, { type Step } from "./Stepper";
 
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
-// Advances the fake clock in small, individually-awaited increments (one
-// interval tick at a time) rather than one large jump. Jumping the whole
-// duration in a single `advanceTimersByTimeAsync` call fires many interval
-// ticks back-to-back before React gets a chance to flush the state/effect
-// updates chained off each one (the pipeline clears+reschedules its own
-// timers from inside a setState updater), which starves later ticks. Real
-// browsers never hit this because ticks are naturally spaced out.
-async function advanceTime(totalMs: number, stepMs = 220) {
-  let remaining = totalMs;
-  while (remaining > 0) {
-    const chunk = Math.min(stepMs, remaining);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(chunk);
-    });
-    remaining -= chunk;
-  }
-}
-
-describe("VerticalStepper", () => {
+describe("Stepper", () => {
   const steps: Step[] = [
     {
       title: "Ingest",
@@ -55,7 +27,7 @@ describe("VerticalStepper", () => {
   ];
 
   it("renders a row per step with its title and description", () => {
-    render(<VerticalStepper steps={steps} />);
+    render(<Stepper steps={steps} />);
 
     expect(screen.getByText("Ingest")).toBeInTheDocument();
     expect(screen.getByText("Analyze")).toBeInTheDocument();
@@ -65,7 +37,7 @@ describe("VerticalStepper", () => {
   });
 
   it("shows meta pills and tags for completed/pending steps", () => {
-    render(<VerticalStepper steps={steps} />);
+    render(<Stepper steps={steps} />);
 
     expect(screen.getByText("1.2s")).toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
@@ -73,7 +45,7 @@ describe("VerticalStepper", () => {
   });
 
   it("expands the active (loading) step into a detail card with a progress panel", () => {
-    render(<VerticalStepper steps={steps} />);
+    render(<Stepper steps={steps} />);
 
     expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("Running solver")).toBeInTheDocument();
@@ -85,88 +57,17 @@ describe("VerticalStepper", () => {
     const cancelledSteps: Step[] = [
       { ...steps[1], status: "cancelled" },
     ];
-    render(<VerticalStepper steps={cancelledSteps} />);
+    render(<Stepper steps={cancelledSteps} />);
 
     expect(screen.getByText("Cancelled")).toBeInTheDocument();
     expect(screen.queryByText("In Progress")).not.toBeInTheDocument();
   });
 
   it("renders its built-in default steps when no steps prop is given", () => {
-    render(<VerticalStepper />);
+    render(<Stepper />);
 
     expect(
       screen.getByText("Document Ingestion & Verification"),
     ).toBeInTheDocument();
-  });
-});
-
-describe("VerticalStepperDemo", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.clearAllMocks();
-  });
-
-  it("starts on the first step at 0% and reports initial progress", () => {
-    const onProgress = vi.fn();
-    render(<VerticalStepperDemo onProgress={onProgress} />);
-
-    expect(
-      screen.getByText("Document Ingestion & Verification"),
-    ).toBeInTheDocument();
-
-    const firstCall = onProgress.mock.calls[0][0] as PipelineProgress;
-    expect(firstCall.activeIndex).toBe(0);
-    expect(firstCall.done).toBe(false);
-    expect(firstCall.cancelled).toBe(false);
-  });
-
-  it("advances progress over time via onProgress", async () => {
-    const onProgress = vi.fn();
-    render(<VerticalStepperDemo onProgress={onProgress} />);
-
-    await advanceTime(220 * 3);
-
-    const latest = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
-    expect(latest.currentStepPercent).toBeGreaterThan(0);
-  });
-
-  it("stops progressing and reports cancelled after cancel() is called via the ref", async () => {
-    const onProgress = vi.fn();
-    const ref = createRef<VerticalStepperDemoHandle>();
-    render(<VerticalStepperDemo ref={ref} onProgress={onProgress} />);
-
-    await advanceTime(220 * 2);
-
-    act(() => {
-      ref.current?.cancel();
-    });
-
-    const afterCancel = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
-    expect(afterCancel.cancelled).toBe(true);
-
-    const percentAtCancel = afterCancel.currentStepPercent;
-
-    await advanceTime(5000);
-
-    const afterMoreTime = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
-    expect(afterMoreTime.currentStepPercent).toBe(percentAtCancel);
-    expect(afterMoreTime.cancelled).toBe(true);
-  });
-
-  it("reaches done=true once every step completes, and reports 100% overall", async () => {
-    const onProgress = vi.fn();
-    render(<VerticalStepperDemo onProgress={onProgress} />);
-
-    // 5 steps * (up to ~17 ticks of 220ms to reach 100% + 450ms pause) is
-    // comfortably covered by this time budget.
-    await advanceTime(60000);
-
-    const latest = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
-    expect(latest.done).toBe(true);
-    expect(latest.overallPercent).toBe(100);
   });
 });

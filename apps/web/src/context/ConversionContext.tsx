@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
-import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession } from "@/lib/conversionSession";
+import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession, getConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
@@ -26,6 +26,7 @@ interface ConversionContextValue {
     setSession: (session: ConversionSession | null) => void;
     isUploading: boolean;
     isConverting: boolean;
+    isInitialized: boolean;
     startConversion: (fileOverride?: File | null) => Promise<ConversionSession | null>;
     updateStatus: (status: ConversionStatus, durationOverride?: number) => void;
 }
@@ -38,6 +39,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const [activeView, setActiveView] = useState<ActiveView>("upload");
     const [session, setSession] = useState<ConversionSession | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isInitialized, setIsInitialized] = useState(false);
     const [isAbandonModalOpen, setIsAbandonModalOpen] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
     const isUploadingRef = useRef(false);
@@ -48,11 +50,33 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         let isMounted = true;
-        getDraftFile().then((savedFile) => {
+
+        const initializeState = async () => {
+            const storedSession = getConversionSession();
+            if (storedSession && isMounted) {
+                setSession(storedSession);
+                if (storedSession.status === "processing" || storedSession.status === "queued" || storedSession.status === "failed") {
+                    setActiveView("progress");
+                } else if (storedSession.status === "done") {
+                    setActiveView("result");
+                } else if (storedSession.status === "expired") {
+                    clearConversionSession();
+                    setSession(null);
+                    setActiveView("upload");
+                }
+            }
+            if (isMounted) {
+                setIsInitialized(true);
+            }
+
+            const savedFile = await getDraftFile();
             if (isMounted && savedFile) {
                 setFileState((currentFile) => currentFile ?? savedFile);
             }
-        });
+        };
+
+        initializeState();
+
         return () => {
             isMounted = false;
         };
@@ -221,6 +245,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 setSession,
                 isUploading,
                 isConverting,
+                isInitialized,
                 startConversion,
                 updateStatus,
             }}

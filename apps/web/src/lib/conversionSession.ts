@@ -14,13 +14,6 @@ export type ConversionSession = {
 
 const STORAGE_KEY = "doclift-active-conversion";
 
-export function generateJobId(): string {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
-        return `conv_${crypto.randomUUID()}`;
-    }
-    return `conv_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-}
-
 export function saveConversionSession(session: ConversionSession) {
     if (typeof window === "undefined") return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
