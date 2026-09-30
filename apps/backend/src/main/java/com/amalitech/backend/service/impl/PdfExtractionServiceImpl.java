@@ -45,8 +45,10 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
     private static final float TABLE_MIN_ROW_TOLERANCE = 2f;
     private static final int MIN_TWO_COLUMN_TABLE_ROWS = 3;
     private static final float COLUMN_ALIGNMENT_TOLERANCE = 20f;
+    private static final float TABLE_BLOCK_MERGE_MARGIN = 4f;
 
     private final StructureRecoveryService structureRecoveryService;
+    private final BorderedTableDetector borderedTableDetector = new BorderedTableDetector();
 
     public PdfExtractionServiceImpl(
             StructureRecoveryService structureRecoveryService
@@ -83,10 +85,132 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
             structureRecoveryService.recoverStructure(pageExtraction);
 
+            recoverBorderedTables(pageIndex, page, textSpans, pageExtraction);
+
             result.getPages().add(pageExtraction);
         }
 
         return result;
+    }
+
+    /**
+     * Detects tables drawn with real borders (stroked/filled grid lines)
+     * and replaces whatever flow/paragraph blocks structure recovery
+     * produced for that region with a single {@link BlockType#TABLE}
+     * block carrying the recovered cell grid.
+     */
+    private void recoverBorderedTables(
+            int pageIndex,
+            PDPage page,
+            List<TextSpan> textSpans,
+            PageExtraction pageExtraction
+    ) throws IOException {
+
+        TableLineStreamEngine lineEngine = new TableLineStreamEngine(page);
+        lineEngine.processPage(page);
+
+        List<DetectedTable> tables = borderedTableDetector.detect(
+                pageIndex,
+                textSpans,
+                lineEngine.getHorizontalLines(),
+                lineEngine.getVerticalLines()
+        );
+
+        for (DetectedTable table : tables) {
+
+            pageExtraction.getCandidateTableRegions().add(
+                    new TableRegion(
+                            table.pageIndex(),
+                            table.x(),
+                            table.y(),
+                            table.width(),
+                            table.height(),
+                            table.rowCount(),
+                            table.columnCount()
+                    )
+            );
+
+            mergeDetectedTable(pageExtraction, table);
+        }
+    }
+
+    private void mergeDetectedTable(
+            PageExtraction pageExtraction,
+            DetectedTable table
+    ) {
+        List<StructuredBlock> blocks = pageExtraction.getStructuredBlocks();
+        List<StructuredBlock> remaining = new ArrayList<>();
+
+        int insertIndex = -1;
+
+        for (StructuredBlock block : blocks) {
+
+            if (blockOverlapsTable(block, table)) {
+                if (insertIndex == -1) {
+                    insertIndex = remaining.size();
+                }
+                continue;
+            }
+
+            remaining.add(block);
+        }
+
+        if (insertIndex == -1) {
+            insertIndex = remaining.size();
+        }
+
+        remaining.add(
+                Math.min(insertIndex, remaining.size()),
+                toTableBlock(table)
+        );
+
+        blocks.clear();
+        blocks.addAll(remaining);
+    }
+
+    private boolean blockOverlapsTable(
+            StructuredBlock block,
+            DetectedTable table
+    ) {
+        float centerX = block.getX() + (block.getWidth() / 2f);
+        float centerY = block.getY() + (block.getHeight() / 2f);
+
+        return centerX >= table.x() - TABLE_BLOCK_MERGE_MARGIN
+                && centerX <= table.x() + table.width() + TABLE_BLOCK_MERGE_MARGIN
+                && centerY >= table.y() - TABLE_BLOCK_MERGE_MARGIN
+                && centerY <= table.y() + table.height() + TABLE_BLOCK_MERGE_MARGIN;
+    }
+
+    private StructuredBlock toTableBlock(DetectedTable table) {
+        StringBuilder text = new StringBuilder();
+
+        for (List<TableCell> row : table.cells()) {
+
+            if (!text.isEmpty()) {
+                text.append('\n');
+            }
+
+            for (int column = 0; column < row.size(); column++) {
+
+                if (column > 0) {
+                    text.append(" | ");
+                }
+
+                text.append(row.get(column).text());
+            }
+        }
+
+        return new StructuredBlock(
+                table.pageIndex(),
+                BlockType.TABLE,
+                text.toString(),
+                table.x(),
+                table.y(),
+                table.width(),
+                table.height(),
+                List.of(),
+                table.cells()
+        );
     }
 
     private List<DetectionCell> reconstructDetectionCells(

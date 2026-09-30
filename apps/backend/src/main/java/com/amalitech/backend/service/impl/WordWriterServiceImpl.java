@@ -4,13 +4,16 @@ import com.amalitech.backend.service.BlockType;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.PdfExtractionResult;
 import com.amalitech.backend.service.StructuredBlock;
+import com.amalitech.backend.service.TableCell;
 import com.amalitech.backend.service.TextSpan;
 import com.amalitech.backend.service.WordWriterService;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTLvl;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STNumberFormat;
 
 import java.math.BigInteger;
@@ -333,6 +336,11 @@ private void writeBlock(
         BigInteger numberedNumId
 ) {
 
+    if (block.getType() == BlockType.TABLE) {
+        writeTable(document, block);
+        return;
+    }
+
     XWPFParagraph paragraph =
             document.createParagraph();
 
@@ -357,6 +365,150 @@ private void writeBlock(
 
     writeRuns(paragraph, block);
 }
+
+    private void writeTable(
+            XWPFDocument document,
+            StructuredBlock block
+    ) {
+
+        List<List<TableCell>> rows =
+                block.getTableRows();
+
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+
+        int columnCount = rows.getFirst().size();
+
+        if (columnCount == 0) {
+            return;
+        }
+
+        XWPFTable table =
+                document.createTable(rows.size(), columnCount);
+
+        for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+
+            XWPFTableRow tableRow =
+                    table.getRow(rowIndex);
+
+            List<TableCell> row =
+                    rows.get(rowIndex);
+
+            // Right-to-left so removing a swallowed cell never shifts
+            // the index of a cell still waiting to be processed.
+            for (int columnIndex = row.size() - 1;
+                 columnIndex >= 0;
+                 columnIndex--) {
+
+                writeTableCell(rows, tableRow, rowIndex, columnIndex);
+            }
+        }
+    }
+
+    private void writeTableCell(
+            List<List<TableCell>> rows,
+            XWPFTableRow tableRow,
+            int rowIndex,
+            int columnIndex
+    ) {
+
+        TableCell cell =
+                rows.get(rowIndex).get(columnIndex);
+
+        if (cell.rowSpan() >= 1) {
+
+            XWPFTableCell tableCell =
+                    tableRow.getCell(columnIndex);
+
+            setCellText(tableCell, cell.text());
+
+            if (cell.columnSpan() > 1) {
+                setGridSpan(tableCell, cell.columnSpan());
+            }
+
+            if (cell.rowSpan() > 1) {
+                setVerticalMerge(tableCell, STMerge.RESTART);
+            }
+
+            return;
+        }
+
+        // Covered by a merge: cell.row()/cell.column() point at the
+        // anchor that owns this position.
+        TableCell anchor =
+                rows.get(cell.row()).get(cell.column());
+
+        boolean sameRowAsAnchor =
+                cell.row() == rowIndex;
+
+        if (sameRowAsAnchor) {
+            // Swallowed by a horizontal merge on the anchor's own row.
+            tableRow.removeCell(columnIndex);
+            return;
+        }
+
+        if (columnIndex != cell.column()) {
+            // A later row within a vertical merge that also spans
+            // columns: only the anchor's column keeps a physical cell.
+            tableRow.removeCell(columnIndex);
+            return;
+        }
+
+        XWPFTableCell tableCell =
+                tableRow.getCell(columnIndex);
+
+        setCellText(tableCell, "");
+        setVerticalMerge(tableCell, STMerge.CONTINUE);
+
+        if (anchor.columnSpan() > 1) {
+            setGridSpan(tableCell, anchor.columnSpan());
+        }
+    }
+
+    private void setCellText(
+            XWPFTableCell tableCell,
+            String text
+    ) {
+
+        XWPFParagraph cellParagraph =
+                tableCell.getParagraphArray(0) != null
+                        ? tableCell.getParagraphArray(0)
+                        : tableCell.addParagraph();
+
+        XWPFRun run =
+                cellParagraph.createRun();
+
+        run.setText(text);
+    }
+
+    private void setGridSpan(
+            XWPFTableCell tableCell,
+            int span
+    ) {
+
+        CTTcPr tcPr =
+                tableCell.getCTTc().isSetTcPr()
+                        ? tableCell.getCTTc().getTcPr()
+                        : tableCell.getCTTc().addNewTcPr();
+
+        tcPr.addNewGridSpan()
+                .setVal(BigInteger.valueOf(span));
+    }
+
+    private void setVerticalMerge(
+            XWPFTableCell tableCell,
+            STMerge.Enum mergeType
+    ) {
+
+        CTTcPr tcPr =
+                tableCell.getCTTc().isSetTcPr()
+                        ? tableCell.getCTTc().getTcPr()
+                        : tableCell.getCTTc().addNewTcPr();
+
+        tcPr.addNewVMerge()
+                .setVal(mergeType);
+    }
 
     private void writeRuns(
             XWPFParagraph paragraph,
