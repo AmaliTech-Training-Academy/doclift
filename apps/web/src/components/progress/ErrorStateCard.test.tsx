@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ErrorStateCard from "./ErrorStateCard";
@@ -9,7 +9,11 @@ function renderWithProvider(ui: React.ReactElement) {
 }
 
 describe("ErrorStateCard", () => {
-  it("renders the error heading, message, and a retry button that triggers reset", async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders the error heading, dynamic file name, recommended fixes, and action buttons", async () => {
     const user = userEvent.setup();
 
     function ViewProbe() {
@@ -25,16 +29,29 @@ describe("ErrorStateCard", () => {
 
     renderWithProvider(<ViewProbe />);
 
-    expect(screen.getByRole("heading", { name: "Error" })).toBeInTheDocument();
     expect(
-      screen.getByText("An error has occurred. Your file conversion failed."),
+      screen.getByRole("heading", { name: /conversion couldn't be completed/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Click retry to try the conversion once more."),
+      screen.getByRole("heading", { name: /we couldn't convert document\.pdf/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Try uploading the PDF again\. Temporary processing issues can occasionally interrupt a conversion\./i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Try converting a different PDF\./i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Re-save or Re-download the PDF and try uploading the new copy\./i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Open the PDF in a viewer and save it as a new PDF and try converting that copy\./i),
     ).toBeInTheDocument();
 
-    const retryBtn = screen.getByRole("button", { name: "Retry" });
+    const retryBtn = screen.getByRole("button", { name: /retry conversion/i });
+    const tryAnotherBtn = screen.getByRole("button", { name: /try another file/i });
     expect(retryBtn).toBeInTheDocument();
+    expect(tryAnotherBtn).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "set progress" }));
     expect(screen.getByText("view:progress")).toBeInTheDocument();
@@ -46,16 +63,24 @@ describe("ErrorStateCard", () => {
   it("renders custom error message and triggers custom reset handler when provided", async () => {
     const user = userEvent.setup();
     const mockReset = vi.fn();
+    const mockTryAnother = vi.fn();
 
     renderWithProvider(
-      <ErrorStateCard error="Custom error message" reset={mockReset} />
+      <ErrorStateCard
+        error="Custom error message occurred"
+        reset={mockReset}
+        onTryAnother={mockTryAnother}
+      />
     );
 
-    expect(screen.getByText("Custom error message")).toBeInTheDocument();
+    expect(screen.getByText("Custom error message occurred")).toBeInTheDocument();
 
-    const retryBtn = screen.getByRole("button", { name: "Retry" });
+    const retryBtn = screen.getByRole("button", { name: /retry conversion/i });
     await user.click(retryBtn);
-
     expect(mockReset).toHaveBeenCalledTimes(1);
+
+    const tryAnotherBtn = screen.getByRole("button", { name: /try another file/i });
+    await user.click(tryAnotherBtn);
+    expect(mockTryAnother).toHaveBeenCalledTimes(1);
   });
 });

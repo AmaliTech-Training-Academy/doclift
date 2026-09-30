@@ -3,8 +3,9 @@
 import { useRef, useState, useEffect } from "react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import DropZone, { DropZoneHandle } from "@/components/upload/DropZone";
-import { FileText, ArrowLeftRight, Trash, CheckCircle, ArrowRight } from "lucide-react";
+import { FileText, ArrowLeftRight, Trash, CheckCircle, ArrowRight, FileCheck, CheckCircle2 } from "lucide-react";
 import Button from "@/components/ui/Button";
+import Accordion, { AccordionItem } from "@/components/ui/Accordion";
 import { useConversion } from "@/context/ConversionContext";
 import { toast } from "sonner";
 
@@ -70,9 +71,13 @@ export default function UploadScreen() {
     };
 
     const handleRemoveFile = () => {
+        const fileName = uploadedFile?.name;
         setPageCount(null);
         clearFile();
         dropZoneRef.current?.clearFile();
+        toast.info("File removed", {
+            description: fileName ? `${fileName} has been removed.` : "The selected file has been removed.",
+        });
     };
 
     return (
@@ -86,7 +91,7 @@ export default function UploadScreen() {
                 </p>
             </div>
             {/* Upload Zone */}
-            <div className="bg-card w-full mx-auto max-w-3xl flex flex-col space-y-6 p-6 sm:p-8 mb-10 rounded-2xl border border-primary-background">
+            <div className="bg-card w-full mx-auto max-w-4xl flex flex-col space-y-6 p-6 sm:p-8 mb-10 rounded-2xl border border-primary-background">
                 <DropZone ref={dropZoneRef} onDrop={handleFileDrop}>
                     <div className="relative mb-3">
                         <div className="size-16 sm:size-20 rounded-2xl bg-primary-background border border-primary/20 flex items-center justify-center text-primary shadow-2xs group-hover:scale-105 group-hover:bg-primary/60 group-hover:text-white transition-all duration-300">
@@ -157,6 +162,54 @@ export default function UploadScreen() {
                     <ArrowRight className="size-4" />
                 </Button>
             </div>
+
+            {/* Valid Files Accordion */}
+            <Accordion className="w-full pt-1">
+                <AccordionItem
+                    title={
+                        <span className="flex items-center gap-2 font-regular text-foreground">
+                            <FileCheck className="size-4 text-primary shrink-0" />
+                            <span>Valid files you can upload for conversion</span>
+                        </span>
+                    }
+                    defaultOpen={false}
+                    className="bg-white border-primary max-w-4xl mx-auto"
+                >
+                    <ul className="space-y-2.5 pt-2 text-xs sm:text-sm text-muted-foreground">
+                        <li className="flex items-start gap-2.5">
+                            <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />
+                            <span>
+                                <strong className="font-semibold text-foreground">File Format:</strong> Standard PDF documents only (<code>.pdf</code> extension).
+                            </span>
+                        </li>
+                        <li className="flex items-start gap-2.5">
+                            <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />
+                            <span>
+                                <strong className="font-semibold text-foreground">Digital Text Layer:</strong> Must contain selectable, highlightable text (born-digital PDFs, not scanned image-only documents).
+                            </span>
+                        </li>
+                        <li className="flex items-start gap-2.5">
+                            <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />
+                            <span>
+                                <strong className="font-semibold text-foreground">File Size:</strong> File size must not exceed <strong className="font-semibold text-foreground">10 MB</strong>.
+                            </span>
+                        </li>
+                        <li className="flex items-start gap-2.5">
+                            <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />
+                            <span>
+                                <strong className="font-semibold text-foreground">No Password / Encryption:</strong> The PDF must be unencrypted and not password-protected.
+                            </span>
+                        </li>
+                        <li className="flex items-start gap-2.5">
+                            <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />
+                            <span>
+                                <strong className="font-semibold text-foreground">Page Count:</strong> Document must have at least 1 readable page.
+                            </span>
+                        </li>
+                    </ul>
+                </AccordionItem>
+            </Accordion>
+                
             {/* Bottom Section: What DocLift Preserves */}
             <section
                 aria-labelledby="preserves-heading"
