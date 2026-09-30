@@ -28,6 +28,8 @@ jobs:
             context: ./apps/backend
           - name: frontend
             context: ./apps/web
+            build-args: |
+              BACKEND_URL=http://backend:8080
           - name: caddy
             context: ./caddy
     steps:
@@ -51,6 +53,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          build-args: ${{ matrix.build-args || '' }}
           push: true
           tags: |
             ${{ steps.image.outputs.name }}:latest
