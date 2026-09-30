@@ -7,7 +7,6 @@ export interface ApiErrorResponse {
   message?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 async function extractMessage(response: Response): Promise<string | null> {
   try {
@@ -23,7 +22,7 @@ export async function uploadFile(file: File, signal?: AbortSignal): Promise<Uplo
   formData.append("file", file);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/uploads`, {
+    const response = await fetch(`/api/v1/uploads`, {
       method: "POST",
       body: formData,
       signal,

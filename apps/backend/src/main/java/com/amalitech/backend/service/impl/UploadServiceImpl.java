@@ -37,7 +37,6 @@ public class UploadServiceImpl implements UploadService {
     @Override
     public Job handleUpload(MultipartFile file) {
 
-        // Basic request-level validation
         if (file == null || file.isEmpty()) {
             throw new InvalidPdfException("The uploaded file is empty.");
         }
@@ -56,8 +55,7 @@ public class UploadServiceImpl implements UploadService {
             );
         }
 
-        // Defense-in-depth: Spring normally rejects oversized multipart
-        // requests before reaching this service.
+
         if (file.getSize() > maxSizeBytes) {
             throw new FileTooLargeException(
                     "The uploaded PDF exceeds the maximum allowed size."

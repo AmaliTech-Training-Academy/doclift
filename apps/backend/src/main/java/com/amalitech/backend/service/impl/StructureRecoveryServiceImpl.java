@@ -243,6 +243,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine current,
             boolean previousIsFirstLine
     ) {
+
         if (current.getY() < previous.getY()) {
             return false;
         }
@@ -270,6 +271,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         float indentDelta = current.getX() - previous.getX();
 
+
         boolean firstLineIndent = previousIsFirstLine
                 && indentDelta < 0f
                 && -indentDelta <= MAX_FIRST_LINE_INDENT;
@@ -295,6 +297,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 flowSpans.add(span);
             }
         }
+
 
         List<LogicalLine> physicalRows =
                 groupSpansIntoLines(flowSpans);
@@ -470,6 +473,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 hasRight = true;
             }
         }
+
 
         return hasLeft && hasRight && !hasGutterAt(row, splitX);
     }
@@ -727,6 +731,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             }
 
             float split = total / support;
+
 
             if (support > bestSupport
                     || (support == bestSupport
