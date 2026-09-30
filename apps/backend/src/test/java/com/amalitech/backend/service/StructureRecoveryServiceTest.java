@@ -49,8 +49,8 @@ class StructureRecoveryServiceTest {
         PageExtraction page = new PageExtraction(0);
 
         page.getTextSpans().addAll(List.of(
-                span("world", 110, 100),
-                span("Hello", 50, 100)
+                span("world", 110, 100, true),
+                span("Hello", 50, 100, false)
         ));
 
         structureRecoveryService.recoverStructure(page);
@@ -117,7 +117,29 @@ class StructureRecoveryServiceTest {
                 11,
                 false,
                 false,
+                false,
                 false
+        );
+    }
+    private TextSpan span(
+            String text,
+            float x,
+            float y,
+            boolean wordSeparatorBefore
+    ) {
+        return new TextSpan(
+                0,
+                text,
+                x,
+                y,
+                50,
+                10,
+                "Times-Roman",
+                11,
+                false,
+                false,
+                false,
+                wordSeparatorBefore
         );
     }
 
@@ -317,6 +339,26 @@ class StructureRecoveryServiceTest {
             float fontSize,
             String fontName
     ) {
+        return spanWithSize(
+                text,
+                x,
+                y,
+                width,
+                fontSize,
+                fontName,
+                false
+        );
+    }
+
+    private TextSpan spanWithSize(
+            String text,
+            float x,
+            float y,
+            float width,
+            float fontSize,
+            String fontName,
+            boolean wordSeparatorBefore
+    ) {
         return new TextSpan(
                 0,
                 text,
@@ -328,7 +370,8 @@ class StructureRecoveryServiceTest {
                 fontSize,
                 false,
                 false,
-                false
+                false,
+                wordSeparatorBefore
         );
     }
 
@@ -438,23 +481,28 @@ class StructureRecoveryServiceTest {
                         200,
                         40,
                         18,
-                        "Times-Bold"
+                        "Times-Bold",
+                        false
                 ),
+
                 spanWithSize(
                         "Width",
                         165,
                         200,
                         40,
                         18,
-                        "Times-Bold"
+                        "Times-Bold",
+                        true
                 ),
+
                 spanWithSize(
                         "Heading",
                         210,
                         200,
                         70,
                         18,
-                        "Times-Bold"
+                        "Times-Bold",
+                        true
                 ),
 
                 span("Left three", 50, 300),
@@ -484,13 +532,13 @@ class StructureRecoveryServiceTest {
 
         page.getTextSpans().addAll(List.of(
                 span("Name:", 50, 100),
-                span("John Doe", 250, 100),
+                span("John Doe", 250, 100, true),
 
                 span("Email:", 50, 120),
-                span("john@example.com", 250, 120),
+                span("john@example.com", 250, 120, true),
 
                 span("Phone:", 50, 140),
-                span("0240000000", 250, 140)
+                span("0240000000", 250, 140, true)
         ));
 
         structureRecoveryService.recoverStructure(page);
@@ -508,16 +556,16 @@ class StructureRecoveryServiceTest {
 
         page.getTextSpans().addAll(List.of(
                 span("Item", 50, 100),
-                span("Price", 300, 100),
+                span("Price", 300, 100, true),
 
                 span("Laptop", 50, 120),
-                span("1200", 300, 120),
+                span("1200", 300, 120, true),
 
                 span("Keyboard", 50, 140),
-                span("100", 300, 140),
+                span("100", 300, 140, true),
 
                 span("Mouse", 50, 160),
-                span("50", 300, 160)
+                span("50", 300, 160, true)
         ));
 
         page.getCandidateTableRegions().add(
@@ -569,5 +617,166 @@ class StructureRecoveryServiceTest {
                         "Right one Right two Right three",
                         "Single column paragraph"
                 );
+    }
+
+    @Test
+    void shouldJoinMidWordFormattingSpansWithoutSpaces() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().addAll(
+                List.of(
+                        new TextSpan(
+                                0,
+                                "im",
+                                50f,
+                                100f,
+                                12f,
+                                10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "port",
+                                62f,
+                                100f,
+                                25f,
+                                10f,
+                                "Helvetica-Bold",
+                                12f,
+                                true,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "ant",
+                                87f,
+                                100f,
+                                18f,
+                                10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        )
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .hasSize(1);
+
+        assertThat(
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getText()
+        ).isEqualTo("important");
+    }
+
+    @Test
+    void shouldInsertSpaceWhenSpanHasWordSeparatorBefore() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().addAll(
+                List.of(
+                        new TextSpan(
+                                0,
+                                "Hello",
+                                50f,
+                                100f,
+                                30f,
+                                10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "world",
+                                85f,
+                                100f,
+                                30f,
+                                10f,
+                                "Helvetica-Bold",
+                                12f,
+                                true,
+                                false,
+                                false,
+                                true
+                        )
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getText()
+        ).isEqualTo("Hello world");
+    }
+
+    @Test
+    void shouldPreserveLiteralWhitespaceAcrossFormattingBoundary() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().addAll(
+                List.of(
+                        new TextSpan(
+                                0,
+                                "This is ",
+                                50f,
+                                100f,
+                                40f,
+                                10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "important",
+                                90f,
+                                100f,
+                                50f,
+                                10f,
+                                "Helvetica-Bold",
+                                12f,
+                                true,
+                                false,
+                                false,
+                                false
+                        )
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getText()
+        ).isEqualTo("This is important");
     }
 }

@@ -7,9 +7,11 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.util.Matrix;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -191,7 +193,7 @@ class PdfExtractionServiceTest {
                 pdfExtractionService.extract(pdfBytes);
 
         PageExtraction page =
-                result.getPages().get(0);
+                result.getPages().getFirst();
 
         assertThat(page.getCandidateTableRegions())
                 .as(
@@ -275,7 +277,7 @@ class PdfExtractionServiceTest {
                 pdfExtractionService.extract(pdfBytes);
 
         PageExtraction page =
-                result.getPages().get(0);
+                result.getPages().getFirst();
 
         assertThat(page.getCandidateTableRegions())
                 .as(
@@ -366,5 +368,160 @@ class PdfExtractionServiceTest {
 
         assertThat(page.getTextSpans().get(2).isBold())
                 .isFalse();
+    }
+
+    @Test
+    void shouldNotInsertWordSeparatorAcrossMidWordFormattingBoundary()
+            throws Exception {
+
+        try (PDDocument document = new PDDocument()) {
+
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                content.beginText();
+                content.newLineAtOffset(50, 700);
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA
+                        ),
+                        12
+                );
+                content.showText("im");
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA_BOLD
+                        ),
+                        12
+                );
+                content.showText("port");
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA
+                        ),
+                        12
+                );
+                content.showText("ant");
+
+                content.endText();
+            }
+
+            PdfExtractionResult result =
+                    pdfExtractionService.extract(document);
+
+            List<TextSpan> spans =
+                    result.getPages()
+                            .getFirst()
+                            .getTextSpans();
+
+            assertThat(spans)
+                    .hasSize(3);
+
+            assertThat(spans.get(0).getText())
+                    .isEqualTo("im");
+
+            assertThat(spans.get(1).getText())
+                    .isEqualTo("port");
+
+            assertThat(spans.get(2).getText())
+                    .isEqualTo("ant");
+
+            assertThat(spans.get(0).isWordSeparatorBefore())
+                    .isFalse();
+
+            assertThat(spans.get(1).isWordSeparatorBefore())
+                    .isFalse();
+
+            assertThat(spans.get(2).isWordSeparatorBefore())
+                    .isFalse();
+
+            assertThat(
+                    result.getPages()
+                            .getFirst()
+                            .getStructuredBlocks()
+                            .getFirst()
+                            .getText()
+            ).isEqualTo("important");
+        }
+    }
+
+    @Test
+    void shouldPreserveWordSeparatorAcrossFormattingBoundary()
+            throws Exception {
+
+        try (PDDocument document = new PDDocument()) {
+
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                content.beginText();
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA
+                        ),
+                        12
+                );
+
+                content.newLineAtOffset(50, 700);
+                content.showText("Hello");
+
+
+                content.setTextMatrix(
+                        Matrix.getTranslateInstance(
+                                110,
+                                700
+                        )
+                );
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA_BOLD
+                        ),
+                        12
+                );
+
+                content.showText("world");
+
+                content.endText();
+            }
+
+            PdfExtractionResult result =
+                    pdfExtractionService.extract(document);
+
+            List<TextSpan> spans =
+                    result.getPages()
+                            .getFirst()
+                            .getTextSpans();
+
+            assertThat(spans)
+                    .hasSize(2);
+
+            assertThat(spans.get(0).getText())
+                    .isEqualTo("Hello");
+
+            assertThat(spans.get(1).getText())
+                    .isEqualTo("world");
+
+            assertThat(spans.get(1).isWordSeparatorBefore())
+                    .isTrue();
+
+            assertThat(
+                    result.getPages()
+                            .getFirst()
+                            .getStructuredBlocks()
+                            .getFirst()
+                            .getText()
+            ).isEqualTo("Hello world");
+        }
     }
 }

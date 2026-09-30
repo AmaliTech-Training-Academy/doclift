@@ -22,4 +22,6 @@ public class TextSpan {
     private boolean bold;
     private boolean italic;
     private boolean underline;
+
+    private boolean wordSeparatorBefore;
 }

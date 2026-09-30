@@ -287,13 +287,22 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
     private void addTextSpanFromRun(
             List<TextSpan> spans,
             int pageIndex,
-            List<TextPosition> positions
+            List<TextPosition> positions,
+            TextPosition previousPositionBeforeRun
     ) {
+
         if (positions == null || positions.isEmpty()) {
             return;
         }
 
-        StringBuilder textBuilder = new StringBuilder();
+        boolean wordSeparatorBefore =
+                needsWordSeparator(
+                        previousPositionBeforeRun,
+                        positions.getFirst()
+                );
+
+        StringBuilder textBuilder =
+                new StringBuilder();
 
         float minX = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE;
@@ -308,8 +317,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             if (unicode != null) {
                 if (needsWordSeparator(
                         previousPosition,
-                        position,
-                        textBuilder
+                        position
                 )) {
                     textBuilder.append(' ');
                 }
@@ -373,7 +381,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                         isItalic(first),
                         // TODO: PDF underline detection requires analysing graphical line content.
                         //  Extraction is not yet implemented
-                        false
+                        false,
+
+                        wordSeparatorBefore
                 )
         );
     }
@@ -502,6 +512,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         final List<TextSpan> spans = new ArrayList<>();
 
         PDFTextStripper stripper = new PDFTextStripper() {
+
+            private TextPosition lastTextPosition;
+
             {
                 this.output = new StringWriter();
             }
@@ -511,11 +524,17 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     String string,
                     List<TextPosition> textPositions
             ) {
-                if (textPositions == null || textPositions.isEmpty()) {
+
+                if (textPositions == null
+                        || textPositions.isEmpty()) {
                     return;
                 }
 
-                List<TextPosition> currentRun = new ArrayList<>();
+                List<TextPosition> currentRun =
+                        new ArrayList<>();
+
+                TextPosition previousPositionBeforeRun =
+                        lastTextPosition;
 
                 for (TextPosition position : textPositions) {
 
@@ -527,16 +546,28 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     TextPosition previous =
                             currentRun.getLast();
 
-                    if (hasSameFormatting(previous, position)) {
+                    if (hasSameFormatting(
+                            previous,
+                            position
+                    )) {
+
                         currentRun.add(position);
+
                     } else {
+
                         addTextSpanFromRun(
                                 spans,
                                 pageIndex,
-                                currentRun
+                                currentRun,
+                                previousPositionBeforeRun
                         );
 
-                        currentRun = new ArrayList<>();
+                        previousPositionBeforeRun =
+                                currentRun.getLast();
+
+                        currentRun =
+                                new ArrayList<>();
+
                         currentRun.add(position);
                     }
                 }
@@ -544,8 +575,12 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                 addTextSpanFromRun(
                         spans,
                         pageIndex,
-                        currentRun
+                        currentRun,
+                        previousPositionBeforeRun
                 );
+
+                lastTextPosition =
+                        textPositions.getLast();
             }
         };
 
@@ -641,21 +676,40 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     private boolean needsWordSeparator(
             TextPosition previous,
-            TextPosition current,
-            StringBuilder textBuilder
+            TextPosition current
     ) {
         if (previous == null
-                || textBuilder.isEmpty()
-                || Character.isWhitespace(textBuilder.charAt(textBuilder.length() - 1))
+                || current == null
+                || previous.getUnicode() == null
+                || previous.getUnicode().isEmpty()
                 || current.getUnicode() == null
                 || current.getUnicode().isBlank()) {
             return false;
         }
 
-        float gap = current.getXDirAdj()
-                - (previous.getXDirAdj() + previous.getWidthDirAdj());
-        float spaceWidth = Math.max(previous.getWidthOfSpace(), current.getWidthOfSpace());
-        return gap > Math.max(1f, spaceWidth * 0.5f);
+        String previousUnicode = previous.getUnicode();
+
+        if (Character.isWhitespace(
+                previousUnicode.charAt(previousUnicode.length() - 1)
+        )) {
+            return false;
+        }
+
+        float gap =
+                current.getXDirAdj()
+                        - (previous.getXDirAdj()
+                        + previous.getWidthDirAdj());
+
+        float spaceWidth =
+                Math.max(
+                        previous.getWidthOfSpace(),
+                        current.getWidthOfSpace()
+                );
+
+        return gap > Math.max(
+                1f,
+                spaceWidth * 0.5f
+        );
     }
 
 

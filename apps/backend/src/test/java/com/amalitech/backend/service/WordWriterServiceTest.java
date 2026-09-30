@@ -47,6 +47,7 @@ class WordWriterServiceTest {
                                         16,
                                         true,
                                         false,
+                                        false,
                                         false
                                 )
                         )
@@ -66,7 +67,7 @@ class WordWriterServiceTest {
         ) {
 
             XWPFParagraph paragraph =
-                    document.getParagraphs().get(0);
+                    document.getParagraphs().getFirst();
 
             assertThat(paragraph.getText())
                     .isEqualTo("Quarterly Results");
@@ -107,6 +108,7 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
+                                        false,
                                         false
                                 ),
                                 new TextSpan(
@@ -120,6 +122,7 @@ class WordWriterServiceTest {
                                         12,
                                         true,
                                         false,
+                                        false,
                                         false
                                 ),
                                 new TextSpan(
@@ -131,6 +134,7 @@ class WordWriterServiceTest {
                                         12,
                                         "Helvetica",
                                         12,
+                                        false,
                                         false,
                                         false,
                                         false
@@ -196,6 +200,7 @@ class WordWriterServiceTest {
                                         12,
                                         true,
                                         false,
+                                        false,
                                         false
                                 ),
                                 new TextSpan(
@@ -209,6 +214,7 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
+                                        false,
                                         false
                                 ),
                                 new TextSpan(
@@ -220,6 +226,7 @@ class WordWriterServiceTest {
                                         12,
                                         "Helvetica",
                                         12,
+                                        false,
                                         false,
                                         false,
                                         false
@@ -241,7 +248,7 @@ class WordWriterServiceTest {
         ) {
 
             XWPFParagraph paragraph =
-                    document.getParagraphs().get(0);
+                    document.getParagraphs().getFirst();
 
             assertThat(paragraph.getNumID())
                     .isNotNull();
@@ -285,6 +292,7 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
+                                        false,
                                         false
                                 ),
 
@@ -298,6 +306,7 @@ class WordWriterServiceTest {
                                         "Helvetica-Bold",
                                         12,
                                         true,
+                                        false,
                                         false,
                                         false
                                 ),
@@ -313,6 +322,7 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         true,
+                                        false,
                                         false
                                 ),
 
@@ -327,7 +337,8 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
-                                        true
+                                        true,
+                                        false
                                 ),
 
                                 new TextSpan(
@@ -339,6 +350,7 @@ class WordWriterServiceTest {
                                         18,
                                         "Helvetica",
                                         18,
+                                        false,
                                         false,
                                         false,
                                         false
@@ -360,7 +372,7 @@ class WordWriterServiceTest {
         ) {
 
             XWPFParagraph wordParagraph =
-                    document.getParagraphs().get(0);
+                    document.getParagraphs().getFirst();
 
             assertThat(wordParagraph.getRuns())
                     .hasSize(5);
@@ -490,7 +502,8 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
-                                        false
+                                        false,
+                                        true
                                 ),
                                 new TextSpan(
                                         0,
@@ -503,7 +516,8 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
-                                        false
+                                        false,
+                                        true
                                 ),
                                 new TextSpan(
                                         0,
@@ -516,7 +530,8 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
-                                        false
+                                        false,
+                                        true
                                 ),
                                 new TextSpan(
                                         0,
@@ -529,7 +544,8 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
-                                        false
+                                        false,
+                                        true
                                 ),
                                 new TextSpan(
                                         0,
@@ -542,7 +558,8 @@ class WordWriterServiceTest {
                                         12,
                                         false,
                                         false,
-                                        false
+                                        false,
+                                        true
                                 )
                         )
                 );
@@ -669,6 +686,7 @@ class WordWriterServiceTest {
                         12,
                         false,
                         false,
+                        false,
                         false
                 );
 
@@ -727,6 +745,7 @@ class WordWriterServiceTest {
                         12,
                         false,
                         false,
+                        false,
                         false
                 );
 
@@ -741,4 +760,156 @@ class WordWriterServiceTest {
                 List.of(span)
         );
     }
+
+    @Test
+    void shouldNotInsertSpacesInsideWordAcrossFormattingRuns()
+            throws Exception {
+
+        List<TextSpan> spans =
+                List.of(
+                        new TextSpan(
+                                0,
+                                "im",
+                                0f, 0f, 10f, 10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "port",
+                                10f, 0f, 20f, 10f,
+                                "Helvetica-Bold",
+                                12f,
+                                true,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "ant",
+                                30f, 0f, 15f, 10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        )
+                );
+
+        StructuredBlock block =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "important",
+                        0f,
+                        0f,
+                        45f,
+                        10f,
+                        spans
+                );
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks()
+                .add(block);
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        result.getPages()
+                .add(page);
+
+        byte[] bytes =
+                wordWriterService.write(result);
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(bytes)
+                     )) {
+
+            assertThat(
+                    document.getParagraphs()
+                            .getFirst()
+                            .getText()
+            ).isEqualTo("important");
+        }
+    }
+
+    @Test
+    void shouldInsertSpaceWhenWordSeparatorFlagIsPresent()
+            throws Exception {
+
+        List<TextSpan> spans =
+                List.of(
+                        new TextSpan(
+                                0,
+                                "Hello",
+                                0f, 0f, 25f, 10f,
+                                "Helvetica",
+                                12f,
+                                false,
+                                false,
+                                false,
+                                false
+                        ),
+                        new TextSpan(
+                                0,
+                                "world",
+                                30f, 0f, 25f, 10f,
+                                "Helvetica-Bold",
+                                12f,
+                                true,
+                                false,
+                                false,
+                                true
+                        )
+                );
+
+        StructuredBlock block =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Hello world",
+                        0f,
+                        0f,
+                        55f,
+                        10f,
+                        spans
+                );
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks()
+                .add(block);
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        result.getPages()
+                .add(page);
+
+        byte[] bytes =
+                wordWriterService.write(result);
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(bytes)
+                     )) {
+
+            assertThat(
+                    document.getParagraphs()
+                            .getFirst()
+                            .getText()
+            ).isEqualTo("Hello world");
+        }
+    }
+
 }

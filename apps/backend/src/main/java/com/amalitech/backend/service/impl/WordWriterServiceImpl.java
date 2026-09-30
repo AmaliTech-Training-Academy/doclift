@@ -168,27 +168,6 @@ public class WordWriterServiceImpl implements WordWriterService {
         );
     }
 
-    private boolean needsSpaceBetweenRuns(
-            String previous,
-            String current
-    ) {
-
-        if (previous == null
-                || previous.isEmpty()
-                || current == null
-                || current.isEmpty()) {
-            return false;
-        }
-
-        char previousLast =
-                previous.charAt(previous.length() - 1);
-
-        char currentFirst =
-                current.charAt(0);
-
-        return !Character.isWhitespace(previousLast)
-                && !Character.isWhitespace(currentFirst);
-    }
 
     private void writeListRuns(
             XWPFParagraph paragraph,
@@ -248,20 +227,9 @@ public class WordWriterServiceImpl implements WordWriterService {
                 continue;
             }
 
-            /*
-             * If the marker occupied its own formatting span,
-             * the following span may begin with the separator
-             * whitespace. Remove that whitespace from the first
-             * actual list-content run.
-             */
             if (!firstContentWritten) {
                 text = text.stripLeading();
             }
-
-            /*
-             * Remove trailing whitespace only from the final
-             * non-blank content span.
-             */
             if (!hasLaterNonBlankListContent(
                     spans,
                     i + 1
@@ -273,10 +241,18 @@ public class WordWriterServiceImpl implements WordWriterService {
                 continue;
             }
 
-            if (needsSpaceBetweenRuns(
-                    previousText,
-                    text
+            if (span.isWordSeparatorBefore()
+                    && previousText != null
+                    && !previousText.isEmpty()
+                    && !Character.isWhitespace(
+                    previousText.charAt(
+                            previousText.length() - 1
+                    )
+            )
+                    && !Character.isWhitespace(
+                    text.charAt(0)
             )) {
+
                 text = " " + text;
             }
 
@@ -432,10 +408,18 @@ private void writeBlock(
                 continue;
             }
 
-            if (needsSpaceBetweenRuns(
-                    previousText,
-                    text
+            if (span.isWordSeparatorBefore()
+                    && previousText != null
+                    && !previousText.isEmpty()
+                    && !Character.isWhitespace(
+                    previousText.charAt(
+                            previousText.length() - 1
+                    )
+            )
+                    && !Character.isWhitespace(
+                    text.charAt(0)
             )) {
+
                 text = " " + text;
             }
 
