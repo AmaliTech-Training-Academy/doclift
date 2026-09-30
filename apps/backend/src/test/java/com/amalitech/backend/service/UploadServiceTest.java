@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.file.Path;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -21,6 +22,11 @@ class UploadServiceTest {
     private UploadServiceImpl uploadService;
 
     private final long maxSizeBytes = 10 * 1024 * 1024;
+
+    private static final UUID JOB_ID =
+            UUID.fromString(
+                    "11111111-1111-1111-1111-111111111111"
+            );
 
     @BeforeEach
     void setUp() {
@@ -154,7 +160,7 @@ class UploadServiceTest {
         Path tempPath = Path.of("/tmp/upload-test.pdf");
 
         Job job = new Job();
-        job.setId(42L);
+        job.setId(JOB_ID);
 
         when(fileStorageService.storeTemporaryFile(file))
                 .thenReturn(tempPath);
@@ -167,7 +173,7 @@ class UploadServiceTest {
 
         Job result = uploadService.handleUpload(file);
 
-        assertEquals(42L, result.getId());
+        assertEquals(JOB_ID, result.getId());
 
         verify(fileStorageService)
                 .storeTemporaryFile(file);
@@ -179,7 +185,7 @@ class UploadServiceTest {
                 .createJob("sample.pdf", 2);
 
         verify(fileStorageService)
-                .moveToJobDirectory(tempPath, 42L);
+                .moveToJobDirectory(tempPath, JOB_ID);
     }
 
     @Test
@@ -194,7 +200,7 @@ class UploadServiceTest {
         Path tempPath = Path.of("/tmp/upload-test.pdf");
 
         Job job = new Job();
-        job.setId(42L);
+        job.setId(JOB_ID);
 
         when(fileStorageService.storeTemporaryFile(file))
                 .thenReturn(tempPath);
@@ -207,14 +213,20 @@ class UploadServiceTest {
 
         doThrow(new IllegalStateException("Storage failed"))
                 .when(fileStorageService)
-                .moveToJobDirectory(tempPath, 42L);
+                .moveToJobDirectory(
+                        tempPath,
+                        JOB_ID
+                );
 
         assertThrows(
                 IllegalStateException.class,
                 () -> uploadService.handleUpload(file)
         );
 
-        verify(jobService).markFailed(42L);
-        verify(fileStorageService).deleteIfExists(tempPath);
+        verify(jobService)
+                .markFailed(JOB_ID);
+
+        verify(fileStorageService)
+                .deleteIfExists(tempPath);
     }
 }

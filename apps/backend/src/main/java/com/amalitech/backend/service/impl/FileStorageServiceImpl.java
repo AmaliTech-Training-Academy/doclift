@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 
 @Service
 public class FileStorageServiceImpl implements FileStorageService {
@@ -62,7 +63,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public Path moveToJobDirectory(Path temporaryFile, Long jobId) {
+    public Path moveToJobDirectory(Path temporaryFile, UUID jobId) {
         Path jobDirectory = uploadRoot.resolve(jobId.toString());
         Path targetPath = jobDirectory.resolve("source.pdf");
 

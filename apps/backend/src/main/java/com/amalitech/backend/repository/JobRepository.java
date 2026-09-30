@@ -10,8 +10,9 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface JobRepository extends JpaRepository<Job, Long> {
+public interface JobRepository extends JpaRepository<Job, UUID> {
 
     List<Job> findByStatus(JobStatus status);
 
@@ -19,7 +20,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
 
     @Query("SELECT j FROM Job j LEFT JOIN FETCH j.file WHERE j.id = :id")
-    Optional<Job> findByIdWithFile(@Param("id") Long id);
+    Optional<Job> findByIdWithFile(@Param("id") UUID id);
 
     List<Job> findByStatusOrderByCreatedAtAsc(JobStatus status);
 }

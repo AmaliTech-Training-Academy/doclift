@@ -1,4 +1,4 @@
 package com.amalitech.backend.dto.response;
 
-public record UploadResponse(Long jobId) {
+public record UploadResponse(java.util.UUID jobId) {
 }

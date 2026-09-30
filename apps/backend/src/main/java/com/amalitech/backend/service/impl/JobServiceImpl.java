@@ -9,6 +9,8 @@ import com.amalitech.backend.service.JobService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 public class JobServiceImpl implements JobService {
 
@@ -27,7 +29,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public Job markProcessing(Long jobId) {
+    public Job markProcessing(UUID jobId) {
         Job job = getJobOrThrow(jobId);
         job.setStatus(JobStatus.PROCESSING);
         return job;
@@ -35,7 +37,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public Job markCompleted(Long jobId, String outputPath, long sizeBytes) {
+    public Job markCompleted(UUID jobId, String outputPath, long sizeBytes) {
         Job job = getJobOrThrow(jobId);
 
         JobFile file = new JobFile(
@@ -52,7 +54,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public Job markFailed(Long jobId) {
+    public Job markFailed(UUID jobId) {
         Job job = getJobOrThrow(jobId);
         job.setStatus(JobStatus.FAILED);
         return job;
@@ -60,12 +62,12 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional(readOnly = true)
-    public Job getJobWithFile(Long jobId) {
+    public Job getJobWithFile(UUID jobId) {
         return jobRepository.findByIdWithFile(jobId)
                 .orElseThrow(JobNotFoundException::new);
     }
 
-    private Job getJobOrThrow(Long jobId) {
+    private Job getJobOrThrow(UUID jobId) {
         return jobRepository.findById(jobId)
                 .orElseThrow(JobNotFoundException::new);
     }
