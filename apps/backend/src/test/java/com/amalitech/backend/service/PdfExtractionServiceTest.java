@@ -524,4 +524,102 @@ class PdfExtractionServiceTest {
             ).isEqualTo("Hello world");
         }
     }
+
+    @Test
+    void shouldPreserveWhitespaceOnlyFormattingRunBetweenWords()
+            throws Exception {
+
+        try (PDDocument document =
+                     new PDDocument()) {
+
+            PDPage page =
+                    new PDPage();
+
+            document.addPage(page);
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(
+                                 document,
+                                 page
+                         )) {
+
+                content.beginText();
+                content.newLineAtOffset(
+                        50,
+                        700
+                );
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA_BOLD
+                        ),
+                        12
+                );
+
+                content.showText(
+                        "Bold"
+                );
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA
+                        ),
+                        12
+                );
+
+                content.showText(
+                        " "
+                );
+
+                content.setFont(
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA_BOLD
+                        ),
+                        12
+                );
+
+                content.showText(
+                        "word"
+                );
+
+                content.endText();
+            }
+
+            PdfExtractionResult result =
+                    pdfExtractionService.extract(
+                            document
+                    );
+
+            List<TextSpan> spans =
+                    result.getPages()
+                            .getFirst()
+                            .getTextSpans();
+
+            assertThat(spans)
+                    .hasSize(2);
+
+            assertThat(
+                    spans.get(0).getText()
+            ).isEqualTo("Bold");
+
+            assertThat(
+                    spans.get(1).getText()
+            ).isEqualTo("word");
+
+            assertThat(
+                    spans.get(1)
+                            .isWordSeparatorBefore()
+            ).isTrue();
+
+            assertThat(
+                    result.getPages()
+                            .getFirst()
+                            .getStructuredBlocks()
+                            .getFirst()
+                            .getText()
+            ).isEqualTo(
+                    "Bold word"
+            );
+        }
+    }
 }

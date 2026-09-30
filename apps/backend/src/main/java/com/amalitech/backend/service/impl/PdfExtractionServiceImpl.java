@@ -200,6 +200,29 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return cells;
     }
 
+    private boolean isWhitespaceOnlyRun(
+            List<TextPosition> positions
+    ) {
+
+        if (positions == null
+                || positions.isEmpty()) {
+            return false;
+        }
+
+        for (TextPosition position : positions) {
+
+            String unicode =
+                    position.getUnicode();
+
+            if (unicode != null
+                    && !unicode.isBlank()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private boolean isBoldFont(String fontName) {
         if (fontName == null) {
             return false;
@@ -284,21 +307,26 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return position.getFont().getName();
     }
 
-    private void addTextSpanFromRun(
+    private boolean addTextSpanFromRun(
             List<TextSpan> spans,
             int pageIndex,
             List<TextPosition> positions,
-            TextPosition previousPositionBeforeRun
+            TextPosition previousPositionBeforeRun,
+            boolean forceWordSeparatorBefore
     ) {
 
         if (positions == null || positions.isEmpty()) {
-            return;
+            return false;
         }
 
         boolean wordSeparatorBefore =
-                needsWordSeparator(
-                        previousPositionBeforeRun,
-                        positions.getFirst()
+                forceWordSeparatorBefore
+                        || (
+                        previousPositionBeforeRun != null
+                                && needsWordSeparator(
+                                previousPositionBeforeRun,
+                                positions.getFirst()
+                        )
                 );
 
         StringBuilder textBuilder =
@@ -312,9 +340,12 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         TextPosition previousPosition = null;
 
         for (TextPosition position : positions) {
-            String unicode = position.getUnicode();
+
+            String unicode =
+                    position.getUnicode();
 
             if (unicode != null) {
+
                 if (needsWordSeparator(
                         previousPosition,
                         position
@@ -355,17 +386,11 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         if (extractedText.isBlank()
                 || minX == Float.MAX_VALUE) {
-            return;
+            return false;
         }
 
         TextPosition first =
                 positions.getFirst();
-
-        String fontName =
-                getFontName(first);
-
-        float fontSize =
-                first.getFontSizeInPt();
 
         spans.add(
                 new TextSpan(
@@ -373,19 +398,26 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                         extractedText,
                         minX,
                         minY,
-                        Math.max(0f, maxX - minX),
-                        Math.max(0f, maxY - minY),
-                        fontName,
-                        fontSize,
+                        Math.max(
+                                0f,
+                                maxX - minX
+                        ),
+                        Math.max(
+                                0f,
+                                maxY - minY
+                        ),
+                        getFontName(first),
+                        first.getFontSizeInPt(),
                         isBold(first),
                         isItalic(first),
-                        // TODO: PDF underline detection requires analysing graphical line content.
-                        //  Extraction is not yet implemented
-                        false,
 
+                        // TODO: Implement underline detection and recovery
+                        false,
                         wordSeparatorBefore
                 )
         );
+
+        return true;
     }
 
     private boolean looksLikeTwoColumnTable(
@@ -514,6 +546,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         PDFTextStripper stripper = new PDFTextStripper() {
 
             private TextPosition lastTextPosition;
+            private boolean pendingWhitespaceSeparator;
 
             {
                 this.output = new StringWriter();
@@ -555,12 +588,25 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
                     } else {
 
-                        addTextSpanFromRun(
-                                spans,
-                                pageIndex,
-                                currentRun,
-                                previousPositionBeforeRun
-                        );
+                        boolean whitespaceOnly =
+                                isWhitespaceOnlyRun(
+                                        currentRun
+                                );
+
+                        boolean added =
+                                addTextSpanFromRun(
+                                        spans,
+                                        pageIndex,
+                                        currentRun,
+                                        previousPositionBeforeRun,
+                                        pendingWhitespaceSeparator
+                                );
+
+                        if (whitespaceOnly) {
+                            pendingWhitespaceSeparator = true;
+                        } else if (added) {
+                            pendingWhitespaceSeparator = false;
+                        }
 
                         previousPositionBeforeRun =
                                 currentRun.getLast();
@@ -572,16 +618,41 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     }
                 }
 
-                addTextSpanFromRun(
-                        spans,
-                        pageIndex,
-                        currentRun,
-                        previousPositionBeforeRun
-                );
+                if (!currentRun.isEmpty()) {
+
+                    boolean whitespaceOnly =
+                            isWhitespaceOnlyRun(
+                                    currentRun
+                            );
+
+                    boolean added =
+                            addTextSpanFromRun(
+                                    spans,
+                                    pageIndex,
+                                    currentRun,
+                                    previousPositionBeforeRun,
+                                    pendingWhitespaceSeparator
+                            );
+
+                    if (whitespaceOnly) {
+                        pendingWhitespaceSeparator = true;
+                    } else if (added) {
+                        pendingWhitespaceSeparator = false;
+                    }
+                }
 
                 lastTextPosition =
                         textPositions.getLast();
             }
+        @Override
+        protected void writeLineSeparator()
+        throws IOException {
+
+            lastTextPosition = null;
+            pendingWhitespaceSeparator = false;
+
+            super.writeLineSeparator();
+        }
         };
 
         stripper.setSortByPosition(true);
