@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "jobs")
@@ -13,9 +14,9 @@ import java.time.Instant;
 public class Job {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id")
-    private Long id;
+    private UUID id;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

@@ -21,7 +21,7 @@ public class PdfValidationServiceImpl implements PdfValidationService {
 
     @Autowired
     public PdfValidationServiceImpl(
-            @Value("${app.upload.max-size-bytes:10485760}") long maxSizeBytes
+            @Value("${app.upload.max-size-bytes:15*1048576}") long maxSizeBytes
     ) {
         this.maxSizeBytes = maxSizeBytes;
     }

@@ -2,15 +2,19 @@ package com.amalitech.backend.service;
 
 import com.amalitech.backend.model.Job;
 
+import java.util.UUID;
+
 public interface JobService {
 
     Job createJob(String sourceFilename, Integer pageCount);
 
-    Job markProcessing(Long jobId);
+    Job markProcessing(UUID jobId);
 
-    Job markCompleted(Long jobId, String outputPath, long sizeBytes);
+    Job markCompleted(UUID jobId, String outputPath, long sizeBytes);
 
-    Job markFailed(Long jobId);
+    Job markFailed(UUID jobId);
 
-    Job getJobWithFile(Long jobId);
+    Job getJob(UUID jobId);
+
+    Job getJobWithFile(UUID jobId);
 }
