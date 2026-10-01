@@ -12,6 +12,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.util.UUID;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -31,15 +33,22 @@ class UploadControllerTest {
 
     @Test
     void shouldReturnCreatedAndJobIdForValidPdf() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "sample.pdf",
-                "application/pdf",
-                "dummy-pdf-content".getBytes()
-        );
+
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file",
+                        "sample.pdf",
+                        "application/pdf",
+                        "dummy-pdf-content".getBytes()
+                );
+
+        UUID jobId =
+                UUID.fromString(
+                        "11111111-1111-1111-1111-111111111111"
+                );
 
         Job job = new Job();
-        job.setId(42L);
+        job.setId(jobId);
 
         when(uploadService.handleUpload(file))
                 .thenReturn(job);
@@ -48,9 +57,15 @@ class UploadControllerTest {
                         multipart("/api/v1/uploads")
                                 .file(file)
                 )
-                .andExpect(status().isCreated())
-                .andExpect(content().contentType("application/json"))
-                .andExpect(jsonPath("$.jobId").value(42));
+                .andExpect(status().isAccepted())
+                .andExpect(
+                        content()
+                                .contentType("application/json")
+                )
+                .andExpect(
+                        jsonPath("$.jobId")
+                                .value(jobId.toString())
+                );
     }
 
     // =========================================================

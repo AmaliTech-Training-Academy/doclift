@@ -1,15 +1,16 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.exception.FileTooLargeException;
 import com.amalitech.backend.exception.InvalidPdfException;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.service.FileStorageService;
+import com.amalitech.backend.service.JobDispatcher;
 import com.amalitech.backend.service.JobService;
 import com.amalitech.backend.service.PdfValidationService;
 import com.amalitech.backend.service.UploadService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import com.amalitech.backend.exception.FileTooLargeException;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.nio.file.Path;
 
@@ -19,18 +20,21 @@ public class UploadServiceImpl implements UploadService {
     private final JobService jobService;
     private final PdfValidationService pdfValidationService;
     private final FileStorageService fileStorageService;
+    private final JobDispatcher jobDispatcher;
     private final long maxSizeBytes;
 
     public UploadServiceImpl(
             JobService jobService,
             PdfValidationService pdfValidationService,
             FileStorageService fileStorageService,
-            @Value("${app.upload.max-size-bytes:10485760}")
+            JobDispatcher jobDispatcher,
+            @Value("${app.upload.max-size-bytes:15*1048576}")
             long maxSizeBytes
     ) {
         this.jobService = jobService;
         this.pdfValidationService = pdfValidationService;
         this.fileStorageService = fileStorageService;
+        this.jobDispatcher = jobDispatcher;
         this.maxSizeBytes = maxSizeBytes;
     }
 
@@ -38,23 +42,28 @@ public class UploadServiceImpl implements UploadService {
     public Job handleUpload(MultipartFile file) {
 
         if (file == null || file.isEmpty()) {
-            throw new InvalidPdfException("The uploaded file is empty.");
+            throw new InvalidPdfException(
+                    "The uploaded file is empty."
+            );
         }
 
-        String originalFilename = file.getOriginalFilename();
+        String originalFilename =
+                file.getOriginalFilename();
 
-        if (originalFilename == null || originalFilename.isBlank()) {
+        if (originalFilename == null
+                || originalFilename.isBlank()) {
             throw new InvalidPdfException(
                     "The uploaded file must include a filename."
             );
         }
 
-        if (!"application/pdf".equalsIgnoreCase(file.getContentType())) {
+        if (!"application/pdf".equalsIgnoreCase(
+                file.getContentType()
+        )) {
             throw new InvalidPdfException(
                     "Only PDF files are supported."
             );
         }
-
 
         if (file.getSize() > maxSizeBytes) {
             throw new FileTooLargeException(
@@ -67,33 +76,48 @@ public class UploadServiceImpl implements UploadService {
 
         try {
             temporaryFile =
-                    fileStorageService.storeTemporaryFile(file);
+                    fileStorageService
+                            .storeTemporaryFile(file);
 
             int pageCount =
-                    pdfValidationService.validateAndGetPageCount(temporaryFile);
+                    pdfValidationService
+                            .validateAndGetPageCount(
+                                    temporaryFile
+                            );
 
-            job = jobService.createJob(
-                    originalFilename,
-                    pageCount
-            );
+            job =
+                    jobService.createJob(
+                            originalFilename,
+                            pageCount
+                    );
 
-            fileStorageService.moveToJobDirectory(
-                    temporaryFile,
-                    job.getId()
-            );
+            fileStorageService
+                    .moveToJobDirectory(
+                            temporaryFile,
+                            job.getId()
+                    );
 
             temporaryFile = null;
+
+            jobDispatcher.dispatch(
+                    job.getId()
+            );
 
             return job;
 
         } catch (RuntimeException e) {
 
             if (job != null) {
-                jobService.markFailed(job.getId());
+                jobService.markFailed(
+                        job.getId()
+                );
             }
 
             if (temporaryFile != null) {
-                fileStorageService.deleteIfExists(temporaryFile);
+                fileStorageService
+                        .deleteIfExists(
+                                temporaryFile
+                        );
             }
 
             throw e;

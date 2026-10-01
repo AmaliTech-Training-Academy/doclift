@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.file.Path;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -19,19 +20,27 @@ class UploadServiceTest {
     private PdfValidationService pdfValidationService;
     private FileStorageService fileStorageService;
     private UploadServiceImpl uploadService;
+    private JobDispatcher jobDispatcher;
 
     private final long maxSizeBytes = 10 * 1024 * 1024;
+
+    private static final UUID JOB_ID =
+            UUID.fromString(
+                    "11111111-1111-1111-1111-111111111111"
+            );
 
     @BeforeEach
     void setUp() {
         jobService = mock(JobService.class);
         pdfValidationService = mock(PdfValidationService.class);
         fileStorageService = mock(FileStorageService.class);
+        jobDispatcher = mock(JobDispatcher.class);
 
         uploadService = new UploadServiceImpl(
                 jobService,
                 pdfValidationService,
                 fileStorageService,
+                jobDispatcher,
                 maxSizeBytes
         );
     }
@@ -57,7 +66,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -82,7 +92,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -109,7 +120,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -134,7 +146,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -154,7 +167,7 @@ class UploadServiceTest {
         Path tempPath = Path.of("/tmp/upload-test.pdf");
 
         Job job = new Job();
-        job.setId(42L);
+        job.setId(JOB_ID);
 
         when(fileStorageService.storeTemporaryFile(file))
                 .thenReturn(tempPath);
@@ -167,7 +180,7 @@ class UploadServiceTest {
 
         Job result = uploadService.handleUpload(file);
 
-        assertEquals(42L, result.getId());
+        assertEquals(JOB_ID, result.getId());
 
         verify(fileStorageService)
                 .storeTemporaryFile(file);
@@ -179,7 +192,10 @@ class UploadServiceTest {
                 .createJob("sample.pdf", 2);
 
         verify(fileStorageService)
-                .moveToJobDirectory(tempPath, 42L);
+                .moveToJobDirectory(tempPath, JOB_ID);
+
+        verify(jobDispatcher)
+                .dispatch(JOB_ID);
     }
 
     @Test
@@ -194,7 +210,7 @@ class UploadServiceTest {
         Path tempPath = Path.of("/tmp/upload-test.pdf");
 
         Job job = new Job();
-        job.setId(42L);
+        job.setId(JOB_ID);
 
         when(fileStorageService.storeTemporaryFile(file))
                 .thenReturn(tempPath);
@@ -207,14 +223,23 @@ class UploadServiceTest {
 
         doThrow(new IllegalStateException("Storage failed"))
                 .when(fileStorageService)
-                .moveToJobDirectory(tempPath, 42L);
+                .moveToJobDirectory(
+                        tempPath,
+                        JOB_ID
+                );
 
         assertThrows(
                 IllegalStateException.class,
                 () -> uploadService.handleUpload(file)
         );
 
-        verify(jobService).markFailed(42L);
-        verify(fileStorageService).deleteIfExists(tempPath);
+        verify(jobService)
+                .markFailed(JOB_ID);
+
+        verify(fileStorageService)
+                .deleteIfExists(tempPath);
+
+        verify(jobDispatcher, never())
+                .dispatch(any());
     }
 }
