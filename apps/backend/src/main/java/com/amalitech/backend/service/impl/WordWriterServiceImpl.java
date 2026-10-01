@@ -1,6 +1,8 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.service.BlockAlignment;
 import com.amalitech.backend.service.BlockType;
+import com.amalitech.backend.service.Footnote;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.PdfExtractionResult;
 import com.amalitech.backend.service.StructuredBlock;
@@ -10,22 +12,37 @@ import com.amalitech.backend.service.WordWriterService;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTFramePr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTLvl;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageMar;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHAnchor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STNumberFormat;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STVAnchor;
 
 import java.math.BigInteger;
 import java.util.regex.Pattern;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class WordWriterServiceImpl implements WordWriterService {
 
+    private static final int TWIPS_PER_POINT = 20;
+
+    private static final float ASCENT_RATIO = 0.8f;
 
     private static final Pattern NUMBERED_PATTERN =
             Pattern.compile(
@@ -303,7 +320,14 @@ public class WordWriterServiceImpl implements WordWriterService {
             BigInteger numberedNumId =
                     createNumberedNumbering(document);
 
-            for (PageExtraction page : extractionResult.getPages()) {
+            Map<String, XWPFFootnote> footnotesByKey =
+                    createFootnotes(document, extractionResult.getFootnotes());
+
+            List<PageExtraction> pages = extractionResult.getPages();
+
+            for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
+
+                PageExtraction page = pages.get(pageIndex);
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
@@ -312,9 +336,18 @@ public class WordWriterServiceImpl implements WordWriterService {
                             document,
                             block,
                             bulletNumId,
-                            numberedNumId
+                            numberedNumId,
+                            footnotesByKey
                     );
                 }
+
+                if (pageIndex < pages.size() - 1) {
+                    closePageSection(document, page);
+                }
+            }
+
+            if (!pages.isEmpty()) {
+                setFinalPageSize(document, pages.getLast());
             }
 
             document.write(output);
@@ -329,15 +362,106 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
+    private BigInteger toTwips(float points) {
+        return BigInteger.valueOf(Math.round(points * TWIPS_PER_POINT));
+    }
+
+    private void closePageSection(
+            XWPFDocument document,
+            PageExtraction page
+    ) {
+        XWPFParagraph sectionBreak = document.createParagraph();
+
+        CTSectPr sectPr = sectionBreak.getCTP().isSetPPr()
+                ? sectionBreak.getCTP().getPPr().addNewSectPr()
+                : sectionBreak.getCTP().addNewPPr().addNewSectPr();
+
+        applyPageSize(sectPr, page);
+    }
+
+    private void setFinalPageSize(
+            XWPFDocument document,
+            PageExtraction lastPage
+    ) {
+        CTSectPr sectPr = document.getDocument().getBody().addNewSectPr();
+        applyPageSize(sectPr, lastPage);
+    }
+
+    private void applyPageSize(
+            CTSectPr sectPr,
+            PageExtraction page
+    ) {
+        CTPageSz pageSize = sectPr.addNewPgSz();
+        pageSize.setW(toTwips(page.getPageWidth()));
+        pageSize.setH(toTwips(page.getPageHeight()));
+
+        if (page.getPageWidth() > page.getPageHeight()) {
+            pageSize.setOrient(STPageOrientation.LANDSCAPE);
+        }
+
+        CTPageMar pageMargin = sectPr.addNewPgMar();
+        pageMargin.setTop(BigInteger.ZERO);
+        pageMargin.setBottom(BigInteger.ZERO);
+        pageMargin.setLeft(BigInteger.ZERO);
+        pageMargin.setRight(BigInteger.ZERO);
+        pageMargin.setHeader(BigInteger.ZERO);
+        pageMargin.setFooter(BigInteger.ZERO);
+        pageMargin.setGutter(BigInteger.ZERO);
+    }
+
+
+    private Map<String, XWPFFootnote> createFootnotes(
+            XWPFDocument document,
+            List<Footnote> footnotes
+    ) {
+        Map<String, XWPFFootnote> footnotesByKey = new HashMap<>();
+
+        for (Footnote footnote : footnotes) {
+
+            XWPFFootnote wordFootnote = document.createFootnote();
+
+            XWPFParagraph footnoteParagraph =
+                    wordFootnote.getParagraphArray(0) != null
+                            ? wordFootnote.getParagraphArray(0)
+                            : wordFootnote.createParagraph();
+
+            XWPFRun textRun = footnoteParagraph.createRun();
+            textRun.setText(" " + footnote.text());
+
+            footnotesByKey.put(footnote.key(), wordFootnote);
+        }
+
+        return footnotesByKey;
+    }
+
+    private void writeFootnoteReference(
+            XWPFParagraph paragraph,
+            String footnoteKey,
+            Map<String, XWPFFootnote> footnotesByKey
+    ) {
+        XWPFFootnote footnote = footnotesByKey.get(footnoteKey);
+
+        if (footnote == null) {
+            return;
+        }
+
+        XWPFRun run = paragraph.createRun();
+        run.setSubscript(VerticalAlign.SUPERSCRIPT);
+        run.getCTR()
+                .addNewFootnoteReference()
+                .setId(footnote.getCTFtnEdn().getId());
+    }
+
 private void writeBlock(
         XWPFDocument document,
         StructuredBlock block,
         BigInteger bulletNumId,
-        BigInteger numberedNumId
+        BigInteger numberedNumId,
+        Map<String, XWPFFootnote> footnotesByKey
 ) {
 
     if (block.getType() == BlockType.TABLE) {
-        writeTable(document, block);
+        writeTable(document, block, footnotesByKey);
         return;
     }
 
@@ -348,6 +472,14 @@ private void writeBlock(
         paragraph.setStyle("Heading1");
     } else {
         paragraph.setStyle("Normal");
+    }
+
+    paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
+
+    applyAbsolutePosition(paragraph, block);
+
+    if (block.getFootnoteKey() != null) {
+        writeFootnoteReference(paragraph, block.getFootnoteKey(), footnotesByKey);
     }
 
     if (block.getType() == BlockType.LIST_ITEM) {
@@ -366,9 +498,55 @@ private void writeBlock(
     writeRuns(paragraph, block);
 }
 
+
+    private void applyAbsolutePosition(
+            XWPFParagraph paragraph,
+            StructuredBlock block
+    ) {
+        CTFramePr framePr = paragraph.getCTP().isSetPPr()
+                ? paragraph.getCTP().getPPr().addNewFramePr()
+                : paragraph.getCTP().addNewPPr().addNewFramePr();
+
+        framePr.setX(toTwips(block.getX()));
+        framePr.setY(toTwips(block.getY() - estimateAscent(block)));
+        framePr.setW(toTwips(block.getWidth()));
+        framePr.setHAnchor(STHAnchor.PAGE);
+        framePr.setVAnchor(STVAnchor.PAGE);
+
+        paragraph.setSpacingBefore(0);
+        paragraph.setSpacingAfter(0);
+        paragraph.setSpacingBetween(1.0, LineSpacingRule.AUTO);
+    }
+
+    private float estimateAscent(StructuredBlock block) {
+
+        float fontSize = block.getSpans().stream()
+                .map(TextSpan::getFontSize)
+                .filter(size -> size > 0)
+                .max(Float::compareTo)
+                .orElse(0f);
+
+        return fontSize * ASCENT_RATIO;
+    }
+
+    private ParagraphAlignment toParagraphAlignment(BlockAlignment alignment) {
+
+        if (alignment == null) {
+            return ParagraphAlignment.LEFT;
+        }
+
+        return switch (alignment) {
+            case CENTER -> ParagraphAlignment.CENTER;
+            case RIGHT -> ParagraphAlignment.RIGHT;
+            case JUSTIFY -> ParagraphAlignment.BOTH;
+            case LEFT -> ParagraphAlignment.LEFT;
+        };
+    }
+
     private void writeTable(
             XWPFDocument document,
-            StructuredBlock block
+            StructuredBlock block,
+            Map<String, XWPFFootnote> footnotesByKey
     ) {
 
         List<List<TableCell>> rows =
@@ -387,30 +565,77 @@ private void writeBlock(
         XWPFTable table =
                 document.createTable(rows.size(), columnCount);
 
+        applyTablePosition(table, block);
+
+        List<Float> columnWidths = block.getColumnWidths();
+        List<Float> rowHeights = block.getRowHeights();
+
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
 
             XWPFTableRow tableRow =
                     table.getRow(rowIndex);
 
+            if (rowHeights != null && rowIndex < rowHeights.size()) {
+                tableRow.setHeight(
+                        toTwips(rowHeights.get(rowIndex)).intValueExact()
+                );
+            }
+
             List<TableCell> row =
                     rows.get(rowIndex);
 
-            // Right-to-left so removing a swallowed cell never shifts
-            // the index of a cell still waiting to be processed.
             for (int columnIndex = row.size() - 1;
                  columnIndex >= 0;
                  columnIndex--) {
 
-                writeTableCell(rows, tableRow, rowIndex, columnIndex);
+                writeTableCell(rows, tableRow, rowIndex, columnIndex, footnotesByKey);
+
+                if (columnWidths != null && columnIndex < columnWidths.size()) {
+                    setColumnWidth(tableRow, columnIndex, columnWidths.get(columnIndex));
+                }
             }
         }
+    }
+
+    private void applyTablePosition(
+            XWPFTable table,
+            StructuredBlock block
+    ) {
+        CTTblPr tblPr = table.getCTTbl().getTblPr() != null
+                ? table.getCTTbl().getTblPr()
+                : table.getCTTbl().addNewTblPr();
+
+        CTTblPPr tblpPr = tblPr.addNewTblpPr();
+        tblpPr.setTblpX(toTwips(block.getX()));
+        tblpPr.setTblpY(toTwips(block.getY()));
+        tblpPr.setHorzAnchor(STHAnchor.PAGE);
+        tblpPr.setVertAnchor(STVAnchor.PAGE);
+
+        tblPr.addNewTblLayout().setType(STTblLayoutType.FIXED);
+    }
+
+    private void setColumnWidth(
+            XWPFTableRow tableRow,
+            int columnIndex,
+            float widthPoints
+    ) {
+        XWPFTableCell tableCell = tableRow.getCell(columnIndex);
+
+        if (tableCell == null) {
+            // Removed in writeTableCell: swallowed by a horizontal merge.
+            return;
+        }
+
+        tableCell.setWidthType(TableWidthType.DXA);
+        tableCell.setWidth(toTwips(widthPoints).toString());
     }
 
     private void writeTableCell(
             List<List<TableCell>> rows,
             XWPFTableRow tableRow,
             int rowIndex,
-            int columnIndex
+            int columnIndex,
+            Map<String, XWPFFootnote> footnotesByKey
     ) {
 
         TableCell cell =
@@ -421,7 +646,7 @@ private void writeBlock(
             XWPFTableCell tableCell =
                     tableRow.getCell(columnIndex);
 
-            setCellText(tableCell, cell.text());
+            setCellText(tableCell, cell.text(), cell.footnoteKey(), footnotesByKey);
 
             if (cell.columnSpan() > 1) {
                 setGridSpan(tableCell, cell.columnSpan());
@@ -434,8 +659,6 @@ private void writeBlock(
             return;
         }
 
-        // Covered by a merge: cell.row()/cell.column() point at the
-        // anchor that owns this position.
         TableCell anchor =
                 rows.get(cell.row()).get(cell.column());
 
@@ -443,14 +666,11 @@ private void writeBlock(
                 cell.row() == rowIndex;
 
         if (sameRowAsAnchor) {
-            // Swallowed by a horizontal merge on the anchor's own row.
             tableRow.removeCell(columnIndex);
             return;
         }
 
         if (columnIndex != cell.column()) {
-            // A later row within a vertical merge that also spans
-            // columns: only the anchor's column keeps a physical cell.
             tableRow.removeCell(columnIndex);
             return;
         }
@@ -458,7 +678,7 @@ private void writeBlock(
         XWPFTableCell tableCell =
                 tableRow.getCell(columnIndex);
 
-        setCellText(tableCell, "");
+        setCellText(tableCell, "", null, footnotesByKey);
         setVerticalMerge(tableCell, STMerge.CONTINUE);
 
         if (anchor.columnSpan() > 1) {
@@ -468,13 +688,19 @@ private void writeBlock(
 
     private void setCellText(
             XWPFTableCell tableCell,
-            String text
+            String text,
+            String footnoteKey,
+            Map<String, XWPFFootnote> footnotesByKey
     ) {
 
         XWPFParagraph cellParagraph =
                 tableCell.getParagraphArray(0) != null
                         ? tableCell.getParagraphArray(0)
                         : tableCell.addParagraph();
+
+        if (footnoteKey != null) {
+            writeFootnoteReference(cellParagraph, footnoteKey, footnotesByKey);
+        }
 
         XWPFRun run =
                 cellParagraph.createRun();

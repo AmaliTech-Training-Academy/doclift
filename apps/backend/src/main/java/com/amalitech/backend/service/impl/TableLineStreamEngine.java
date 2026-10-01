@@ -8,6 +8,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImage;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,6 +17,7 @@ class TableLineStreamEngine extends PDFGraphicsStreamEngine {
     private static final float AXIS_TOLERANCE = 0.75f;
     private static final float MIN_LINE_LENGTH = 4f;
     private static final float PAGE_EDGE_TOLERANCE = 1.5f;
+    private static final float MAX_FILL_LINE_THICKNESS = 6f;
 
     private final float pageWidth;
     private final float pageHeight;
@@ -95,14 +97,65 @@ class TableLineStreamEngine extends PDFGraphicsStreamEngine {
 
     @Override
     public void fillPath(int windingRule) {
-        extractLines(currentPath);
+        extractThinFillLine(currentPath);
         currentPath = new GeneralPath();
     }
 
     @Override
     public void fillAndStrokePath(int windingRule) {
-        extractLines(currentPath);
+        if (!extractThinFillLine(currentPath)) {
+            extractLines(currentPath);
+        }
+
         currentPath = new GeneralPath();
+    }
+
+
+    private boolean extractThinFillLine(GeneralPath path) {
+        Rectangle2D bounds = path.getBounds2D();
+
+        float width = (float) bounds.getWidth();
+        float height = (float) bounds.getHeight();
+
+        boolean thinHorizontalBar =
+                height <= MAX_FILL_LINE_THICKNESS && width >= MIN_LINE_LENGTH;
+
+        boolean thinVerticalBar =
+                width <= MAX_FILL_LINE_THICKNESS && height >= MIN_LINE_LENGTH;
+
+        if (thinHorizontalBar && !thinVerticalBar) {
+            float y = flipY(bounds.getCenterY());
+
+            if (!isPageEdge(y, 0f, pageHeight)) {
+                horizontalLines.add(
+                        new HorizontalLine(
+                                y,
+                                (float) bounds.getMinX(),
+                                (float) bounds.getMaxX()
+                        )
+                );
+            }
+
+            return true;
+        }
+
+        if (thinVerticalBar) {
+            float x = (float) bounds.getCenterX();
+
+            if (!isPageEdge(x, 0f, pageWidth)) {
+                verticalLines.add(
+                        new VerticalLine(
+                                x,
+                                flipY(bounds.getMaxY()),
+                                flipY(bounds.getMinY())
+                        )
+                );
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     @Override

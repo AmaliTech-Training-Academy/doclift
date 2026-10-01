@@ -1,5 +1,6 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.service.BlockAlignment;
 import com.amalitech.backend.service.BlockType;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.StructureRecoveryService;
@@ -34,6 +35,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float MIN_COLUMN_SPLIT_POSITION = 0.3f;
     private static final float MAX_COLUMN_SPLIT_POSITION = 0.7f;
     private static final float TABLE_REGION_MARGIN = 1f;
+    private static final float RIGHT_MARGIN_CLUSTER_TOLERANCE = 10f;
+    private static final int MIN_RIGHT_MARGIN_SUPPORT = 2;
+    private static final float RIGHT_MARGIN_REACH_TOLERANCE = 30f;
+    private static final String SENTENCE_TERMINATORS = ".!?";
+    private static final String TRAILING_QUOTE_CHARACTERS = "\"')]";
+    private static final float CENTER_ALIGNMENT_TOLERANCE = 6f;
+    private static final float MAX_CENTERED_WIDTH_RATIO = 0.7f;
+    private static final float JUSTIFY_LINE_TOLERANCE = 5f;
+    private static final float LINE_SPACING_CLUSTER_TOLERANCE = 1.5f;
+    private static final int MIN_LINE_SPACING_SUPPORT = 3;
+    private static final float MAX_LINE_SPACING_TO_FONT_RATIO = 1.8f;
 
 
     @Override
@@ -57,10 +69,16 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 pageExtraction.getTextSpans()
         );
 
+        Float bodyRightMargin = determineBodyRightMargin(lines);
+        Float dominantLineSpacing = determineDominantLineSpacing(lines, bodyFontSize);
+
         List<StructuredBlock> blocks = buildStructuredBlocks(
                 pageExtraction.getPageIndex(),
                 lines,
-                bodyFontSize
+                bodyFontSize,
+                bodyRightMargin,
+                pageExtraction.getPageWidth(),
+                dominantLineSpacing
         );
 
         pageExtraction.getStructuredBlocks().addAll(blocks);
@@ -80,7 +98,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         float maxY = -Float.MAX_VALUE;
 
         for (LogicalLine line : lines) {
-            spans.addAll(line.getSpans());
+            appendLineSpans(spans, line);
 
             if (!text.isEmpty()) {
                 text.append(' ');
@@ -106,10 +124,51 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
     }
 
+    private void appendLineSpans(
+            List<TextSpan> spans,
+            LogicalLine line
+    ) {
+        List<TextSpan> lineSpans = line.getSpans();
+
+        if (spans.isEmpty() || lineSpans.isEmpty()) {
+            spans.addAll(lineSpans);
+            return;
+        }
+
+        TextSpan first = lineSpans.getFirst();
+
+        if (first.isWordSeparatorBefore()) {
+            spans.addAll(lineSpans);
+            return;
+        }
+
+        spans.add(
+                new TextSpan(
+                        first.getPageIndex(),
+                        first.getText(),
+                        first.getX(),
+                        first.getY(),
+                        first.getWidth(),
+                        first.getHeight(),
+                        first.getFontName(),
+                        first.getFontSize(),
+                        first.isBold(),
+                        first.isItalic(),
+                        first.isUnderline(),
+                        true
+                )
+        );
+
+        spans.addAll(lineSpans.subList(1, lineSpans.size()));
+    }
+
     private List<StructuredBlock> buildStructuredBlocks(
             int pageIndex,
             List<LogicalLine> lines,
-            float bodyFontSize
+            float bodyFontSize,
+            Float bodyRightMargin,
+            float pageWidth,
+            Float dominantLineSpacing
     ) {
         List<StructuredBlock> blocks = new ArrayList<>();
         List<LogicalLine> paragraphLines = new ArrayList<>();
@@ -120,16 +179,21 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 flushParagraph(
                         blocks,
                         paragraphLines,
-                        pageIndex
+                        pageIndex,
+                        pageWidth,
+                        bodyRightMargin
                 );
 
-                blocks.add(
-                        toBlock(
-                                pageIndex,
-                                line,
-                                BlockType.PARAGRAPH
-                        )
-                );
+                for (LogicalLine cell : splitRowIntoCells(line)) {
+                    blocks.add(
+                            toBlock(
+                                    pageIndex,
+                                    cell,
+                                    BlockType.PARAGRAPH,
+                                    BlockAlignment.LEFT
+                            )
+                    );
+                }
 
                 continue;
             }
@@ -138,14 +202,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 flushParagraph(
                         blocks,
                         paragraphLines,
-                        pageIndex
+                        pageIndex,
+                        pageWidth,
+                        bodyRightMargin
                 );
 
                 blocks.add(
                         toBlock(
                                 pageIndex,
                                 line,
-                                BlockType.HEADING
+                                BlockType.HEADING,
+                                detectSingleLineAlignment(line, pageWidth)
                         )
                 );
 
@@ -156,14 +223,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 flushParagraph(
                         blocks,
                         paragraphLines,
-                        pageIndex
+                        pageIndex,
+                        pageWidth,
+                        bodyRightMargin
                 );
 
                 blocks.add(
                         toBlock(
                                 pageIndex,
                                 line,
-                                BlockType.LIST_ITEM
+                                BlockType.LIST_ITEM,
+                                BlockAlignment.LEFT
                         )
                 );
 
@@ -181,14 +251,18 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             if (belongsToSameParagraph(
                     previous,
                     line,
-                    paragraphLines.size() == 1
+                    paragraphLines.size() == 1,
+                    bodyRightMargin,
+                    dominantLineSpacing
             )) {
                 paragraphLines.add(line);
             } else {
                 flushParagraph(
                         blocks,
                         paragraphLines,
-                        pageIndex
+                        pageIndex,
+                        pageWidth,
+                        bodyRightMargin
                 );
 
                 paragraphLines.add(line);
@@ -198,7 +272,9 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         flushParagraph(
                 blocks,
                 paragraphLines,
-                pageIndex
+                pageIndex,
+                pageWidth,
+                bodyRightMargin
         );
 
         return blocks;
@@ -206,27 +282,71 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private void flushParagraph(
             List<StructuredBlock> blocks,
             List<LogicalLine> paragraphLines,
-            int pageIndex
+            int pageIndex,
+            float pageWidth,
+            Float bodyRightMargin
     ) {
         if (paragraphLines.isEmpty()) {
             return;
         }
 
-        blocks.add(
-                toParagraphBlock(
-                        pageIndex,
-                        new ArrayList<>(paragraphLines)
+        StructuredBlock block = toParagraphBlock(
+                pageIndex,
+                new ArrayList<>(paragraphLines)
+        );
+
+        block.setAlignment(
+                detectParagraphAlignment(
+                        paragraphLines,
+                        pageWidth,
+                        bodyRightMargin
                 )
         );
 
+        blocks.add(block);
+
         paragraphLines.clear();
     }
+
+    private List<LogicalLine> splitRowIntoCells(LogicalLine line) {
+        List<TextSpan> spans = new ArrayList<>(line.getSpans());
+        spans.sort(Comparator.comparing(TextSpan::getX));
+
+        List<LogicalLine> cells = new ArrayList<>();
+        LogicalLine current = new LogicalLine();
+        current.markAsTableRow();
+
+        TextSpan previous = null;
+
+        for (TextSpan span : spans) {
+
+            if (previous != null
+                    && (span.getX() - (previous.getX() + previous.getWidth()))
+                    > segmentGapThreshold(previous, span)) {
+
+                cells.add(current);
+                current = new LogicalLine();
+                current.markAsTableRow();
+            }
+
+            current.add(span);
+            previous = span;
+        }
+
+        if (!current.getSpans().isEmpty()) {
+            cells.add(current);
+        }
+
+        return cells;
+    }
+
     private StructuredBlock toBlock(
             int pageIndex,
             LogicalLine line,
-            BlockType type
+            BlockType type,
+            BlockAlignment alignment
     ) {
-        return new StructuredBlock(
+        StructuredBlock block = new StructuredBlock(
                 pageIndex,
                 type,
                 line.getText(),
@@ -236,12 +356,66 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 line.getHeight(),
                 new ArrayList<>(line.getSpans())
         );
+
+        block.setAlignment(alignment);
+
+        return block;
+    }
+
+    private BlockAlignment detectSingleLineAlignment(
+            LogicalLine line,
+            float pageWidth
+    ) {
+        if (pageWidth <= 0f
+                || line.getWidth() > pageWidth * MAX_CENTERED_WIDTH_RATIO) {
+            return BlockAlignment.LEFT;
+        }
+
+        float leftGap = line.getX();
+        float rightGap = pageWidth - (line.getX() + line.getWidth());
+
+        boolean isCentered = leftGap > CENTER_ALIGNMENT_TOLERANCE
+                && Math.abs(leftGap - rightGap) <= CENTER_ALIGNMENT_TOLERANCE;
+
+        return isCentered ? BlockAlignment.CENTER : BlockAlignment.LEFT;
+    }
+
+
+    private BlockAlignment detectParagraphAlignment(
+            List<LogicalLine> paragraphLines,
+            float pageWidth,
+            Float bodyRightMargin
+    ) {
+        if (paragraphLines.size() == 1) {
+            return detectSingleLineAlignment(
+                    paragraphLines.getFirst(),
+                    pageWidth
+            );
+        }
+
+        if (bodyRightMargin == null) {
+            return BlockAlignment.LEFT;
+        }
+
+        for (int i = 0; i < paragraphLines.size() - 1; i++) {
+
+            LogicalLine line = paragraphLines.get(i);
+            float lineRight = line.getX() + line.getWidth();
+
+            if ((bodyRightMargin - lineRight) > JUSTIFY_LINE_TOLERANCE) {
+                return BlockAlignment.LEFT;
+            }
+        }
+
+        return BlockAlignment.JUSTIFY;
     }
 
     private boolean belongsToSameParagraph(
             LogicalLine previous,
             LogicalLine current,
-            boolean previousIsFirstLine
+            boolean previousIsFirstLine,
+            Float bodyRightMargin,
+            Float dominantLineSpacing
     ) {
 
         if (current.getY() < previous.getY()) {
@@ -252,22 +426,32 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return false;
         }
 
-        float previousBottom =
-                previous.getY() + previous.getHeight();
+        boolean closeVertically;
 
-        float verticalGap =
-                current.getY() - previousBottom;
+        if (dominantLineSpacing != null) {
 
-        float referenceHeight = Math.max(
-                previous.getAverageHeight(),
-                current.getAverageHeight()
-        );
+            float baselineDelta = current.getY() - previous.getY();
 
-        float allowedGap =
-                referenceHeight * PARAGRAPH_GAP_FACTOR;
+            closeVertically =
+                    baselineDelta <= dominantLineSpacing * PARAGRAPH_GAP_FACTOR;
+        } else {
+            float previousBottom =
+                    previous.getY() + previous.getHeight();
 
-        boolean closeVertically =
-                verticalGap <= allowedGap;
+            float verticalGap =
+                    current.getY() - previousBottom;
+
+            float referenceHeight = Math.max(
+                    previous.getAverageHeight(),
+                    current.getAverageHeight()
+            );
+
+            float allowedGap =
+                    referenceHeight * PARAGRAPH_GAP_FACTOR;
+
+            closeVertically =
+                    verticalGap <= allowedGap;
+        }
 
         float indentDelta = current.getX() - previous.getX();
 
@@ -280,7 +464,148 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 Math.abs(indentDelta) <= INDENT_TOLERANCE
                         || firstLineIndent;
 
-        return closeVertically && similarlyIndented;
+        if (!closeVertically || !similarlyIndented) {
+            return false;
+        }
+
+
+        if (endsWithSentenceTerminator(previous.getText())
+                && !reachesRightMargin(previous, bodyRightMargin)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean reachesRightMargin(
+            LogicalLine line,
+            Float bodyRightMargin
+    ) {
+        if (bodyRightMargin == null) {
+            return false;
+        }
+
+        float lineRight = line.getX() + line.getWidth();
+
+        return (bodyRightMargin - lineRight) <= RIGHT_MARGIN_REACH_TOLERANCE;
+    }
+
+    private boolean endsWithSentenceTerminator(String text) {
+        if (text == null) {
+            return false;
+        }
+
+        String trimmed = text.stripTrailing();
+
+        int index = trimmed.length() - 1;
+
+        while (index >= 0
+                && TRAILING_QUOTE_CHARACTERS.indexOf(trimmed.charAt(index)) >= 0) {
+            index--;
+        }
+
+        if (index < 0) {
+            return false;
+        }
+
+        return SENTENCE_TERMINATORS.indexOf(trimmed.charAt(index)) >= 0;
+    }
+
+
+    private Float determineBodyRightMargin(List<LogicalLine> lines) {
+        List<Float> rightEdges = new ArrayList<>();
+
+        for (LogicalLine line : lines) {
+            if (line.isTableRow()) {
+                continue;
+            }
+
+            rightEdges.add(line.getX() + line.getWidth());
+        }
+
+        Float bestMargin = null;
+        int bestSupport = 0;
+
+        for (Float candidate : rightEdges) {
+            int support = 0;
+            float total = 0f;
+
+            for (Float other : rightEdges) {
+                if (Math.abs(candidate - other) <= RIGHT_MARGIN_CLUSTER_TOLERANCE) {
+                    support++;
+                    total += other;
+                }
+            }
+
+            if (support > bestSupport) {
+                bestSupport = support;
+                bestMargin = total / support;
+            }
+        }
+
+        if (bestSupport < MIN_RIGHT_MARGIN_SUPPORT) {
+            return null;
+        }
+
+        return bestMargin;
+    }
+
+    private Float determineDominantLineSpacing(
+            List<LogicalLine> lines,
+            float bodyFontSize
+    ) {
+        List<Float> sortedY = new ArrayList<>();
+
+        for (LogicalLine line : lines) {
+            if (line.isTableRow()) {
+                continue;
+            }
+
+            sortedY.add(line.getY());
+        }
+
+        sortedY.sort(Float::compare);
+
+        List<Float> deltas = new ArrayList<>();
+
+        for (int i = 1; i < sortedY.size(); i++) {
+            float delta = sortedY.get(i) - sortedY.get(i - 1);
+
+            if (delta > 0f) {
+                deltas.add(delta);
+            }
+        }
+
+        Float bestSpacing = null;
+        int bestSupport = 0;
+
+        for (Float candidate : deltas) {
+            int support = 0;
+            float total = 0f;
+
+            for (Float other : deltas) {
+                if (Math.abs(candidate - other) <= LINE_SPACING_CLUSTER_TOLERANCE) {
+                    support++;
+                    total += other;
+                }
+            }
+
+            if (support > bestSupport) {
+                bestSupport = support;
+                bestSpacing = total / support;
+            }
+        }
+
+        if (bestSupport < MIN_LINE_SPACING_SUPPORT) {
+            return null;
+        }
+
+        if (bodyFontSize > 0f
+                && bestSpacing > bodyFontSize * MAX_LINE_SPACING_TO_FONT_RATIO) {
+            return null;
+        }
+
+        return bestSpacing;
     }
 
     private List<LogicalLine> buildReadingOrder(

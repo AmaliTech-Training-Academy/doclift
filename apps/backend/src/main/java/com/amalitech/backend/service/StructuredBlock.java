@@ -1,6 +1,7 @@
 package com.amalitech.backend.service;
 
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -18,13 +19,21 @@ public class StructuredBlock {
     private float width;
     private float height;
 
+    @Setter
+    private BlockAlignment alignment = BlockAlignment.LEFT;
+
+    @Setter
+    private String footnoteKey;
+
     private List<TextSpan> spans;
 
-    /**
-     * Populated only for {@link BlockType#TABLE} blocks: the recovered
-     * grid of cells, outer list is rows, inner list is columns.
-     */
     private List<List<TableCell>> tableRows;
+
+    @Setter
+    private List<Float> columnWidths;
+
+    @Setter
+    private List<Float> rowHeights;
 
     public StructuredBlock(
             int pageIndex,

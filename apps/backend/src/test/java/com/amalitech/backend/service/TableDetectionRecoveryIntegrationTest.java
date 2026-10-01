@@ -112,6 +112,107 @@ class TableDetectionRecoveryIntegrationTest {
         }
     }
 
+    // =========================================================
+    // A BORDERED TABLE WITH NO TEXT INSIDE IT (every cell blank)
+    // HAS NOTHING TO ANCHOR ON, SO IT MUST STILL BE PLACED BY ITS
+    // OWN PAGE POSITION RATHER THAN DEFAULTING TO THE END OF THE
+    // PAGE'S BLOCK LIST
+    // =========================================================
+
+    @Test
+    void shouldPositionAnEmptyBorderedTableByItsPageLocationNotAtTheEndOfThePage()
+            throws Exception {
+
+        byte[] pdfBytes = buildPdfWithBlankTableBetweenParagraphs();
+
+        PdfExtractionResult extractionResult =
+                pdfExtractionService.extract(pdfBytes);
+
+        PageExtraction page = extractionResult.getPages().getFirst();
+
+        java.util.List<StructuredBlock> blocks = page.getStructuredBlocks();
+
+        int aboveIndex = indexOfBlockContaining(blocks, "Above the table");
+        int tableIndex = indexOfFirstTable(blocks);
+        int belowIndex = indexOfBlockContaining(blocks, "Below the table");
+
+        assertThat(aboveIndex).as("'Above the table' paragraph found").isNotEqualTo(-1);
+        assertThat(tableIndex).as("table block found").isNotEqualTo(-1);
+        assertThat(belowIndex).as("'Below the table' paragraph found").isNotEqualTo(-1);
+
+        assertThat(tableIndex)
+                .as("an empty table positioned between the two paragraphs should land between them, not after both")
+                .isGreaterThan(aboveIndex)
+                .isLessThan(belowIndex);
+    }
+
+    private int indexOfBlockContaining(java.util.List<StructuredBlock> blocks, String text) {
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getText() != null && blocks.get(i).getText().contains(text)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int indexOfFirstTable(java.util.List<StructuredBlock> blocks) {
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getType() == BlockType.TABLE) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private byte[] buildPdfWithBlankTableBetweenParagraphs() throws Exception {
+
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDType1Font font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                content.beginText();
+                content.setFont(font, 12);
+                content.newLineAtOffset(80f, 700f);
+                content.showText("Above the table");
+                content.endText();
+
+                // A 2x2 bordered grid with no text in any cell, roughly
+                // in the middle of the page.
+                float originX = 80f;
+                float originTopY = 450f;
+                float cellWidth = 100f;
+                float cellHeight = 30f;
+
+                for (int row = 0; row < 2; row++) {
+                    for (int col = 0; col < 2; col++) {
+
+                        float cellX = originX + (col * cellWidth);
+                        float cellTopY = originTopY - (row * cellHeight);
+                        float cellBottomY = cellTopY - cellHeight;
+
+                        content.addRect(cellX, cellBottomY, cellWidth, cellHeight);
+                        content.stroke();
+                    }
+                }
+
+                content.beginText();
+                content.setFont(font, 12);
+                content.newLineAtOffset(80f, 100f);
+                content.showText("Below the table");
+                content.endText();
+            }
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            document.save(output);
+            return output.toByteArray();
+        }
+    }
+
     private byte[] buildBorderedTablePdf(String[][] cellText)
             throws Exception {
 

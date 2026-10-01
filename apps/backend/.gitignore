@@ -5,6 +5,12 @@ target/
 !**/src/test/**/target/
 uploads/
 
+### Generated manual-conversion output (ManualPdfToDocxConversionTest
+### writes its .docx next to the input PDF, inside this tree) and the
+### Microsoft Word lock files left behind when that output is opened ###
+src/test/resources/sample-files-main/**/*-converted.docx
+src/test/resources/sample-files-main/**/~$*
+
 ### STS ###
 .apt_generated
 .classpath

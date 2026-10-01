@@ -12,6 +12,8 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PageExtraction {
     private int pageIndex;
+    private float pageWidth;
+    private float pageHeight;
     private final List<TextSpan> textSpans = new ArrayList<>();
     private final List<ExtractedImage> images = new ArrayList<>();
     private final List<TableRegion> candidateTableRegions = new ArrayList<>();

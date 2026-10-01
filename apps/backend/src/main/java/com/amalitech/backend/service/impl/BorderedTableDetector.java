@@ -6,8 +6,10 @@ import com.amalitech.backend.service.TableCell;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 
 class BorderedTableDetector {
@@ -19,6 +21,130 @@ class BorderedTableDetector {
     private static final int MAX_BOUNDARY_POSITIONS = 60;
 
     List<DetectedTable> detect(
+            int pageIndex,
+            List<TextSpan> textSpans,
+            List<HorizontalLine> horizontalLines,
+            List<VerticalLine> verticalLines
+    ) {
+        List<DetectedTable> tables = new ArrayList<>();
+
+        if (horizontalLines.isEmpty() || verticalLines.isEmpty()) {
+            return tables;
+        }
+
+        for (LineCluster cluster : groupIntoClusters(horizontalLines, verticalLines)) {
+            tables.addAll(
+                    detectWithinCluster(
+                            pageIndex,
+                            textSpans,
+                            cluster.horizontalLines(),
+                            cluster.verticalLines()
+                    )
+            );
+        }
+
+        return tables;
+    }
+
+    private record LineCluster(
+            List<HorizontalLine> horizontalLines,
+            List<VerticalLine> verticalLines
+    ) {
+    }
+
+    private List<LineCluster> groupIntoClusters(
+            List<HorizontalLine> horizontalLines,
+            List<VerticalLine> verticalLines
+    ) {
+        int hCount = horizontalLines.size();
+        int vCount = verticalLines.size();
+        int total = hCount + vCount;
+
+        float[] minX = new float[total];
+        float[] maxX = new float[total];
+        float[] minY = new float[total];
+        float[] maxY = new float[total];
+
+        for (int i = 0; i < hCount; i++) {
+            HorizontalLine line = horizontalLines.get(i);
+            minX[i] = line.xStart();
+            maxX[i] = line.xEnd();
+            minY[i] = line.y();
+            maxY[i] = line.y();
+        }
+
+        for (int i = 0; i < vCount; i++) {
+            VerticalLine line = verticalLines.get(i);
+            int index = hCount + i;
+            minX[index] = line.x();
+            maxX[index] = line.x();
+            minY[index] = line.yStart();
+            maxY[index] = line.yEnd();
+        }
+
+        int[] parent = new int[total];
+        for (int i = 0; i < total; i++) {
+            parent[i] = i;
+        }
+
+        for (int i = 0; i < total; i++) {
+            for (int j = i + 1; j < total; j++) {
+                if (boxesTouch(
+                        minX[i], maxX[i], minY[i], maxY[i],
+                        minX[j], maxX[j], minY[j], maxY[j]
+                )) {
+                    union(parent, i, j);
+                }
+            }
+        }
+
+        Map<Integer, List<HorizontalLine>> horizontalByRoot = new LinkedHashMap<>();
+        Map<Integer, List<VerticalLine>> verticalByRoot = new LinkedHashMap<>();
+
+        for (int i = 0; i < hCount; i++) {
+            horizontalByRoot
+                    .computeIfAbsent(find(parent, i), key -> new ArrayList<>())
+                    .add(horizontalLines.get(i));
+        }
+
+        for (int i = 0; i < vCount; i++) {
+            verticalByRoot
+                    .computeIfAbsent(find(parent, hCount + i), key -> new ArrayList<>())
+                    .add(verticalLines.get(i));
+        }
+
+        Set<Integer> roots = new LinkedHashSet<>();
+        roots.addAll(horizontalByRoot.keySet());
+        roots.addAll(verticalByRoot.keySet());
+
+        List<LineCluster> clusters = new ArrayList<>();
+
+        for (Integer root : roots) {
+            clusters.add(
+                    new LineCluster(
+                            horizontalByRoot.getOrDefault(root, List.of()),
+                            verticalByRoot.getOrDefault(root, List.of())
+                    )
+            );
+        }
+
+        return clusters;
+    }
+
+    private boolean boxesTouch(
+            float minX1, float maxX1, float minY1, float maxY1,
+            float minX2, float maxX2, float minY2, float maxY2
+    ) {
+        boolean overlapsX = minX1 <= maxX2 + LINE_POSITION_TOLERANCE
+                && minX2 <= maxX1 + LINE_POSITION_TOLERANCE;
+
+        boolean overlapsY = minY1 <= maxY2 + LINE_POSITION_TOLERANCE
+                && minY2 <= maxY1 + LINE_POSITION_TOLERANCE;
+
+        return overlapsX && overlapsY;
+    }
+
+    private List<DetectedTable> detectWithinCluster(
             int pageIndex,
             List<TextSpan> textSpans,
             List<HorizontalLine> horizontalLines,
@@ -90,7 +216,9 @@ class BorderedTableDetector {
                             bottom - top,
                             rowBoundaries.size() - 1,
                             columnBoundaries.size() - 1,
-                            cells
+                            cells,
+                            boundaryDeltas(columnBoundaries),
+                            boundaryDeltas(rowBoundaries)
                     )
             );
         }
@@ -153,16 +281,16 @@ class BorderedTableDetector {
 
         for (int[] candidate : sorted) {
 
-            boolean containedInKept = false;
+            boolean overlapsKept = false;
 
             for (int[] existing : kept) {
-                if (contains(existing, candidate)) {
-                    containedInKept = true;
+                if (overlaps(existing, candidate)) {
+                    overlapsKept = true;
                     break;
                 }
             }
 
-            if (!containedInKept) {
+            if (!overlapsKept) {
                 kept.add(candidate);
             }
         }
@@ -170,11 +298,11 @@ class BorderedTableDetector {
         return kept;
     }
 
-    private boolean contains(int[] outer, int[] inner) {
-        return outer[0] <= inner[0]
-                && outer[1] >= inner[1]
-                && outer[2] <= inner[2]
-                && outer[3] >= inner[3];
+    private boolean overlaps(int[] a, int[] b) {
+        boolean rowsOverlap = a[0] < b[1] && b[0] < a[1];
+        boolean columnsOverlap = a[2] < b[3] && b[2] < a[3];
+
+        return rowsOverlap && columnsOverlap;
     }
 
     private List<Float> clusterPositions(List<Float> positions) {
@@ -184,14 +312,40 @@ class BorderedTableDetector {
 
         List<Float> clustered = new ArrayList<>();
 
-        for (Float position : sorted) {
-            if (clustered.isEmpty()
-                    || position - clustered.getLast() > LINE_POSITION_TOLERANCE) {
-                clustered.add(position);
+        int clusterStart = 0;
+
+        for (int i = 1; i <= sorted.size(); i++) {
+
+            boolean endOfCluster = i == sorted.size()
+                    || sorted.get(i) - sorted.get(i - 1) > LINE_POSITION_TOLERANCE;
+
+            if (endOfCluster) {
+                clustered.add(average(sorted.subList(clusterStart, i)));
+                clusterStart = i;
             }
         }
 
         return clustered;
+    }
+
+    private float average(List<Float> values) {
+        float total = 0f;
+
+        for (Float value : values) {
+            total += value;
+        }
+
+        return total / values.size();
+    }
+
+    private List<Float> boundaryDeltas(List<Float> boundaries) {
+        List<Float> deltas = new ArrayList<>(boundaries.size() - 1);
+
+        for (int i = 0; i < boundaries.size() - 1; i++) {
+            deltas.add(boundaries.get(i + 1) - boundaries.get(i));
+        }
+
+        return deltas;
     }
 
     private boolean horizontalEdgeExists(
@@ -393,7 +547,8 @@ class BorderedTableDetector {
                     (maxRow - minRow) + 1,
                     (maxCol - minCol) + 1,
                     buildCellText(groupSpans),
-                    groupSpans
+                    groupSpans,
+                    null
             );
 
             for (int row = minRow; row <= maxRow; row++) {
@@ -407,7 +562,8 @@ class BorderedTableDetector {
                                     0,
                                     0,
                                     "",
-                                    List.of()
+                                    List.of(),
+                                    null
                             );
 
                     cells.get(row).set(col, entry2);

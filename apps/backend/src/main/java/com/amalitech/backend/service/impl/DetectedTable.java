@@ -12,6 +12,8 @@ record DetectedTable(
         float height,
         int rowCount,
         int columnCount,
-        List<List<TableCell>> cells
+        List<List<TableCell>> cells,
+        List<Float> columnWidths,
+        List<Float> rowHeights
 ) {
 }

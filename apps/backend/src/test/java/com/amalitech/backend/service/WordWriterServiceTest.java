@@ -824,10 +824,10 @@ class WordWriterServiceTest {
                 new PageExtraction(0);
 
         TableCell europeAnchor =
-                new TableCell(0, 1, 1, 3, "Europe", List.of());
+                new TableCell(0, 1, 1, 3, "Europe", List.of(), null);
 
         TableCell coveredByEurope =
-                new TableCell(0, 1, 0, 0, "", List.of());
+                new TableCell(0, 1, 0, 0, "", List.of(), null);
 
         List<List<TableCell>> tableRows = List.of(
                 List.of(
@@ -893,10 +893,10 @@ class WordWriterServiceTest {
                 new PageExtraction(0);
 
         TableCell anchor =
-                new TableCell(0, 0, 2, 1, "Spans two rows", List.of());
+                new TableCell(0, 0, 2, 1, "Spans two rows", List.of(), null);
 
         TableCell covered =
-                new TableCell(0, 0, 0, 0, "", List.of());
+                new TableCell(0, 0, 0, 0, "", List.of(), null);
 
         List<List<TableCell>> tableRows = List.of(
                 List.of(anchor, tableCell(0, 1, "Row 1")),
@@ -953,7 +953,7 @@ class WordWriterServiceTest {
     }
 
     private TableCell tableCell(int row, int column, String text) {
-        return new TableCell(row, column, 1, 1, text, List.of());
+        return new TableCell(row, column, 1, 1, text, List.of(), null);
     }
 
     private StructuredBlock listItem(String text) {

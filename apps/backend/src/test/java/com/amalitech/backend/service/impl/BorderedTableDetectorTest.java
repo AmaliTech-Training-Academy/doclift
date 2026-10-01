@@ -263,6 +263,93 @@ class BorderedTableDetectorTest {
         assertThat(tables).isEmpty();
     }
 
+    // =========================================================
+    // TWO INDEPENDENT BORDERED TABLES ON THE SAME PAGE MUST NOT
+    // BLEED COLUMN/ROW BOUNDARIES INTO EACH OTHER'S GRID
+    // =========================================================
+
+    @Test
+    void shouldDetectTwoSeparateTablesOnSamePageWithoutCrossContamination() {
+
+        // Mirrors the geometry of a real two-table PDF page: table A's
+        // column boundaries (108.5, 163.5, 283.5, 433.5, 503.5) and table
+        // B's (96, 226, 356, 436, 516) are numerically interleaved, and
+        // 433.5 sits within LINE_POSITION_TOLERANCE of table B's 436 - close
+        // enough to fuse if positions were clustered globally across the
+        // whole page instead of per physical table.
+        List<HorizontalLine> horizontalLines = List.of(
+                new HorizontalLine(140f, 108.5f, 503.5f),
+                new HorizontalLine(168f, 108.5f, 503.5f),
+                new HorizontalLine(196f, 108.5f, 503.5f),
+                new HorizontalLine(224f, 108.5f, 503.5f),
+                new HorizontalLine(252f, 108.5f, 503.5f),
+                new HorizontalLine(280f, 108.5f, 503.5f),
+
+                new HorizontalLine(341f, 96f, 516f),
+                new HorizontalLine(369f, 96f, 516f),
+                new HorizontalLine(397f, 96f, 516f),
+                new HorizontalLine(425f, 96f, 516f),
+                new HorizontalLine(453f, 96f, 516f),
+                new HorizontalLine(481f, 96f, 516f)
+        );
+
+        List<VerticalLine> verticalLines = List.of(
+                new VerticalLine(108.5f, 140f, 280f),
+                new VerticalLine(163.5f, 140f, 280f),
+                new VerticalLine(283.5f, 140f, 280f),
+                new VerticalLine(433.5f, 140f, 280f),
+                new VerticalLine(503.5f, 140f, 280f),
+
+                new VerticalLine(96f, 341f, 481f),
+                new VerticalLine(226f, 341f, 481f),
+                new VerticalLine(356f, 341f, 481f),
+                new VerticalLine(436f, 341f, 481f),
+                new VerticalLine(516f, 341f, 481f)
+        );
+
+        List<TextSpan> textSpans = List.of(
+                span("ID", 110, 145),
+                span("Name", 165, 145),
+                span("Course", 285, 145),
+                span("Score", 435, 145),
+
+                span("Product", 98, 346),
+                span("Category", 228, 346),
+                span("Quantity", 358, 346),
+                span("Price", 438, 346)
+        );
+
+        List<DetectedTable> tables =
+                detector.detect(0, textSpans, horizontalLines, verticalLines);
+
+        assertThat(tables).hasSize(2);
+
+        DetectedTable tableA = tables.stream()
+                .filter(t -> t.y() < 300f)
+                .findFirst()
+                .orElseThrow();
+
+        DetectedTable tableB = tables.stream()
+                .filter(t -> t.y() >= 300f)
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(tableA.columnCount()).isEqualTo(4);
+        assertThat(tableB.columnCount()).isEqualTo(4);
+
+        for (List<TableCell> row : tableA.cells()) {
+            for (TableCell cell : row) {
+                assertThat(cell.columnSpan()).isIn(0, 1);
+            }
+        }
+
+        for (List<TableCell> row : tableB.cells()) {
+            for (TableCell cell : row) {
+                assertThat(cell.columnSpan()).isIn(0, 1);
+            }
+        }
+    }
+
     @Test
     void shouldReturnNoTablesWhenNoLinesArePresent() {
 
@@ -270,6 +357,64 @@ class BorderedTableDetectorTest {
                 detector.detect(0, List.of(), List.of(), List.of());
 
         assertThat(tables).isEmpty();
+    }
+
+    // =========================================================
+    // A SINGLE RULED BOUNDARY DRAWN AS A SHORT CHAIN OF NEARLY-
+    // TOUCHING LINES (e.g. a cell's border box layered under an
+    // inset background-shading box - see TableLineStreamEngine)
+    // MUST NOT BE READ AS TWO SEPARATE GRID LINES
+    // =========================================================
+
+    @Test
+    void shouldMergeAChainOfNearDuplicateRowBoundariesIntoOneRow() {
+
+        // The three lines at 50.0/51.75/53.5 all represent the SAME
+        // visual divider between row 1 and row 2 - each adjacent pair is
+        // only 1.75pt apart, but the chain spans 3.5pt end to end, more
+        // than LINE_POSITION_TOLERANCE. Comparing every candidate
+        // against a fixed cluster anchor (instead of its neighbor) used
+        // to let that drift split one boundary into two, producing a
+        // phantom extra row.
+        List<HorizontalLine> horizontalLines = List.of(
+                new HorizontalLine(0f, 0f, 200f),
+                new HorizontalLine(50.0f, 0f, 200f),
+                new HorizontalLine(51.75f, 0f, 200f),
+                new HorizontalLine(53.5f, 0f, 200f),
+                new HorizontalLine(100f, 0f, 200f)
+        );
+
+        List<VerticalLine> verticalLines = List.of(
+                new VerticalLine(0f, 0f, 100f),
+                new VerticalLine(100f, 0f, 100f),
+                new VerticalLine(200f, 0f, 100f)
+        );
+
+        List<TextSpan> textSpans = List.of(
+                span("R1C1", 10, 10),
+                span("R1C2", 110, 10),
+                span("R2C1", 10, 60),
+                span("R2C2", 110, 60)
+        );
+
+        List<DetectedTable> tables =
+                detector.detect(0, textSpans, horizontalLines, verticalLines);
+
+        assertThat(tables).hasSize(1);
+
+        DetectedTable table = tables.getFirst();
+
+        assertThat(table.rowCount())
+                .as("the near-duplicate chain should collapse to one row boundary, not two rows")
+                .isEqualTo(2);
+
+        assertThat(table.columnCount()).isEqualTo(2);
+        assertThat(table.cells()).hasSize(2);
+
+        assertThat(table.cells().get(0).get(0).text()).isEqualTo("R1C1");
+        assertThat(table.cells().get(0).get(1).text()).isEqualTo("R1C2");
+        assertThat(table.cells().get(1).get(0).text()).isEqualTo("R2C1");
+        assertThat(table.cells().get(1).get(1).text()).isEqualTo("R2C2");
     }
 
     private TextSpan span(String text, float x, float y) {
