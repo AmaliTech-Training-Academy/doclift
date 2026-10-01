@@ -14,5 +14,7 @@ public interface JobService {
 
     Job markFailed(UUID jobId);
 
+    Job getJob(UUID jobId);
+
     Job getJobWithFile(UUID jobId);
 }

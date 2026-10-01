@@ -20,6 +20,7 @@ class UploadServiceTest {
     private PdfValidationService pdfValidationService;
     private FileStorageService fileStorageService;
     private UploadServiceImpl uploadService;
+    private JobDispatcher jobDispatcher;
 
     private final long maxSizeBytes = 10 * 1024 * 1024;
 
@@ -33,11 +34,13 @@ class UploadServiceTest {
         jobService = mock(JobService.class);
         pdfValidationService = mock(PdfValidationService.class);
         fileStorageService = mock(FileStorageService.class);
+        jobDispatcher = mock(JobDispatcher.class);
 
         uploadService = new UploadServiceImpl(
                 jobService,
                 pdfValidationService,
                 fileStorageService,
+                jobDispatcher,
                 maxSizeBytes
         );
     }
@@ -63,7 +66,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -88,7 +92,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -115,7 +120,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -140,7 +146,8 @@ class UploadServiceTest {
         verifyNoInteractions(
                 jobService,
                 pdfValidationService,
-                fileStorageService
+                fileStorageService,
+                jobDispatcher
         );
     }
 
@@ -186,6 +193,9 @@ class UploadServiceTest {
 
         verify(fileStorageService)
                 .moveToJobDirectory(tempPath, JOB_ID);
+
+        verify(jobDispatcher)
+                .dispatch(JOB_ID);
     }
 
     @Test
@@ -228,5 +238,8 @@ class UploadServiceTest {
 
         verify(fileStorageService)
                 .deleteIfExists(tempPath);
+
+        verify(jobDispatcher, never())
+                .dispatch(any());
     }
 }

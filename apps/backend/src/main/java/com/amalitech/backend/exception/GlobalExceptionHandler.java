@@ -108,4 +108,28 @@ public class GlobalExceptionHandler {
                         "An unexpected server error occurred."
                 ));
     }
+
+    @ExceptionHandler(JobNotReadyException.class)
+    public ResponseEntity<ApiErrorResponse> handleJobNotReady(
+            JobNotReadyException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ApiErrorResponse(
+                        "JOB_NOT_READY",
+                        ex.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(JobFailedException.class)
+    public ResponseEntity<ApiErrorResponse> handleJobFailed(
+            JobFailedException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ApiErrorResponse(
+                        "JOB_FAILED",
+                        ex.getMessage()
+                ));
+    }
 }

@@ -63,6 +63,59 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
+    public Path getSourcePdfPath(UUID jobId) {
+
+        Path sourcePath =
+                uploadRoot
+                        .resolve(jobId.toString())
+                        .resolve("source.pdf");
+
+        if (!Files.exists(sourcePath)) {
+            throw new IllegalStateException(
+                    "Source PDF not found for job " + jobId
+            );
+        }
+
+        return sourcePath;
+    }
+
+    @Override
+    public Path storeOutputDocx(
+            UUID jobId,
+            byte[] content
+    ) {
+
+        Path jobDirectory =
+                uploadRoot.resolve(
+                        jobId.toString()
+                );
+
+        Path outputPath =
+                jobDirectory.resolve(
+                        "output.docx"
+                );
+
+        try {
+            Files.createDirectories(
+                    jobDirectory
+            );
+
+            Files.write(
+                    outputPath,
+                    content
+            );
+
+            return outputPath;
+
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to store generated Word document.",
+                    e
+            );
+        }
+    }
+
+    @Override
     public Path moveToJobDirectory(Path temporaryFile, UUID jobId) {
         Path jobDirectory = uploadRoot.resolve(jobId.toString());
         Path targetPath = jobDirectory.resolve("source.pdf");

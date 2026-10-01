@@ -62,6 +62,13 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional(readOnly = true)
+    public Job getJob(UUID jobId) {
+        return getJobOrThrow(jobId);
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
     public Job getJobWithFile(UUID jobId) {
         return jobRepository.findByIdWithFile(jobId)
                 .orElseThrow(JobNotFoundException::new);
