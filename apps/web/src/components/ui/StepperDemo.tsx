@@ -96,12 +96,12 @@ export function useSimulatedPipeline(stepCount: number) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [percent, setPercent] = useState(0);
   const done = activeIndex >= stepCount;
-  const [cancelled, setCancelled] = useState(false);
+  const [isFailed, setIsFailed] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (cancelled) return;
+    if (isFailed) return;
 
     if (activeIndex >= stepCount) {
       return;
@@ -128,28 +128,29 @@ export function useSimulatedPipeline(stepCount: number) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
     };
-  }, [activeIndex, stepCount, cancelled]);
+  }, [activeIndex, stepCount, isFailed]);
 
-  const cancel = () => {
-    if (done || cancelled) return;
+  const fail = () => {
+    if (done || isFailed) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
-    setCancelled(true);
+    setIsFailed(true);
   };
 
   const reset = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
-    setCancelled(false);
+    setIsFailed(false);
     setPercent(0);
     setActiveIndex(0);
   };
 
-  return { activeIndex, percent, done, cancelled, cancel, reset };
+  return { activeIndex, percent, done, isFailed, fail, failed: fail, reset };
 }
 
 export interface StepperDemoHandle {
-  cancel: () => void;
+  fail: () => void;
+  failed: () => void;
   complete: () => void;
   reset: () => void;
 }
@@ -160,7 +161,6 @@ export interface PipelineProgress {
   currentStepPercent: number;
   overallPercent: number;
   done: boolean;
-  cancelled?: boolean;
   failed?: boolean;
   error?: string;
 }
@@ -173,18 +173,25 @@ export const StepperDemo = forwardRef<
   StepperDemoHandle,
   StepperDemoProps
 >(function StepperDemo({ onProgress }, ref) {
-  const { activeIndex, percent, done, cancelled, cancel, reset } =
+  const { activeIndex, percent, done, isFailed, fail, reset } =
     useSimulatedPipeline(PIPELINE.length);
 
   useImperativeHandle(
     ref,
-    () => ({ cancel, complete: () => {}, reset }),
-    [cancel, reset],
+    () => ({
+      fail,
+      failed: fail,
+      complete: () => {},
+      reset,
+    }),
+    [fail, reset],
   );
 
   useEffect(() => {
     if (done) {
-      toast.success("Conversion complete!");
+      toast.success("Conversion complete!", {
+        description: "Your file is available for download for 1 hour."
+      });
     }
   }, [done]);
 
@@ -208,9 +215,9 @@ export const StepperDemo = forwardRef<
       currentStepPercent: percent,
       overallPercent,
       done,
-      cancelled,
+      failed: isFailed,
     });
-  }, [activeIndex, percent, done, cancelled]);
+  }, [activeIndex, percent, done, isFailed]);
 
   const steps: Step[] = PIPELINE.map((template, i) => {
     if (i < activeIndex) {
@@ -227,7 +234,7 @@ export const StepperDemo = forwardRef<
       return {
         title: template.title,
         description: template.description,
-        status: cancelled ? "cancelled" : "loading",
+        status: isFailed ? "error" : "loading",
         runningNote: template.runningNote,
         progress: {
           label: template.progressLabel ?? template.title,
@@ -243,7 +250,7 @@ export const StepperDemo = forwardRef<
       description: template.description,
       status: "pending",
       icon: template.icon,
-      meta: cancelled ? "Cancelled" : "Queued",
+      meta: isFailed ? "Failed" : "Queued",
     };
   });
 

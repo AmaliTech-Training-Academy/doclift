@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, Re
 import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession, getConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
+import { useJobPolling } from "@/lib/useJobPolling";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
 import { toast } from "sonner";
 
@@ -47,6 +48,22 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const isConverting = Boolean(
         session && (session.status === "processing" || session.status === "queued")
     );
+
+    useJobPolling({
+        jobId: session?.jobId,
+        enabled: isConverting,
+        intervalMs: 500,
+        onComplete: () => {
+            updateStatus("done");
+            setActiveView("result");
+        },
+        onFailed: (err) => {
+            updateStatus("failed");
+            if (typeof toast?.error === "function") {
+                toast.error(err?.message || "Conversion failed");
+            }
+        },
+    });
 
     useEffect(() => {
         let isMounted = true;

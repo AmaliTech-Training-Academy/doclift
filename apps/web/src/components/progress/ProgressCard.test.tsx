@@ -17,7 +17,12 @@ vi.mock("../ui/Stepper", () => ({
     ref,
   ) {
     stepperMocks.onProgress = props.onProgress;
-    useImperativeHandle(ref, () => ({ cancel: stepperMocks.cancel, complete: () => {} }));
+    useImperativeHandle(ref, () => ({
+      cancel: stepperMocks.cancel,
+      fail: stepperMocks.cancel,
+      failed: stepperMocks.cancel,
+      complete: () => {},
+    }));
     return null;
   }),
   VerticalStepperDemo: forwardRef(function MockStepper(
@@ -25,7 +30,12 @@ vi.mock("../ui/Stepper", () => ({
     ref,
   ) {
     stepperMocks.onProgress = props.onProgress;
-    useImperativeHandle(ref, () => ({ cancel: stepperMocks.cancel, complete: () => {} }));
+    useImperativeHandle(ref, () => ({
+      cancel: stepperMocks.cancel,
+      fail: stepperMocks.cancel,
+      failed: stepperMocks.cancel,
+      complete: () => {},
+    }));
     return null;
   }),
 }));
@@ -53,7 +63,6 @@ function emitProgress(overrides: Partial<PipelineProgress> = {}) {
     currentStepPercent: 0,
     overallPercent: 0,
     done: false,
-    cancelled: false,
     ...overrides,
   };
   act(() => stepperMocks.onProgress?.(state));
@@ -109,7 +118,9 @@ describe("ProgressCard", () => {
     await user.click(cancelButton);
 
     expect(stepperMocks.cancel).toHaveBeenCalledTimes(1);
-    expect(toast.error).toHaveBeenCalledWith("Conversion failed");
+    expect(toast.error).toHaveBeenCalledWith("Conversion failed", {
+      description: "DocLift could not convert your document.",
+    });
     expect(
       screen.getByRole("button", { name: "Simulated failure" }),
     ).toBeDisabled();
