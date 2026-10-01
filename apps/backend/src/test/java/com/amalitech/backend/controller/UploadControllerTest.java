@@ -57,7 +57,7 @@ class UploadControllerTest {
                         multipart("/api/v1/uploads")
                                 .file(file)
                 )
-                .andExpect(status().isCreated())
+                .andExpect(status().isAccepted())
                 .andExpect(
                         content()
                                 .contentType("application/json")

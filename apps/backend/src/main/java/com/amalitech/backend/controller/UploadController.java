@@ -3,13 +3,11 @@ package com.amalitech.backend.controller;
 import com.amalitech.backend.dto.response.UploadResponse;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.service.UploadService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
@@ -35,7 +33,7 @@ public class UploadController {
         Job job = uploadService.handleUpload(file);
 
         return ResponseEntity
-                .status(HttpStatus.CREATED)
+                .accepted()
                 .body(new UploadResponse(job.getId()));
     }
 }
