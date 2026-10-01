@@ -28,7 +28,7 @@ public class UploadServiceImpl implements UploadService {
             PdfValidationService pdfValidationService,
             FileStorageService fileStorageService,
             JobDispatcher jobDispatcher,
-            @Value("${app.upload.max-size-bytes:15*1048576}")
+            @Value("${app.upload.max-size-bytes:15728640}")
             long maxSizeBytes
     ) {
         this.jobService = jobService;
