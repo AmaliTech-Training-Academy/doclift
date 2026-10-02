@@ -32,7 +32,10 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class PdfExtractionServiceImpl implements PdfExtractionService {
@@ -45,8 +48,15 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
     private static final float TABLE_MIN_ROW_TOLERANCE = 2f;
     private static final int MIN_TWO_COLUMN_TABLE_ROWS = 3;
     private static final float COLUMN_ALIGNMENT_TOLERANCE = 20f;
+    private static final float TABLE_BLOCK_MERGE_MARGIN = 4f;
+    private static final float MIN_COLUMN_SPLIT_GAP = 4f;
+    private static final float COLUMN_SPLIT_SPACE_WIDTH_FACTOR = 2f;
+    private static final int MIN_FOOTNOTE_ENTRIES = 2;
+    private static final Pattern PURE_DIGITS = Pattern.compile("\\d+");
+    private static final float FOOTNOTE_MARKER_MAX_SIZE_RATIO = 0.85f;
 
     private final StructureRecoveryService structureRecoveryService;
+    private final BorderedTableDetector borderedTableDetector = new BorderedTableDetector();
 
     public PdfExtractionServiceImpl(
             StructureRecoveryService structureRecoveryService
@@ -74,6 +84,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
             PDPage page = document.getPage(pageIndex);
             PageExtraction pageExtraction = new PageExtraction(pageIndex);
+            pageExtraction.setPageWidth(page.getCropBox().getWidth());
+            pageExtraction.setPageHeight(page.getCropBox().getHeight());
 
             List<TextSpan> textSpans = extractTextSpans(pageIndex, page);
             pageExtraction.getTextSpans().addAll(textSpans);
@@ -83,10 +95,383 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
             structureRecoveryService.recoverStructure(pageExtraction);
 
+            recoverBorderedTables(pageIndex, page, textSpans, pageExtraction);
+
+            recoverFootnotes(pageIndex, pageExtraction, result);
+
             result.getPages().add(pageExtraction);
         }
 
         return result;
+    }
+
+    private void recoverBorderedTables(
+            int pageIndex,
+            PDPage page,
+            List<TextSpan> textSpans,
+            PageExtraction pageExtraction
+    ) throws IOException {
+
+        TableLineStreamEngine lineEngine = new TableLineStreamEngine(page);
+        lineEngine.processPage(page);
+
+        List<DetectedTable> tables = borderedTableDetector.detect(
+                pageIndex,
+                textSpans,
+                lineEngine.getHorizontalLines(),
+                lineEngine.getVerticalLines()
+        );
+
+        for (DetectedTable table : tables) {
+
+            pageExtraction.getCandidateTableRegions().add(
+                    new TableRegion(
+                            table.pageIndex(),
+                            table.x(),
+                            table.y(),
+                            table.width(),
+                            table.height(),
+                            table.rowCount(),
+                            table.columnCount()
+                    )
+            );
+
+            mergeDetectedTable(pageExtraction, table);
+        }
+    }
+
+    /**
+     * Recognizes a trailing block made entirely of repeated
+     * "marker + note text" entries - e.g. a Google Docs footnote area
+     * sitting apart from the main flow near a page's bottom margin - and
+     * converts it from a floating paragraph into real footnote content:
+     * the block is removed from the page's flow, its entries become
+     * {@link Footnote}s on the result, and every other block on the page
+     * whose leading span is one of those markers has that marker
+     * stripped and is flagged (via {@link StructuredBlock#setFootnoteKey}
+     * or {@link TableCell#footnoteKey()}) so the Word writer can render a
+     * proper footnote reference there instead of leaving the bare digit
+     * sitting in the running text.
+     *
+     * <p>Deliberately conservative: the trailing block must consist of
+     * nothing but marker/text pairs (see {@link #parseFootnoteEntries}),
+     * which ordinary prose essentially never does, so this does not fire
+     * on a page's last paragraph just because it happens to end in a
+     * number.
+     */
+    private void recoverFootnotes(
+            int pageIndex,
+            PageExtraction pageExtraction,
+            PdfExtractionResult result
+    ) {
+        List<StructuredBlock> blocks = pageExtraction.getStructuredBlocks();
+
+        if (blocks.isEmpty()) {
+            return;
+        }
+
+        StructuredBlock last = blocks.get(blocks.size() - 1);
+
+        if (last.getType() != BlockType.PARAGRAPH) {
+            return;
+        }
+
+        List<FootnoteEntry> entries = parseFootnoteEntries(last.getSpans());
+
+        if (entries.size() < MIN_FOOTNOTE_ENTRIES) {
+            return;
+        }
+
+        blocks.remove(blocks.size() - 1);
+
+        Map<String, String> keysByMarker = new LinkedHashMap<>();
+
+        for (FootnoteEntry entry : entries) {
+            String key = pageIndex + ":" + entry.marker();
+            keysByMarker.put(entry.marker(), key);
+            result.getFootnotes().add(new Footnote(key, entry.text()));
+        }
+
+        float maxMarkerFontSize =
+                determineBodyFontSize(pageExtraction.getTextSpans())
+                        * FOOTNOTE_MARKER_MAX_SIZE_RATIO;
+
+        for (StructuredBlock block : blocks) {
+            applyFootnoteReference(block, keysByMarker, maxMarkerFontSize);
+        }
+    }
+
+    /**
+     * A genuine footnote reference marker is rendered in a visibly
+     * smaller (often superscript) font than the body text it's attached
+     * to - see {@link #parseFootnoteEntries}. Matching a candidate span
+     * against {@code keysByMarker} by text alone would also catch any
+     * ordinary full-size digit that happens to equal a marker, such as a
+     * table's numeric ID/rank column or a numbered heading whose number
+     * landed in its own span; requiring the candidate to actually be
+     * smaller than the page's body font closes that off.
+     */
+    private float determineBodyFontSize(List<TextSpan> spans) {
+        List<Float> sizes = spans.stream()
+                .map(TextSpan::getFontSize)
+                .filter(size -> size > 0f)
+                .sorted()
+                .toList();
+
+        if (sizes.isEmpty()) {
+            return 0f;
+        }
+
+        return sizes.get((sizes.size() - 1) / 2);
+    }
+
+    private record FootnoteEntry(String marker, String text) {
+    }
+
+    /**
+     * A footnote area is a sequence of spans that alternates, with no
+     * leftover content, between a standalone all-digit marker span and
+     * the note text following it - the shape produced when a marker and
+     * its text are rendered in different runs (typically a smaller,
+     * raised marker font) and {@link StructureRecoveryServiceImpl} has
+     * folded the resulting lines into one trailing paragraph. Returns an
+     * empty list the moment the shape breaks (e.g. a block that is just
+     * ordinary prose ending in a number), so callers can treat an empty
+     * result as "not a footnote area" without a separate check.
+     */
+    private List<FootnoteEntry> parseFootnoteEntries(List<TextSpan> spans) {
+        if (spans == null || spans.size() < MIN_FOOTNOTE_ENTRIES * 2) {
+            return List.of();
+        }
+
+        List<FootnoteEntry> entries = new ArrayList<>();
+        int i = 0;
+
+        while (i < spans.size()) {
+
+            String marker = strippedText(spans.get(i));
+
+            if (!PURE_DIGITS.matcher(marker).matches()) {
+                return List.of();
+            }
+
+            i++;
+
+            StringBuilder body = new StringBuilder();
+
+            while (i < spans.size()
+                    && !PURE_DIGITS.matcher(strippedText(spans.get(i))).matches()) {
+
+                if (!body.isEmpty()) {
+                    body.append(' ');
+                }
+
+                body.append(strippedText(spans.get(i)));
+                i++;
+            }
+
+            if (body.isEmpty()) {
+                return List.of();
+            }
+
+            entries.add(new FootnoteEntry(marker, body.toString()));
+        }
+
+        return entries;
+    }
+
+    private String strippedText(TextSpan span) {
+        return span.getText() == null ? "" : span.getText().strip();
+    }
+
+    private void applyFootnoteReference(
+            StructuredBlock block,
+            Map<String, String> keysByMarker,
+            float maxMarkerFontSize
+    ) {
+        if (block.getType() == BlockType.TABLE) {
+            applyFootnoteReferenceToTable(block, keysByMarker, maxMarkerFontSize);
+            return;
+        }
+
+        List<TextSpan> spans = block.getSpans();
+
+        if (spans == null || spans.size() < 2) {
+            return;
+        }
+
+        TextSpan candidate = spans.get(0);
+
+        if (!looksLikeFootnoteMarker(candidate, maxMarkerFontSize)) {
+            return;
+        }
+
+        String key = keysByMarker.get(strippedText(candidate));
+
+        if (key == null) {
+            return;
+        }
+
+        block.setFootnoteKey(key);
+        spans.remove(0);
+    }
+
+    private boolean looksLikeFootnoteMarker(
+            TextSpan span,
+            float maxMarkerFontSize
+    ) {
+        return span.getFontSize() > 0f
+                && span.getFontSize() < maxMarkerFontSize;
+    }
+
+    private void applyFootnoteReferenceToTable(
+            StructuredBlock block,
+            Map<String, String> keysByMarker,
+            float maxMarkerFontSize
+    ) {
+        List<List<TableCell>> rows = block.getTableRows();
+
+        if (rows == null) {
+            return;
+        }
+
+        for (List<TableCell> row : rows) {
+            for (int column = 0; column < row.size(); column++) {
+
+                TableCell cell = row.get(column);
+
+                if (cell.rowSpan() < 1
+                        || cell.spans() == null
+                        || cell.spans().isEmpty()
+                        || !looksLikeFootnoteMarker(cell.spans().getFirst(), maxMarkerFontSize)) {
+                    continue;
+                }
+
+                String marker = strippedText(cell.spans().getFirst());
+                String key = keysByMarker.get(marker);
+
+                if (key == null) {
+                    continue;
+                }
+
+                List<TextSpan> remainingSpans =
+                        cell.spans().subList(1, cell.spans().size());
+
+                String remainingText = cell.text().startsWith(marker)
+                        ? cell.text().substring(marker.length()).stripLeading()
+                        : cell.text();
+
+                row.set(
+                        column,
+                        new TableCell(
+                                cell.row(),
+                                cell.column(),
+                                cell.rowSpan(),
+                                cell.columnSpan(),
+                                remainingText,
+                                remainingSpans,
+                                key
+                        )
+                );
+            }
+        }
+    }
+
+    private void mergeDetectedTable(
+            PageExtraction pageExtraction,
+            DetectedTable table
+    ) {
+        List<StructuredBlock> blocks = pageExtraction.getStructuredBlocks();
+        List<StructuredBlock> remaining = new ArrayList<>();
+
+        int insertIndex = -1;
+
+        for (StructuredBlock block : blocks) {
+
+            if (blockOverlapsTable(block, table)) {
+                if (insertIndex == -1) {
+                    insertIndex = remaining.size();
+                }
+                continue;
+            }
+
+            remaining.add(block);
+        }
+
+        if (insertIndex == -1) {
+            insertIndex = findInsertionIndexByPosition(remaining, table);
+        }
+
+        remaining.add(
+                Math.min(insertIndex, remaining.size()),
+                toTableBlock(table)
+        );
+
+        blocks.clear();
+        blocks.addAll(remaining);
+    }
+
+    private int findInsertionIndexByPosition(
+            List<StructuredBlock> remaining,
+            DetectedTable table
+    ) {
+        for (int i = 0; i < remaining.size(); i++) {
+            if (remaining.get(i).getY() > table.y()) {
+                return i;
+            }
+        }
+
+        return remaining.size();
+    }
+
+    private boolean blockOverlapsTable(
+            StructuredBlock block,
+            DetectedTable table
+    ) {
+        float centerX = block.getX() + (block.getWidth() / 2f);
+        float centerY = block.getY() + (block.getHeight() / 2f);
+
+        return centerX >= table.x() - TABLE_BLOCK_MERGE_MARGIN
+                && centerX <= table.x() + table.width() + TABLE_BLOCK_MERGE_MARGIN
+                && centerY >= table.y() - TABLE_BLOCK_MERGE_MARGIN
+                && centerY <= table.y() + table.height() + TABLE_BLOCK_MERGE_MARGIN;
+    }
+
+    private StructuredBlock toTableBlock(DetectedTable table) {
+        StringBuilder text = new StringBuilder();
+
+        for (List<TableCell> row : table.cells()) {
+
+            if (!text.isEmpty()) {
+                text.append('\n');
+            }
+
+            for (int column = 0; column < row.size(); column++) {
+
+                if (column > 0) {
+                    text.append(" | ");
+                }
+
+                text.append(row.get(column).text());
+            }
+        }
+
+        StructuredBlock block = new StructuredBlock(
+                table.pageIndex(),
+                BlockType.TABLE,
+                text.toString(),
+                table.x(),
+                table.y(),
+                table.width(),
+                table.height(),
+                List.of(),
+                table.cells()
+        );
+
+        block.setColumnWidths(table.columnWidths());
+        block.setRowHeights(table.rowHeights());
+
+        return block;
     }
 
     private List<DetectionCell> reconstructDetectionCells(
@@ -582,6 +967,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     if (hasSameFormatting(
                             previous,
                             position
+                    ) && !isColumnSizedGap(
+                            previous,
+                            position
                     )) {
 
                         currentRun.add(position);
@@ -743,6 +1131,28 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     image.getSuffix()
             ));
         }
+    }
+
+    private boolean isColumnSizedGap(
+            TextPosition previous,
+            TextPosition current
+    ) {
+        float gap =
+                current.getXDirAdj()
+                        - (previous.getXDirAdj()
+                        + previous.getWidthDirAdj());
+
+        float spaceWidth = Math.max(
+                previous.getWidthOfSpace(),
+                current.getWidthOfSpace()
+        );
+
+        float threshold = Math.max(
+                MIN_COLUMN_SPLIT_GAP,
+                spaceWidth * COLUMN_SPLIT_SPACE_WIDTH_FACTOR
+        );
+
+        return gap > threshold;
     }
 
     private boolean needsWordSeparator(

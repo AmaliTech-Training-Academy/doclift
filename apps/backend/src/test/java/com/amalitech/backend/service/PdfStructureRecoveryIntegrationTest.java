@@ -188,13 +188,20 @@ class PdfStructureRecoveryIntegrationTest {
                             .isEqualTo(4);
                 });
 
+        // Each table row is split back into one block per cell (not
+        // flattened into one string) so a borderless table's columns
+        // can still be positioned independently later.
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsSubsequence(
-                        "Item Price",
-                        "Laptop 1200",
-                        "Keyboard 100",
-                        "Mouse 50"
+                        "Item",
+                        "Price",
+                        "Laptop",
+                        "1200",
+                        "Keyboard",
+                        "100",
+                        "Mouse",
+                        "50"
                 );
     }
 
@@ -385,23 +392,16 @@ class PdfStructureRecoveryIntegrationTest {
             // PARAGRAPH CLASSIFICATION
             // ---------------------------------------------------------
 
+            // Each table row is split back into one block per cell (not
+            // flattened into one string) so a borderless table's columns
+            // can still be positioned independently later.
             assertThat(blocks)
-                    .anySatisfy(block -> {
-                        assertThat(block.getType())
-                                .isEqualTo(BlockType.PARAGRAPH);
-
-                        assertThat(block.getText())
-                                .isEqualTo("1 Foo 2");
-                    });
+                    .extracting(StructuredBlock::getText)
+                    .containsSubsequence("1", "Foo", "2");
 
             assertThat(blocks)
-                    .anySatisfy(block -> {
-                        assertThat(block.getType())
-                                .isEqualTo(BlockType.PARAGRAPH);
-
-                        assertThat(block.getText())
-                                .isEqualTo("2 Bar 2");
-                    });
+                    .extracting(StructuredBlock::getText)
+                    .containsSubsequence("2", "Bar", "2");
 
             // ---------------------------------------------------------
             // HEADING SHOULD APPEAR BEFORE BODY CONTENT
@@ -421,7 +421,7 @@ class PdfStructureRecoveryIntegrationTest {
 
                 if (firstParagraphIndex == -1
                         && block.getType() == BlockType.PARAGRAPH
-                        && block.getText().equals("1 Foo 2")) {
+                        && block.getText().equals("1")) {
                     firstParagraphIndex = i;
                 }
             }

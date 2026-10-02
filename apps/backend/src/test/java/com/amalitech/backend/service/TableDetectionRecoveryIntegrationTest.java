@@ -1,0 +1,262 @@
+package com.amalitech.backend.service;
+
+import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
+import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
+import com.amalitech.backend.service.impl.WordWriterServiceImpl;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * End-to-end coverage for DOC-2-T8: a bordered table sample should be
+ * detected, recovered as a real cell grid, and written out as an
+ * editable Word table with cell text mapped to the correct positions.
+ */
+class TableDetectionRecoveryIntegrationTest {
+
+    private PdfExtractionService pdfExtractionService;
+    private WordWriterService wordWriterService;
+
+    @BeforeEach
+    void setUp() {
+        pdfExtractionService = new PdfExtractionServiceImpl(
+                new StructureRecoveryServiceImpl()
+        );
+
+        wordWriterService = new WordWriterServiceImpl();
+    }
+
+    @Test
+    void shouldConvertThreeByThreeBorderedTableSampleToRealWordTable()
+            throws Exception {
+
+        String[][] cellText = {
+                {"Name", "Age", "City"},
+                {"Alice", "30", "Accra"},
+                {"Bob", "25", "Kumasi"}
+        };
+
+        byte[] pdfBytes = buildBorderedTablePdf(cellText);
+
+        PdfExtractionResult extractionResult =
+                pdfExtractionService.extract(pdfBytes);
+
+        assertThat(extractionResult.getPages()).hasSize(1);
+
+        PageExtraction page =
+                extractionResult.getPages().getFirst();
+
+        StructuredBlock tableBlock = page.getStructuredBlocks().stream()
+                .filter(block -> block.getType() == BlockType.TABLE)
+                .findFirst()
+                .orElse(null);
+
+        assertThat(tableBlock)
+                .as("A TABLE block should be recovered for the bordered grid")
+                .isNotNull();
+
+        assertThat(tableBlock.getTableRows())
+                .as("row count")
+                .hasSize(3);
+
+        for (int row = 0; row < 3; row++) {
+
+            assertThat(tableBlock.getTableRows().get(row))
+                    .as("column count for row " + row)
+                    .hasSize(3);
+
+            for (int col = 0; col < 3; col++) {
+                assertThat(
+                        tableBlock.getTableRows().get(row).get(col).text()
+                ).isEqualTo(cellText[row][col]);
+            }
+        }
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(new ByteArrayInputStream(docx))
+        ) {
+
+            assertThat(document.getTables())
+                    .as("a real editable Word table should exist")
+                    .hasSize(1);
+
+            XWPFTable wordTable =
+                    document.getTables().getFirst();
+
+            assertThat(wordTable.getRows()).hasSize(3);
+
+            for (int row = 0; row < 3; row++) {
+
+                assertThat(wordTable.getRow(row).getTableCells())
+                        .hasSize(3);
+
+                for (int col = 0; col < 3; col++) {
+                    assertThat(wordTable.getRow(row).getCell(col).getText())
+                            .isEqualTo(cellText[row][col]);
+                }
+            }
+        }
+    }
+
+    // =========================================================
+    // A BORDERED TABLE WITH NO TEXT INSIDE IT (every cell blank)
+    // HAS NOTHING TO ANCHOR ON, SO IT MUST STILL BE PLACED BY ITS
+    // OWN PAGE POSITION RATHER THAN DEFAULTING TO THE END OF THE
+    // PAGE'S BLOCK LIST
+    // =========================================================
+
+    @Test
+    void shouldPositionAnEmptyBorderedTableByItsPageLocationNotAtTheEndOfThePage()
+            throws Exception {
+
+        byte[] pdfBytes = buildPdfWithBlankTableBetweenParagraphs();
+
+        PdfExtractionResult extractionResult =
+                pdfExtractionService.extract(pdfBytes);
+
+        PageExtraction page = extractionResult.getPages().getFirst();
+
+        java.util.List<StructuredBlock> blocks = page.getStructuredBlocks();
+
+        int aboveIndex = indexOfBlockContaining(blocks, "Above the table");
+        int tableIndex = indexOfFirstTable(blocks);
+        int belowIndex = indexOfBlockContaining(blocks, "Below the table");
+
+        assertThat(aboveIndex).as("'Above the table' paragraph found").isNotEqualTo(-1);
+        assertThat(tableIndex).as("table block found").isNotEqualTo(-1);
+        assertThat(belowIndex).as("'Below the table' paragraph found").isNotEqualTo(-1);
+
+        assertThat(tableIndex)
+                .as("an empty table positioned between the two paragraphs should land between them, not after both")
+                .isGreaterThan(aboveIndex)
+                .isLessThan(belowIndex);
+    }
+
+    private int indexOfBlockContaining(java.util.List<StructuredBlock> blocks, String text) {
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getText() != null && blocks.get(i).getText().contains(text)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int indexOfFirstTable(java.util.List<StructuredBlock> blocks) {
+        for (int i = 0; i < blocks.size(); i++) {
+            if (blocks.get(i).getType() == BlockType.TABLE) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private byte[] buildPdfWithBlankTableBetweenParagraphs() throws Exception {
+
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDType1Font font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                content.beginText();
+                content.setFont(font, 12);
+                content.newLineAtOffset(80f, 700f);
+                content.showText("Above the table");
+                content.endText();
+
+                // A 2x2 bordered grid with no text in any cell, roughly
+                // in the middle of the page.
+                float originX = 80f;
+                float originTopY = 450f;
+                float cellWidth = 100f;
+                float cellHeight = 30f;
+
+                for (int row = 0; row < 2; row++) {
+                    for (int col = 0; col < 2; col++) {
+
+                        float cellX = originX + (col * cellWidth);
+                        float cellTopY = originTopY - (row * cellHeight);
+                        float cellBottomY = cellTopY - cellHeight;
+
+                        content.addRect(cellX, cellBottomY, cellWidth, cellHeight);
+                        content.stroke();
+                    }
+                }
+
+                content.beginText();
+                content.setFont(font, 12);
+                content.newLineAtOffset(80f, 100f);
+                content.showText("Below the table");
+                content.endText();
+            }
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            document.save(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] buildBorderedTablePdf(String[][] cellText)
+            throws Exception {
+
+        int rows = cellText.length;
+        int columns = cellText[0].length;
+
+        float originX = 80f;
+        float originTopY = 700f;
+        float cellWidth = 100f;
+        float cellHeight = 30f;
+
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDType1Font font = new PDType1Font(
+                    Standard14Fonts.FontName.HELVETICA
+            );
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(document, page)) {
+
+                for (int row = 0; row < rows; row++) {
+                    for (int col = 0; col < columns; col++) {
+
+                        float cellX = originX + (col * cellWidth);
+                        float cellTopY = originTopY - (row * cellHeight);
+                        float cellBottomY = cellTopY - cellHeight;
+
+                        content.addRect(cellX, cellBottomY, cellWidth, cellHeight);
+                        content.stroke();
+
+                        content.beginText();
+                        content.setFont(font, 12);
+                        content.newLineAtOffset(cellX + 8, cellBottomY + 10);
+                        content.showText(cellText[row][col]);
+                        content.endText();
+                    }
+                }
+            }
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            document.save(output);
+            return output.toByteArray();
+        }
+    }
+}
