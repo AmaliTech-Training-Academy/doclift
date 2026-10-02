@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, Re
 import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession, getConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
+import { useJobPolling } from "@/lib/useJobPolling";
+import { usePurgeCountdown, PURGE_TTL_SECONDS } from "@/lib/usePurgeCountdown";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
 import { toast } from "sonner";
 
@@ -43,44 +45,18 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const [isAbandonModalOpen, setIsAbandonModalOpen] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
     const isUploadingRef = useRef(false);
+    const initialPurgeToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const purgeExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const hasWarned10MinRef = useRef(false);
+    const hasExpiredRef = useRef(false);
 
     const isConverting = Boolean(
         session && (session.status === "processing" || session.status === "queued")
     );
 
-    useEffect(() => {
-        let isMounted = true;
-
-        const initializeState = async () => {
-            const storedSession = getConversionSession();
-            if (storedSession && isMounted) {
-                setSession(storedSession);
-                if (storedSession.status === "processing" || storedSession.status === "queued" || storedSession.status === "failed") {
-                    setActiveView("progress");
-                } else if (storedSession.status === "done") {
-                    setActiveView("result");
-                } else if (storedSession.status === "expired") {
-                    clearConversionSession();
-                    setSession(null);
-                    setActiveView("upload");
-                }
-            }
-            if (isMounted) {
-                setIsInitialized(true);
-            }
-
-            const savedFile = await getDraftFile();
-            if (isMounted && savedFile) {
-                setFileState((currentFile) => currentFile ?? savedFile);
-            }
-        };
-
-        initializeState();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+    const purgeTimeRemaining = usePurgeCountdown(
+        session?.status === "done" ? session?.completedAt : undefined
+    );
 
     const setFile = useCallback((newFile: File | null) => {
         setFileState(newFile);
@@ -102,6 +78,78 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const clearFile = useCallback(() => {
         setFileState(null);
         clearDraftFile();
+    }, []);
+
+    const updateStatus = useCallback((status: ConversionStatus, durationOverride?: number) => {
+        setSession((prevSession) => {
+            if (!prevSession) return null;
+            const now = Date.now();
+            const createdAt = prevSession.createdAt || prevSession.updatedAt;
+            const calculatedDuration = Math.max(1, Math.round((now - createdAt) / 1000));
+            const durationSeconds =
+                durationOverride !== undefined
+                    ? durationOverride
+                    : status === "done"
+                    ? (prevSession.durationSeconds ?? calculatedDuration)
+                    : prevSession.durationSeconds;
+
+            const updatedSession: ConversionSession = {
+                ...prevSession,
+                status,
+                updatedAt: now,
+                durationSeconds,
+                completedAt:
+                    status === "done"
+                        ? (prevSession.completedAt ?? now)
+                        : prevSession.completedAt,
+            };
+            saveConversionSession(updatedSession);
+            return updatedSession;
+        });
+    }, []);
+
+    const reset = useCallback(() => {
+        if (initialPurgeToastTimerRef.current) {
+            clearTimeout(initialPurgeToastTimerRef.current);
+            initialPurgeToastTimerRef.current = null;
+        }
+        if (purgeExpiryTimerRef.current) {
+            clearTimeout(purgeExpiryTimerRef.current);
+            purgeExpiryTimerRef.current = null;
+        }
+        hasWarned10MinRef.current = false;
+        hasExpiredRef.current = false;
+        // Cancel any in-flight upload before clearing state.
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        isUploadingRef.current = false;
+        setIsUploading(false);
+        setFile(null);
+        setSession(null);
+        clearConversionSession();
+        setResetKey((k) => k + 1);
+        setActiveView("upload");
+        setIsAbandonModalOpen(false);
+    }, [setFile]);
+
+    const resetKeepFile = useCallback(() => {
+        if (initialPurgeToastTimerRef.current) {
+            clearTimeout(initialPurgeToastTimerRef.current);
+            initialPurgeToastTimerRef.current = null;
+        }
+        if (purgeExpiryTimerRef.current) {
+            clearTimeout(purgeExpiryTimerRef.current);
+            purgeExpiryTimerRef.current = null;
+        }
+        hasWarned10MinRef.current = false;
+        hasExpiredRef.current = false;
+        isUploadingRef.current = false;
+        setIsUploading(false);
+        setSession(null);
+        clearConversionSession();
+        setResetKey((k) => k + 1);
+        setActiveView("upload");
+        setIsAbandonModalOpen(false);
     }, []);
 
     const startConversion = async (fileOverride?: File | null): Promise<ConversionSession | null> => {
@@ -155,58 +203,6 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const updateStatus = (status: ConversionStatus, durationOverride?: number) => {
-        setSession((prevSession) => {
-            if (!prevSession) return null;
-            const now = Date.now();
-            const createdAt = prevSession.createdAt || prevSession.updatedAt;
-            const calculatedDuration = Math.max(1, Math.round((now - createdAt) / 1000));
-            const durationSeconds =
-                durationOverride !== undefined
-                    ? durationOverride
-                    : status === "done"
-                    ? (prevSession.durationSeconds ?? calculatedDuration)
-                    : prevSession.durationSeconds;
-
-            const updatedSession: ConversionSession = {
-                ...prevSession,
-                status,
-                updatedAt: now,
-                durationSeconds,
-                completedAt:
-                    status === "done"
-                        ? (prevSession.completedAt ?? now)
-                        : prevSession.completedAt,
-            };
-            saveConversionSession(updatedSession);
-            return updatedSession;
-        });
-    };
-
-    const reset = () => {
-        // Cancel any in-flight upload before clearing state.
-        abortControllerRef.current?.abort();
-        abortControllerRef.current = null;
-        isUploadingRef.current = false;
-        setIsUploading(false);
-        setFile(null);
-        setSession(null);
-        clearConversionSession();
-        setResetKey((k) => k + 1);
-        setActiveView("upload");
-        setIsAbandonModalOpen(false);
-    };
-
-    const resetKeepFile = () => {
-        isUploadingRef.current = false;
-        setIsUploading(false);
-        setSession(null);
-        clearConversionSession();
-        setResetKey((k) => k + 1);
-        setActiveView("upload");
-        setIsAbandonModalOpen(false);
-    };
-
     const requestReset = () => {
         if (session || isUploading) {
             setIsAbandonModalOpen(true);
@@ -225,6 +221,124 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 
     const openAbandonModal = useCallback(() => setIsAbandonModalOpen(true), []);
     const closeAbandonModal = useCallback(() => setIsAbandonModalOpen(false), []);
+
+    useJobPolling({
+        jobId: session?.jobId,
+        enabled: isConverting,
+        intervalMs: 500,
+        onComplete: () => {
+            updateStatus("done");
+            setActiveView("result");
+            if (typeof toast?.success === "function") {
+                toast.success("Conversion complete!", {
+                    description: "Your file has been converted successfully and is ready for download.",
+                });
+            }
+            if (initialPurgeToastTimerRef.current) {
+                clearTimeout(initialPurgeToastTimerRef.current);
+            }
+            initialPurgeToastTimerRef.current = setTimeout(() => {
+                if (typeof toast?.info === "function") {
+                    const purgeMinutes = Math.ceil(PURGE_TTL_SECONDS / 60);
+                    const purgeText =
+                        PURGE_TTL_SECONDS < 60
+                            ? `${PURGE_TTL_SECONDS} seconds`
+                            : `${purgeMinutes} minutes`;
+
+                    toast.info("Auto-Purge Notice", {
+                        description: `Your file will only be available for download for ${purgeText}.`,
+                    });
+                }
+            }, 5000);
+        },
+        onFailed: (err) => {
+            updateStatus("failed");
+            if (typeof toast?.error === "function") {
+                toast.error(err?.message || "Conversion failed");
+            }
+        },
+    });
+
+    useEffect(() => {
+        if (purgeTimeRemaining === null || session?.status !== "done") {
+            hasWarned10MinRef.current = false;
+            hasExpiredRef.current = false;
+            return;
+        }
+
+        // 10-minute warning toast
+        if (purgeTimeRemaining <= 10 * 60 && purgeTimeRemaining > 0 && !hasWarned10MinRef.current) {
+            hasWarned10MinRef.current = true;
+            if (typeof toast?.warning === "function") {
+                toast.warning("Auto-Purge Warning", {
+                    description: "Your file will be purged in 10 minutes. Please download your Word document soon.",
+                });
+            }
+        }
+
+        // Purge expired toast and automatic reset after 2 seconds
+        if (purgeTimeRemaining === 0 && !hasExpiredRef.current) {
+            hasExpiredRef.current = true;
+            if (typeof toast?.error === "function") {
+                toast.error("File Purged", {
+                    description: "Your file is no longer available for download.",
+                });
+            } else if (typeof toast?.warning === "function") {
+                toast.warning("File Purged", {
+                    description: "Your file is no longer available for download.",
+                });
+            }
+
+            if (purgeExpiryTimerRef.current) {
+                clearTimeout(purgeExpiryTimerRef.current);
+            }
+            purgeExpiryTimerRef.current = setTimeout(() => {
+                reset();
+            }, 2000);
+        }
+    }, [purgeTimeRemaining, session?.status, reset]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const initializeState = async () => {
+            const storedSession = getConversionSession();
+            if (storedSession && isMounted) {
+                setSession(storedSession);
+                if (storedSession.status === "processing" || storedSession.status === "queued" || storedSession.status === "failed") {
+                    setActiveView("progress");
+                } else if (storedSession.status === "done") {
+                    setActiveView("result");
+                } else if (storedSession.status === "expired") {
+                    clearConversionSession();
+                    setSession(null);
+                    setActiveView("upload");
+                }
+            }
+            if (isMounted) {
+                setIsInitialized(true);
+            }
+
+            const savedFile = await getDraftFile();
+            if (isMounted && savedFile) {
+                setFileState((currentFile) => currentFile ?? savedFile);
+            }
+        };
+
+        initializeState();
+
+        return () => {
+            isMounted = false;
+            if (initialPurgeToastTimerRef.current) {
+                clearTimeout(initialPurgeToastTimerRef.current);
+                initialPurgeToastTimerRef.current = null;
+            }
+            if (purgeExpiryTimerRef.current) {
+                clearTimeout(purgeExpiryTimerRef.current);
+                purgeExpiryTimerRef.current = null;
+            }
+        };
+    }, []);
 
     return (
         <ConversionContext.Provider
