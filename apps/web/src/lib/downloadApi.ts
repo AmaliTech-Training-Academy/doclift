@@ -1,5 +1,3 @@
-const API_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:8080";
-
 export async function downloadFile(jobId: string) {
   const response = await fetch(`/api/v1/jobs/${jobId}/download`);
   if (!response.ok) {

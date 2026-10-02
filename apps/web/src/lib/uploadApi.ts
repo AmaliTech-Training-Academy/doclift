@@ -18,8 +18,6 @@ async function extractMessage(response: Response): Promise<string | null> {
 }
 
 export async function uploadFile(file: File, signal?: AbortSignal): Promise<UploadApiResponse> {
-  console.log("Hello from uploadFile function");
-  console.log("Uploading file:", file.name, "size:", file.size, "type:", file.type);
   const formData = new FormData();
   formData.append("file", file);
 
