@@ -1,4 +1,5 @@
 package com.amalitech.backend.model;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,6 +32,19 @@ public class Job {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "phase")
+    private JobPhase phase;
+
+    @Column(name = "progress_percent")
+    private Integer progressPercent;
+
     @OneToOne(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
     private JobFile file;
 
@@ -38,6 +52,8 @@ public class Job {
         this.sourceFilename = sourceFilename;
         this.pageCount = pageCount;
         this.status = JobStatus.QUEUED;
+        this.phase = JobPhase.QUEUED;
+        this.progressPercent = 0;
     }
 
     @PrePersist
@@ -45,8 +61,17 @@ public class Job {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
+
         if (status == null) {
             status = JobStatus.QUEUED;
+        }
+
+        if (phase == null) {
+            phase = JobPhase.QUEUED;
+        }
+
+        if (progressPercent == null) {
+            progressPercent = 0;
         }
     }
 
