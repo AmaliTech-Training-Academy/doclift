@@ -37,8 +37,6 @@ const ProgressCard = () => {
     setProgress(state);
     if (state.error || state.failed) {
       updateStatus("failed");
-    } else if (state.done) {
-      updateStatus("done");
     }
   }, [updateStatus]);
 

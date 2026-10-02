@@ -15,7 +15,6 @@ import {
   PanelsTopLeft,
   Table,
 } from "lucide-react";
-import { toast } from "sonner";
 import Stepper, { type Step, type StepTag } from "./Stepper";
 
 export interface DemoStepTemplate {
@@ -186,14 +185,6 @@ export const StepperDemo = forwardRef<
     }),
     [fail, reset],
   );
-
-  useEffect(() => {
-    if (done) {
-      toast.success("Conversion complete!", {
-        description: "Your file is available for download for 1 hour."
-      });
-    }
-  }, [done]);
 
   const onProgressRef = useRef(onProgress);
   useEffect(() => {

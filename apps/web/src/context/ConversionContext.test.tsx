@@ -3,6 +3,16 @@ import { render, renderHook, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConversionProvider, useConversion } from "./ConversionContext";
 import type { ConversionSession } from "@/lib/conversionSession";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  },
+}));
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return <ConversionProvider>{children}</ConversionProvider>;
@@ -246,5 +256,62 @@ describe("useConversion", () => {
 
     expect(result.current.session?.status).toBe("done");
     expect(result.current.session?.durationSeconds).toBe(15);
+  });
+
+  it("triggers warning toast when <= 10 minutes remain before purge and resets when purge expires", async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    const { result } = renderHook(() => useConversion(), { wrapper });
+
+    // Set session to done at (now - 51 minutes), so only 9 minutes remain out of 60 minutes
+    const fiftyOneMinutesAgo = now - 51 * 60 * 1000;
+
+    act(() => {
+      result.current.setSession({
+        jobId: "session-123",
+        fileName: "file.pdf",
+        status: "done",
+        createdAt: fiftyOneMinutesAgo,
+        completedAt: fiftyOneMinutesAgo,
+        updatedAt: fiftyOneMinutesAgo,
+      });
+      result.current.setActiveView("result");
+    });
+
+    // Advance timers so usePurgeCountdown runs
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Auto-Purge Warning",
+      expect.objectContaining({
+        description: expect.stringContaining("10 minutes"),
+      })
+    );
+
+    // Advance by another 9 minutes so time reaches 0 (purge expires)
+    act(() => {
+      vi.advanceTimersByTime(9 * 60 * 1000);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "File Purged",
+      expect.objectContaining({
+        description: expect.stringContaining("no longer available"),
+      })
+    );
+
+    // After 2 seconds, it should automatically reset and move to upload screen
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(result.current.session).toBeNull();
+    expect(result.current.activeView).toBe("upload");
+
+    vi.useRealTimers();
   });
 });
