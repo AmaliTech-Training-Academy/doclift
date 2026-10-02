@@ -1,5 +1,6 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.model.JobPhase;
 import com.amalitech.backend.service.impl.ConversionWorker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -152,6 +153,38 @@ class ConversionWorkerTest {
 
         verify(jobService, never())
                 .markFailed(JOB_ID);
+
+        verify(jobService).markProcessing(JOB_ID);
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.EXTRACTING_CONTENT,
+                25
+        );
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.RECOVERING_STRUCTURE,
+                55
+        );
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.GENERATING_DOCUMENT,
+                75
+        );
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.SAVING_OUTPUT,
+                90
+        );
+
+        verify(jobService).markCompleted(
+                JOB_ID,
+                outputPath.toString(),
+                docxContent.length
+        );
     }
 
     @Test
@@ -187,6 +220,12 @@ class ConversionWorkerTest {
 
         verify(jobService)
                 .markProcessing(JOB_ID);
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.EXTRACTING_CONTENT,
+                25
+        );
 
         verify(jobService)
                 .markFailed(JOB_ID);
