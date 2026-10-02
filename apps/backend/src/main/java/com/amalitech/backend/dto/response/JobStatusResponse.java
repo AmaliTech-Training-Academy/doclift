@@ -16,5 +16,6 @@ public record JobStatusResponse(
         Instant completedAt,
         JobPhase phase,
         Integer progressPercent,
-        Long durationSeconds
+        Long durationSeconds,
+        JobOutputResponse output
 ) {}

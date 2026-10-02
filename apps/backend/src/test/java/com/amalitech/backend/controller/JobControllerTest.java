@@ -59,7 +59,7 @@ class JobControllerTest {
                 )
         );
 
-        when(jobService.getJob(JOB_ID))
+        when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
         mockMvc.perform(
@@ -77,6 +77,7 @@ class JobControllerTest {
                 .andExpect(jsonPath("$.progressPercent").value(55))
                 .andExpect(jsonPath("$.startedAt").value("2026-10-02T08:00:01Z"))
                 .andExpect(jsonPath("$.completedAt").doesNotExist())
+                .andExpect(jsonPath("$.output").doesNotExist())
                 .andExpect(jsonPath("$.pageCount")
                         .value(3))
                 .andExpect(jsonPath("$.createdAt")
@@ -102,7 +103,15 @@ class JobControllerTest {
                 )
         );
 
-        when(jobService.getJob(JOB_ID))
+        JobFile jobFile = new JobFile(
+                job,
+                "/tmp/output.docx",
+                245120L
+        );
+
+        job.setFile(jobFile);
+
+        when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
         mockMvc.perform(
@@ -114,6 +123,12 @@ class JobControllerTest {
                 .andExpect(jsonPath("$.phase").value("COMPLETED"))
                 .andExpect(jsonPath("$.progressPercent").value(100))
                 .andExpect(jsonPath("$.durationSeconds").value(11))
+                .andExpect(jsonPath("$.output.filename")
+                        .value("sample.docx"))
+                .andExpect(jsonPath("$.output.sizeBytes")
+                        .value(245120))
+                .andExpect(jsonPath("$.output.downloadUrl")
+                        .value("/api/v1/jobs/" + JOB_ID + "/download"))
                 .andExpect(jsonPath("$.status")
                         .value("DONE"));
     }
@@ -121,7 +136,7 @@ class JobControllerTest {
     @Test
     void shouldReturnNotFoundForUnknownJob() throws Exception {
 
-        when(jobService.getJob(JOB_ID))
+        when(jobService.getJobWithFile(JOB_ID))
                 .thenThrow(
                         new JobNotFoundException()
                 );

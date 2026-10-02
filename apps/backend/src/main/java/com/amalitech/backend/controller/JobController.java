@@ -1,5 +1,6 @@
 package com.amalitech.backend.controller;
 
+import com.amalitech.backend.dto.response.JobOutputResponse;
 import com.amalitech.backend.dto.response.JobStatusResponse;
 import com.amalitech.backend.exception.JobFailedException;
 import com.amalitech.backend.exception.JobNotReadyException;
@@ -44,9 +45,19 @@ public class JobController {
     public ResponseEntity<JobStatusResponse> getJobStatus(
             @PathVariable UUID jobId
     ) {
-        Job job = jobService.getJob(jobId);
+        Job job = jobService.getJobWithFile(jobId);
 
         Long durationSeconds = calculateDurationSeconds(job);
+
+        JobOutputResponse output = null;
+
+        if (job.getStatus() == JobStatus.DONE && job.getFile() != null) {
+            output = new JobOutputResponse(
+                    buildOutputFilename(job.getSourceFilename()),
+                    job.getFile().getSize(),
+                    "/api/v1/jobs/" + job.getId() + "/download"
+            );
+        }
 
         JobStatusResponse response = new JobStatusResponse(
                 job.getId(),
@@ -58,7 +69,8 @@ public class JobController {
                 job.getCompletedAt(),
                 job.getPhase(),
                 job.getProgressPercent(),
-                durationSeconds
+                durationSeconds,
+                output
         );
 
         return ResponseEntity.ok(response);
@@ -80,7 +92,6 @@ public class JobController {
         if (job.getStatus() == JobStatus.FAILED) {
             throw new JobFailedException();
         }
-
         if (job.getStatus() != JobStatus.DONE) {
             throw new JobNotReadyException();
         }
