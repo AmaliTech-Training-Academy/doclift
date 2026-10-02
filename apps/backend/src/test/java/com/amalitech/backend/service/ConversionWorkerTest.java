@@ -21,8 +21,9 @@ class ConversionWorkerTest {
     private PdfExtractionService pdfExtractionService;
     private StructureRecoveryService structureRecoveryService;
     private WordWriterService wordWriterService;
-
     private ConversionWorker conversionWorker;
+    private DocumentMetricsService documentMetricsService;
+    private JobMetricsService jobMetricsService;
 
     @TempDir
     Path tempDir;
@@ -49,13 +50,21 @@ class ConversionWorkerTest {
         wordWriterService =
                 mock(WordWriterService.class);
 
+        documentMetricsService =
+                mock(DocumentMetricsService.class);
+
+        jobMetricsService =
+                mock(JobMetricsService.class);
+
         conversionWorker =
                 new ConversionWorker(
                         jobService,
                         fileStorageService,
                         pdfExtractionService,
                         structureRecoveryService,
-                        wordWriterService
+                        wordWriterService,
+                        documentMetricsService,
+                        jobMetricsService
                 );
     }
 
@@ -105,6 +114,11 @@ class ConversionWorkerTest {
                 .thenReturn(
                         List.of(page)
                 );
+        when(documentMetricsService.countSourceWords(extractionResult))
+                .thenReturn(120);
+
+        when(documentMetricsService.countOutputWords(docxContent))
+                .thenReturn(118);
 
         when(
                 wordWriterService.write(
@@ -127,21 +141,56 @@ class ConversionWorkerTest {
         verify(jobService)
                 .markProcessing(JOB_ID);
 
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.EXTRACTING_CONTENT,
+                25
+        );
+
         verify(pdfExtractionService)
-                .extract(
-                        any(InputStream.class)
-                );
+                .extract(any(InputStream.class));
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.RECOVERING_STRUCTURE,
+                55
+        );
 
         verify(structureRecoveryService)
                 .recoverStructure(page);
 
+        verify(documentMetricsService)
+                .countSourceWords(extractionResult);
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.GENERATING_DOCUMENT,
+                75
+        );
+
         verify(wordWriterService)
                 .write(extractionResult);
+
+        verify(documentMetricsService)
+                .countOutputWords(docxContent);
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.SAVING_OUTPUT,
+                90
+        );
 
         verify(fileStorageService)
                 .storeOutputDocx(
                         eq(JOB_ID),
                         same(docxContent)
+                );
+
+        verify(jobMetricsService)
+                .saveWordCounts(
+                        JOB_ID,
+                        120,
+                        118
                 );
 
         verify(jobService)
@@ -153,38 +202,6 @@ class ConversionWorkerTest {
 
         verify(jobService, never())
                 .markFailed(JOB_ID);
-
-        verify(jobService).markProcessing(JOB_ID);
-
-        verify(jobService).updateProgress(
-                JOB_ID,
-                JobPhase.EXTRACTING_CONTENT,
-                25
-        );
-
-        verify(jobService).updateProgress(
-                JOB_ID,
-                JobPhase.RECOVERING_STRUCTURE,
-                55
-        );
-
-        verify(jobService).updateProgress(
-                JOB_ID,
-                JobPhase.GENERATING_DOCUMENT,
-                75
-        );
-
-        verify(jobService).updateProgress(
-                JOB_ID,
-                JobPhase.SAVING_OUTPUT,
-                90
-        );
-
-        verify(jobService).markCompleted(
-                JOB_ID,
-                outputPath.toString(),
-                docxContent.length
-        );
     }
 
     @Test
@@ -232,7 +249,9 @@ class ConversionWorkerTest {
 
         verifyNoInteractions(
                 structureRecoveryService,
-                wordWriterService
+                wordWriterService,
+                documentMetricsService,
+                jobMetricsService
         );
 
         verify(
