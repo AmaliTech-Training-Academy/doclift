@@ -886,8 +886,31 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return false;
         }
 
-        return line.getMinFontSize()
-                >= bodyFontSize * HEADING_FONT_RATIO;
+        float fontRatio =
+                line.getMinFontSize()
+                        / bodyFontSize;
+
+        boolean clearlyLarger =
+                fontRatio >= HEADING_FONT_RATIO;
+
+        boolean slightlyLarger =
+                fontRatio >= 1.10f;
+
+        boolean mostlyBold =
+                line.isMostlyBold();
+
+        boolean labelLike =
+                text.endsWith(":");
+
+        if (clearlyLarger) {
+            return true;
+        }
+
+        if (mostlyBold && slightlyLarger) {
+            return true;
+        }
+
+        return mostlyBold && labelLike;
     }
 
     private record HorizontalGap(float left, float right) {
@@ -924,6 +947,37 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     .filter(size -> size > 0f)
                     .min(Float::compare)
                     .orElse(0f);
+        }
+
+        boolean isMostlyBold() {
+            if (spans.isEmpty()) {
+                return false;
+            }
+
+            int meaningfulSpans = 0;
+            int boldSpans = 0;
+
+            for (TextSpan span : spans) {
+
+                if (span.getText() == null
+                        || span.getText().isBlank()) {
+                    continue;
+                }
+
+                meaningfulSpans++;
+
+                if (span.isBold()) {
+                    boldSpans++;
+                }
+            }
+
+            if (meaningfulSpans == 0) {
+                return false;
+            }
+
+            return boldSpans >= Math.ceil(
+                    meaningfulSpans * 0.6
+            );
         }
 
         void sortLeftToRight() {

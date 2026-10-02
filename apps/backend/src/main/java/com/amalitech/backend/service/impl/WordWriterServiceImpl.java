@@ -112,6 +112,19 @@ public class WordWriterServiceImpl implements WordWriterService {
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
+        var pPr = level.addNewPPr();
+
+        var tabs = pPr.addNewTabs();
+        var tab = tabs.addNewTab();
+        tab.setVal(
+                org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabJc.NUM
+        );
+        tab.setPos(BigInteger.valueOf(720));
+
+        var ind = pPr.addNewInd();
+        ind.setLeft(BigInteger.valueOf(720));
+        ind.setHanging(BigInteger.valueOf(360));
+
         numbering.addAbstractNum(
                 new XWPFAbstractNum(abstractNum)
         );
@@ -131,6 +144,77 @@ public class WordWriterServiceImpl implements WordWriterService {
                 "•",
                 null
         );
+    }
+
+    private float getBlockMaxFontSize(
+            StructuredBlock block
+    ) {
+        if (block.getSpans() == null
+                || block.getSpans().isEmpty()) {
+            return 0f;
+        }
+
+        return block.getSpans().stream()
+                .map(TextSpan::getFontSize)
+                .filter(size -> size > 0f)
+                .max(Float::compare)
+                .orElse(0f);
+    }
+
+    private float determineBodyFontSize(
+            PdfExtractionResult extractionResult
+    ) {
+        List<Float> sizes =
+                extractionResult.getPages().stream()
+                        .flatMap(page ->
+                                page.getStructuredBlocks().stream()
+                        )
+                        .filter(block ->
+                                block.getType() == BlockType.PARAGRAPH
+                                        || block.getType()
+                                        == BlockType.LIST_ITEM
+                        )
+                        .flatMap(block ->
+                                block.getSpans().stream()
+                        )
+                        .map(TextSpan::getFontSize)
+                        .filter(size -> size > 0f)
+                        .sorted()
+                        .toList();
+
+        if (sizes.isEmpty()) {
+            return 0f;
+        }
+
+        return sizes.get(
+                (sizes.size() - 1) / 2
+        );
+    }
+
+    private String resolveHeadingStyle(
+            StructuredBlock block,
+            float bodyFontSize
+    ) {
+        float headingSize =
+                getBlockMaxFontSize(block);
+
+        if (bodyFontSize <= 0f
+                || headingSize <= 0f) {
+            return "Heading2";
+        }
+
+        float ratio =
+                headingSize / bodyFontSize;
+
+        if (ratio >= 1.60f) {
+            return "Heading1";
+        }
+
+        if (ratio >= 1.30f) {
+            return "Heading2";
+        }
+
+        return "Heading3";
     }
 
     private BigInteger createNumberedNumbering(
@@ -245,6 +329,25 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
+    private void applyParagraphSpacing(
+            XWPFParagraph paragraph,
+            StructuredBlock block
+    ) {
+        if (block.getType() == BlockType.HEADING) {
+            paragraph.setSpacingBefore(240); // 12 pt
+            paragraph.setSpacingAfter(120);  // 6 pt
+            return;
+        }
+
+        if (block.getType() == BlockType.LIST_ITEM) {
+            paragraph.setSpacingBefore(0);
+            paragraph.setSpacingAfter(40);   // 2 pt
+            return;
+        }
+
+        paragraph.setSpacingBefore(0);
+        paragraph.setSpacingAfter(120);      // 6 pt
+    }
     private String removeListMarker(String text) {
 
         if (text == null) {
@@ -259,12 +362,18 @@ public class WordWriterServiceImpl implements WordWriterService {
     @Override
     public byte[] write(PdfExtractionResult extractionResult) {
 
+
+
         if (extractionResult == null) {
             throw new IllegalArgumentException(
                     "Extraction result cannot be null."
             );
         }
 
+        float bodyFontSize =
+                determineBodyFontSize(
+                        extractionResult
+                );
         try (
                 XWPFDocument document = new XWPFDocument();
                 ByteArrayOutputStream output =
@@ -286,7 +395,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                             document,
                             block,
                             bulletNumId,
-                            numberedNumId
+                            numberedNumId,
+                            bodyFontSize
                     );
                 }
             }
@@ -303,21 +413,34 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
-private void writeBlock(
-        XWPFDocument document,
-        StructuredBlock block,
-        BigInteger bulletNumId,
-        BigInteger numberedNumId
-) {
+    private void writeBlock(
+            XWPFDocument document,
+            StructuredBlock block,
+            BigInteger bulletNumId,
+            BigInteger numberedNumId,
+            float bodyFontSize
+    ) {
 
     XWPFParagraph paragraph =
             document.createParagraph();
 
-    if (block.getType() == BlockType.HEADING) {
-        paragraph.setStyle("Heading1");
-    } else {
-        paragraph.setStyle("Normal");
-    }
+    applyParagraphSpacing(
+            paragraph,
+            block
+    );
+
+        if (block.getType() == BlockType.HEADING) {
+
+            paragraph.setStyle(
+                    resolveHeadingStyle(
+                            block,
+                            bodyFontSize
+                    )
+            );
+
+        } else {
+            paragraph.setStyle("Normal");
+        }
 
     if (block.getType() == BlockType.LIST_ITEM) {
 

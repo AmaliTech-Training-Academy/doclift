@@ -45,7 +45,7 @@ class WordWriterServiceTest {
                                         200,
                                         20,
                                         "Helvetica-Bold",
-                                        16,
+                                        18,
                                         true,
                                         false,
                                         false,
@@ -54,7 +54,37 @@ class WordWriterServiceTest {
                         )
                 );
 
+        StructuredBlock bodyParagraph =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "This is normal body text.",
+                        50,
+                        100,
+                        250,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "This is normal body text.",
+                                        50,
+                                        100,
+                                        250,
+                                        12,
+                                        "Helvetica",
+                                        10,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
         page.getStructuredBlocks().add(heading);
+        page.getStructuredBlocks().add(bodyParagraph);
+
         extractionResult.getPages().add(page);
 
         byte[] docx =
@@ -67,14 +97,194 @@ class WordWriterServiceTest {
                         )
         ) {
 
-            XWPFParagraph paragraph =
-                    document.getParagraphs().getFirst();
+            XWPFParagraph headingParagraph =
+                    document.getParagraphs().get(0);
 
-            assertThat(paragraph.getText())
+            assertThat(headingParagraph.getText())
                     .isEqualTo("Quarterly Results");
 
-            assertThat(paragraph.getStyle())
+            assertThat(headingParagraph.getStyle())
                     .isEqualTo("Heading1");
+
+            XWPFParagraph body =
+                    document.getParagraphs().get(1);
+
+            assertThat(body.getStyle())
+                    .isEqualTo("Normal");
+        }
+    }
+
+    @Test
+    void shouldApplyHeading2StyleForMediumHeading() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        StructuredBlock heading =
+                new StructuredBlock(
+                        0,
+                        BlockType.HEADING,
+                        null,
+                        "Section Heading",
+                        50,
+                        50,
+                        200,
+                        20,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Section Heading",
+                                        50,
+                                        50,
+                                        200,
+                                        20,
+                                        "Helvetica-Bold",
+                                        14,
+                                        true,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        StructuredBlock bodyParagraph =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "Normal body text.",
+                        50,
+                        100,
+                        250,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Normal body text.",
+                                        50,
+                                        100,
+                                        250,
+                                        12,
+                                        "Helvetica",
+                                        10,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        page.getStructuredBlocks().add(heading);
+        page.getStructuredBlocks().add(bodyParagraph);
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            XWPFParagraph headingParagraph =
+                    document.getParagraphs().get(0);
+
+            assertThat(headingParagraph.getStyle())
+                    .isEqualTo("Heading2");
+        }
+    }
+
+    @Test
+    void shouldApplyHeading3StyleForSmallHeading() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        StructuredBlock heading =
+                new StructuredBlock(
+                        0,
+                        BlockType.HEADING,
+                        null,
+                        "Subsection Heading",
+                        50,
+                        50,
+                        200,
+                        20,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Subsection Heading",
+                                        50,
+                                        50,
+                                        200,
+                                        20,
+                                        "Helvetica-Bold",
+                                        12,
+                                        true,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        StructuredBlock bodyParagraph =
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "Normal body text.",
+                        50,
+                        100,
+                        250,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Normal body text.",
+                                        50,
+                                        100,
+                                        250,
+                                        12,
+                                        "Helvetica",
+                                        10,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                );
+
+        page.getStructuredBlocks().add(heading);
+        page.getStructuredBlocks().add(bodyParagraph);
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            XWPFParagraph headingParagraph =
+                    document.getParagraphs().get(0);
+
+            assertThat(headingParagraph.getStyle())
+                    .isEqualTo("Heading3");
         }
     }
 
