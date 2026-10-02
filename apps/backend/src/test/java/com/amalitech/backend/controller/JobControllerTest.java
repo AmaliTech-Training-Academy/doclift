@@ -2,6 +2,7 @@ package com.amalitech.backend.controller;
 
 import com.amalitech.backend.exception.JobNotFoundException;
 import com.amalitech.backend.model.Job;
+import com.amalitech.backend.model.JobPhase;
 import com.amalitech.backend.model.JobStatus;
 import com.amalitech.backend.service.JobService;
 import org.junit.jupiter.api.Test;
@@ -49,13 +50,16 @@ class JobControllerTest {
         job.setStatus(JobStatus.PROCESSING);
         job.setSourceFilename("sample.pdf");
         job.setPageCount(3);
+        job.setStartedAt(Instant.parse("2026-10-02T08:00:01Z"));
+        job.setPhase(JobPhase.RECOVERING_STRUCTURE);
+        job.setProgressPercent(55);
         job.setCreatedAt(
                 Instant.parse(
                         "2026-09-30T18:00:00Z"
                 )
         );
 
-        when(jobService.getJob(JOB_ID))
+        when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
         mockMvc.perform(
@@ -69,10 +73,16 @@ class JobControllerTest {
                         .value("PROCESSING"))
                 .andExpect(jsonPath("$.sourceFilename")
                         .value("sample.pdf"))
+                .andExpect(jsonPath("$.phase").value("RECOVERING_STRUCTURE"))
+                .andExpect(jsonPath("$.progressPercent").value(55))
+                .andExpect(jsonPath("$.startedAt").value("2026-10-02T08:00:01Z"))
+                .andExpect(jsonPath("$.completedAt").doesNotExist())
+                .andExpect(jsonPath("$.output").doesNotExist())
                 .andExpect(jsonPath("$.pageCount")
                         .value(3))
                 .andExpect(jsonPath("$.createdAt")
                         .value("2026-09-30T18:00:00Z"));
+
     }
 
     @Test
@@ -83,13 +93,25 @@ class JobControllerTest {
         job.setStatus(JobStatus.DONE);
         job.setSourceFilename("sample.pdf");
         job.setPageCount(3);
+        job.setStartedAt(Instant.parse("2026-10-02T08:00:01Z"));
+        job.setCompletedAt(Instant.parse("2026-10-02T08:00:12Z"));
+        job.setPhase(JobPhase.COMPLETED);
+        job.setProgressPercent(100);
         job.setCreatedAt(
                 Instant.parse(
                         "2026-09-30T18:00:00Z"
                 )
         );
 
-        when(jobService.getJob(JOB_ID))
+        JobFile jobFile = new JobFile(
+                job,
+                "/tmp/output.docx",
+                245120L
+        );
+
+        job.setFile(jobFile);
+
+        when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
         mockMvc.perform(
@@ -98,6 +120,15 @@ class JobControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.jobId")
                         .value(JOB_ID.toString()))
+                .andExpect(jsonPath("$.phase").value("COMPLETED"))
+                .andExpect(jsonPath("$.progressPercent").value(100))
+                .andExpect(jsonPath("$.durationSeconds").value(11))
+                .andExpect(jsonPath("$.output.filename")
+                        .value("sample.docx"))
+                .andExpect(jsonPath("$.output.sizeBytes")
+                        .value(245120))
+                .andExpect(jsonPath("$.output.downloadUrl")
+                        .value("/api/v1/jobs/" + JOB_ID + "/download"))
                 .andExpect(jsonPath("$.status")
                         .value("DONE"));
     }
@@ -105,7 +136,7 @@ class JobControllerTest {
     @Test
     void shouldReturnNotFoundForUnknownJob() throws Exception {
 
-        when(jobService.getJob(JOB_ID))
+        when(jobService.getJobWithFile(JOB_ID))
                 .thenThrow(
                         new JobNotFoundException()
                 );
