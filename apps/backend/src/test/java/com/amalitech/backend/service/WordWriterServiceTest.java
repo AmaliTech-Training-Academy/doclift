@@ -30,6 +30,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.HEADING,
+                        null,
                         "Quarterly Results",
                         50,
                         50,
@@ -91,6 +92,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Hello wonderful world",
                         50,
                         100,
@@ -183,6 +185,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.LIST_ITEM,
+                        ListType.ORDERED,
                         "1. First step",
                         50,
                         100,
@@ -275,6 +278,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Normal Bold Italic Underline Large",
                         50,
                         100,
@@ -485,6 +489,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Hello, here is some text",
                         50,
                         100,
@@ -694,6 +699,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Hello Word",
                         50,
                         100,
@@ -752,6 +758,7 @@ class WordWriterServiceTest {
         return new StructuredBlock(
                 0,
                 BlockType.LIST_ITEM,
+                ListType.ORDERED,
                 text,
                 50,
                 100,
@@ -806,6 +813,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "important",
                         0f,
                         0f,
@@ -876,6 +884,7 @@ class WordWriterServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Hello world",
                         0f,
                         0f,

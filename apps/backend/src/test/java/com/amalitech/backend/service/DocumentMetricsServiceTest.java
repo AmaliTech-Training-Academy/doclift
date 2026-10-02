@@ -108,6 +108,7 @@ class DocumentMetricsServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Hello from DocLift",
                         0,
                         0,
@@ -120,6 +121,7 @@ class DocumentMetricsServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "PDF-to-Word conversion works.",
                         0,
                         30,
