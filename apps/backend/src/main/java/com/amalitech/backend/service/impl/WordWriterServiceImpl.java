@@ -20,7 +20,13 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private static final Pattern LIST_MARKER_PATTERN =
             Pattern.compile(
-                    "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,}|[A-Z])[.)])\\s*"
+                    "^\\s*(?:"
+                            + "[•◦▪‣⁃∙*\\-]"
+                            + "|"
+                            + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
+                            + "|"
+                            + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
+                            + ")\\s*"
             );
 
     private void applyFormatting(
@@ -135,11 +141,12 @@ public class WordWriterServiceImpl implements WordWriterService {
     }
 
     private BigInteger createBulletNumbering(
-            XWPFDocument document
+            XWPFDocument document,
+            BigInteger abstractNumId
     ) {
         return createNumbering(
                 document,
-                BigInteger.ZERO,
+                abstractNumId,
                 STNumberFormat.BULLET,
                 "•",
                 null
@@ -218,13 +225,19 @@ public class WordWriterServiceImpl implements WordWriterService {
     }
 
     private BigInteger createNumberedNumbering(
-            XWPFDocument document
+            XWPFDocument document,
+            BigInteger abstractNumId,
+            String firstItemText
     ) {
         return createNumbering(
                 document,
-                BigInteger.ONE,
-                STNumberFormat.DECIMAL,
-                "%1.",
+                abstractNumId,
+                resolveOrderedNumberFormat(
+                        firstItemText
+                ),
+                resolveOrderedLevelText(
+                        firstItemText
+                ),
                 BigInteger.ONE
         );
     }
@@ -374,28 +387,75 @@ public class WordWriterServiceImpl implements WordWriterService {
                 determineBodyFontSize(
                         extractionResult
                 );
+        int nextAbstractNumId = 0;
+
         try (
                 XWPFDocument document = new XWPFDocument();
                 ByteArrayOutputStream output =
                         new ByteArrayOutputStream()
         ) {
 
-            BigInteger bulletNumId =
-                    createBulletNumbering(document);
-
-            BigInteger numberedNumId =
-                    createNumberedNumbering(document);
+            BigInteger activeBulletNumId = null;
+            BigInteger activeNumberedNumId = null;
+            ListType activeListType = null;
 
             for (PageExtraction page : extractionResult.getPages()) {
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
 
+                    if (block.getType() != BlockType.LIST_ITEM) {
+                        activeListType = null;
+                        activeBulletNumId = null;
+                        activeNumberedNumId = null;
+
+                        writeBlock(
+                                document,
+                                block,
+                                null,
+                                null,
+                                bodyFontSize
+                        );
+
+                        continue;
+                    }
+
+                    ListType currentType =
+                            block.getListType();
+
+                    if (currentType != activeListType) {
+
+                        BigInteger abstractNumId =
+                                BigInteger.valueOf(
+                                        nextAbstractNumId++
+                                );
+
+                        if (currentType == ListType.ORDERED) {
+
+                            activeNumberedNumId =
+                                    createNumberedNumbering(
+                                            document,
+                                            abstractNumId,
+                                            block.getText()
+                                    );
+
+                        } else if (currentType == ListType.UNORDERED) {
+
+                            activeBulletNumId =
+                                    createBulletNumbering(
+                                            document,
+                                            abstractNumId
+                                    );
+                        }
+
+                        activeListType = currentType;
+                    }
+
                     writeBlock(
                             document,
                             block,
-                            bulletNumId,
-                            numberedNumId,
+                            activeBulletNumId,
+                            activeNumberedNumId,
                             bodyFontSize
                     );
                 }
@@ -535,5 +595,75 @@ public class WordWriterServiceImpl implements WordWriterService {
 
             previousText = text;
         }
+    }
+
+    private STNumberFormat.Enum resolveOrderedNumberFormat(
+            String text
+    ) {
+        if (text == null) {
+            return STNumberFormat.DECIMAL;
+        }
+
+        String trimmed =
+                text.stripLeading();
+
+        String marker =
+                trimmed.split("\\s+", 2)[0];
+
+        String normalized =
+                marker
+                        .replace("(", "")
+                        .replace(")", "")
+                        .replace(".", "");
+
+        if (normalized.matches(
+                "[ivxlcdm]+"
+        )) {
+            return STNumberFormat.LOWER_ROMAN;
+        }
+
+        if (normalized.matches(
+                "[IVXLCDM]+"
+        )) {
+            return STNumberFormat.UPPER_ROMAN;
+        }
+
+        if (normalized.matches(
+                "[a-z]"
+        )) {
+            return STNumberFormat.LOWER_LETTER;
+        }
+
+        if (normalized.matches(
+                "[A-Z]"
+        )) {
+            return STNumberFormat.UPPER_LETTER;
+        }
+
+        return STNumberFormat.DECIMAL;
+    }
+
+    private String resolveOrderedLevelText(
+            String text
+    ) {
+        if (text == null) {
+            return "%1.";
+        }
+
+        String trimmed = text.stripLeading();
+
+        if (trimmed.matches(
+                "^\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)\\s+.*"
+        )) {
+            return "(%1)";
+        }
+
+        if (trimmed.matches(
+                "^(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)\\s+.*"
+        )) {
+            return "%1)";
+        }
+
+        return "%1.";
     }
 }
