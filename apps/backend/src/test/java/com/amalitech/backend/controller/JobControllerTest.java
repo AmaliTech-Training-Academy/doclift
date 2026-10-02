@@ -128,7 +128,7 @@ class JobControllerTest {
                         .value(JOB_ID.toString()))
                 .andExpect(jsonPath("$.phase").value("COMPLETED"))
                 .andExpect(jsonPath("$.progressPercent").value(100))
-                .andExpect(jsonPath("$.durationSeconds").value(11))
+                .andExpect(jsonPath("$.durationSeconds").value(11.0))
                 .andExpect(jsonPath("$.output.filename")
                         .value("sample.docx"))
                 .andExpect(jsonPath("$.output.sizeBytes")

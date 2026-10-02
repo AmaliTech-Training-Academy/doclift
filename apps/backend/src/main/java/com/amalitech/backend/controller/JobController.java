@@ -48,7 +48,7 @@ public class JobController {
     ) {
         Job job = jobService.getJobWithFile(jobId);
 
-        Long durationSeconds = calculateDurationSeconds(job);
+        Double durationSeconds = calculateDurationSeconds(job);
 
         JobOutputResponse output = null;
 
@@ -65,7 +65,11 @@ public class JobController {
         if (job.getMetrics() != null) {
             metrics = new JobMetricsResponse(
                     job.getMetrics().getSourceWordCount(),
-                    job.getMetrics().getOutputWordCount()
+                    job.getMetrics().getOutputWordCount(),
+                    job.getMetrics().getOrderedListsDetected(),
+                    job.getMetrics().getUnorderedListsDetected(),
+                    job.getMetrics().getOrderedListsReconstructed(),
+                    job.getMetrics().getUnorderedListsReconstructed()
             );
         }
 
@@ -174,7 +178,7 @@ public class JobController {
         return baseName + ".docx";
     }
 
-    private Long calculateDurationSeconds(Job job) {
+    private Double calculateDurationSeconds(Job job) {
         if (job.getStartedAt() == null) {
             return null;
         }
@@ -184,9 +188,11 @@ public class JobController {
                         ? job.getCompletedAt()
                         : Instant.now();
 
-        return Duration.between(
+        long millis = Duration.between(
                 job.getStartedAt(),
                 endTime
-        ).getSeconds();
+        ).toMillis();
+
+        return Math.round((millis / 1000.0) * 100.0) / 100.0;
     }
 }
