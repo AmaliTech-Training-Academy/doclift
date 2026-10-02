@@ -1,5 +1,6 @@
 package com.amalitech.backend.controller;
 
+import com.amalitech.backend.dto.response.JobMetricsResponse;
 import com.amalitech.backend.dto.response.JobOutputResponse;
 import com.amalitech.backend.dto.response.JobStatusResponse;
 import com.amalitech.backend.exception.JobFailedException;
@@ -59,6 +60,15 @@ public class JobController {
             );
         }
 
+        JobMetricsResponse metrics = null;
+
+        if (job.getMetrics() != null) {
+            metrics = new JobMetricsResponse(
+                    job.getMetrics().getSourceWordCount(),
+                    job.getMetrics().getOutputWordCount()
+            );
+        }
+
         JobStatusResponse response = new JobStatusResponse(
                 job.getId(),
                 job.getStatus(),
@@ -70,7 +80,8 @@ public class JobController {
                 job.getPhase(),
                 job.getProgressPercent(),
                 durationSeconds,
-                output
+                output,
+                metrics
         );
 
         return ResponseEntity.ok(response);

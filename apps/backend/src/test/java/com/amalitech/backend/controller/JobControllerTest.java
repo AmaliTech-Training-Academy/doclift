@@ -1,9 +1,7 @@
 package com.amalitech.backend.controller;
 
 import com.amalitech.backend.exception.JobNotFoundException;
-import com.amalitech.backend.model.Job;
-import com.amalitech.backend.model.JobPhase;
-import com.amalitech.backend.model.JobStatus;
+import com.amalitech.backend.model.*;
 import com.amalitech.backend.service.JobService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +10,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.amalitech.backend.model.JobFile;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -111,6 +108,15 @@ class JobControllerTest {
 
         job.setFile(jobFile);
 
+        JobMetrics jobMetrics =
+                new JobMetrics(
+                        job,
+                        120,
+                        118
+                );
+
+        job.setMetrics(jobMetrics);
+
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
@@ -129,6 +135,10 @@ class JobControllerTest {
                         .value(245120))
                 .andExpect(jsonPath("$.output.downloadUrl")
                         .value("/api/v1/jobs/" + JOB_ID + "/download"))
+                .andExpect(jsonPath("$.metrics.sourceWordCount")
+                        .value(120))
+                .andExpect(jsonPath("$.metrics.outputWordCount")
+                        .value(118))
                 .andExpect(jsonPath("$.status")
                         .value("DONE"));
     }
@@ -222,6 +232,7 @@ class JobControllerTest {
                         )
                 )
                 .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.metrics").doesNotExist())
                 .andExpect(
                         jsonPath("$.error")
                                 .value("JOB_NOT_READY")
