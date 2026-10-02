@@ -48,6 +48,13 @@ public class Job {
     @OneToOne(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
     private JobFile file;
 
+    @OneToOne(
+            mappedBy = "job",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private JobMetrics metrics;
+
     public Job(String sourceFilename, Integer pageCount) {
         this.sourceFilename = sourceFilename;
         this.pageCount = pageCount;
