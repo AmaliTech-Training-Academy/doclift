@@ -1,5 +1,7 @@
 package com.amalitech.backend.controller;
 
+import com.amalitech.backend.dto.response.JobMetricsResponse;
+import com.amalitech.backend.dto.response.JobOutputResponse;
 import com.amalitech.backend.dto.response.JobStatusResponse;
 import com.amalitech.backend.exception.JobFailedException;
 import com.amalitech.backend.exception.JobNotReadyException;
@@ -19,7 +21,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.UUID;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/v1/jobs")
@@ -42,18 +46,43 @@ public class JobController {
     public ResponseEntity<JobStatusResponse> getJobStatus(
             @PathVariable UUID jobId
     ) {
+        Job job = jobService.getJobWithFile(jobId);
 
-        Job job =
-                jobService.getJob(jobId);
+        Long durationSeconds = calculateDurationSeconds(job);
 
-        JobStatusResponse response =
-                new JobStatusResponse(
-                        job.getId(),
-                        job.getStatus(),
-                        job.getSourceFilename(),
-                        job.getPageCount(),
-                        job.getCreatedAt()
-                );
+        JobOutputResponse output = null;
+
+        if (job.getStatus() == JobStatus.DONE && job.getFile() != null) {
+            output = new JobOutputResponse(
+                    buildOutputFilename(job.getSourceFilename()),
+                    job.getFile().getSize(),
+                    "/api/v1/jobs/" + job.getId() + "/download"
+            );
+        }
+
+        JobMetricsResponse metrics = null;
+
+        if (job.getMetrics() != null) {
+            metrics = new JobMetricsResponse(
+                    job.getMetrics().getSourceWordCount(),
+                    job.getMetrics().getOutputWordCount()
+            );
+        }
+
+        JobStatusResponse response = new JobStatusResponse(
+                job.getId(),
+                job.getStatus(),
+                job.getSourceFilename(),
+                job.getPageCount(),
+                job.getCreatedAt(),
+                job.getStartedAt(),
+                job.getCompletedAt(),
+                job.getPhase(),
+                job.getProgressPercent(),
+                durationSeconds,
+                output,
+                metrics
+        );
 
         return ResponseEntity.ok(response);
     }
@@ -74,7 +103,6 @@ public class JobController {
         if (job.getStatus() == JobStatus.FAILED) {
             throw new JobFailedException();
         }
-
         if (job.getStatus() != JobStatus.DONE) {
             throw new JobNotReadyException();
         }
@@ -144,5 +172,21 @@ public class JobController {
                         : sourceFilename;
 
         return baseName + ".docx";
+    }
+
+    private Long calculateDurationSeconds(Job job) {
+        if (job.getStartedAt() == null) {
+            return null;
+        }
+
+        Instant endTime =
+                job.getCompletedAt() != null
+                        ? job.getCompletedAt()
+                        : Instant.now();
+
+        return Duration.between(
+                job.getStartedAt(),
+                endTime
+        ).getSeconds();
     }
 }
