@@ -55,7 +55,6 @@ class ImageRecoveryIntegrationTest {
 
     @Test
     void decomposesNinetyDegreeRotatedImageWithoutBoundingBoxInflation() throws Exception {
-        // u=(0,100) -> width 100 rotated 90 CCW, v=(-50,0) -> height 50, centered at (200,200).
         byte[] pdfBytes = buildPdfWithMatrixPlacedImage(
                 400, 400,
                 new Matrix(0, 100, -50, 0, 225, 150)
@@ -239,10 +238,6 @@ class ImageRecoveryIntegrationTest {
                 byte[] docx = wordWriterService.write(result);
 
                 try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
-                    // Anchor count (not getAllPictures().size()): POI deduplicates picture
-                    // parts with identical byte content, so visually-identical images across
-                    // different source filters can legitimately share one underlying part
-                    // while still each getting their own positioned anchor.
                     assertThat(countAnchors(document))
                             .as("anchored image count for %s", pdfPath)
                             .isEqualTo(totalImages);
