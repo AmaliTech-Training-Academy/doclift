@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.UUID;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/v1/jobs")
@@ -42,18 +44,22 @@ public class JobController {
     public ResponseEntity<JobStatusResponse> getJobStatus(
             @PathVariable UUID jobId
     ) {
+        Job job = jobService.getJob(jobId);
 
-        Job job =
-                jobService.getJob(jobId);
+        Long durationSeconds = calculateDurationSeconds(job);
 
-        JobStatusResponse response =
-                new JobStatusResponse(
-                        job.getId(),
-                        job.getStatus(),
-                        job.getSourceFilename(),
-                        job.getPageCount(),
-                        job.getCreatedAt()
-                );
+        JobStatusResponse response = new JobStatusResponse(
+                job.getId(),
+                job.getStatus(),
+                job.getSourceFilename(),
+                job.getPageCount(),
+                job.getCreatedAt(),
+                job.getStartedAt(),
+                job.getCompletedAt(),
+                job.getPhase(),
+                job.getProgressPercent(),
+                durationSeconds
+        );
 
         return ResponseEntity.ok(response);
     }
@@ -144,5 +150,21 @@ public class JobController {
                         : sourceFilename;
 
         return baseName + ".docx";
+    }
+
+    private Long calculateDurationSeconds(Job job) {
+        if (job.getStartedAt() == null) {
+            return null;
+        }
+
+        Instant endTime =
+                job.getCompletedAt() != null
+                        ? job.getCompletedAt()
+                        : Instant.now();
+
+        return Duration.between(
+                job.getStartedAt(),
+                endTime
+        ).getSeconds();
     }
 }
