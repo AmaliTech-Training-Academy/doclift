@@ -7,9 +7,18 @@ export type ConversionSession = {
     updatedAt: number;
     createdAt?: number;
     durationSeconds?: number;
-    /** Epoch ms when the conversion finished; starts the purge countdown. */
     completedAt?: number;
     fileSize?: number;
+    pageCount?: number | null;
+    output?: {
+        filename: string;
+        sizeBytes: number;
+        downloadUrl: string;
+    } | null;
+    metrics?: {
+        sourceWordCount: number | null;
+        outputWordCount: number | null;
+    } | null;
 };
 
 const STORAGE_KEY = "doclift-active-conversion";

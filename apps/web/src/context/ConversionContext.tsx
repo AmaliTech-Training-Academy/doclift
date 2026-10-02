@@ -6,6 +6,7 @@ import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
 import { useJobPolling } from "@/lib/useJobPolling";
 import { usePurgeCountdown, PURGE_TTL_SECONDS } from "@/lib/usePurgeCountdown";
+import { JobStatusResponse } from "@/lib/jobApi";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
 import { toast } from "sonner";
 
@@ -30,7 +31,11 @@ interface ConversionContextValue {
     isConverting: boolean;
     isInitialized: boolean;
     startConversion: (fileOverride?: File | null) => Promise<ConversionSession | null>;
-    updateStatus: (status: ConversionStatus, durationOverride?: number) => void;
+    updateStatus: (
+        status: ConversionStatus,
+        durationOverride?: number,
+        jobData?: JobStatusResponse
+    ) => void;
 }
 
 const ConversionContext = createContext<ConversionContextValue | null>(null);
@@ -80,28 +85,40 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         clearDraftFile();
     }, []);
 
-    const updateStatus = useCallback((status: ConversionStatus, durationOverride?: number) => {
+    const updateStatus = useCallback((
+        status: ConversionStatus,
+        durationOverride?: number,
+        jobData?: JobStatusResponse
+    ) => {
         setSession((prevSession) => {
             if (!prevSession) return null;
             const now = Date.now();
             const createdAt = prevSession.createdAt || prevSession.updatedAt;
             const calculatedDuration = Math.max(1, Math.round((now - createdAt) / 1000));
             const durationSeconds =
-                durationOverride !== undefined
+                jobData?.durationSeconds !== undefined && jobData?.durationSeconds !== null
+                    ? jobData.durationSeconds
+                    : durationOverride !== undefined
                     ? durationOverride
                     : status === "done"
                     ? (prevSession.durationSeconds ?? calculatedDuration)
                     : prevSession.durationSeconds;
+
+            const completedAtMs = jobData?.completedAt
+                ? new Date(jobData.completedAt).getTime()
+                : status === "done"
+                ? (prevSession.completedAt ?? now)
+                : prevSession.completedAt;
 
             const updatedSession: ConversionSession = {
                 ...prevSession,
                 status,
                 updatedAt: now,
                 durationSeconds,
-                completedAt:
-                    status === "done"
-                        ? (prevSession.completedAt ?? now)
-                        : prevSession.completedAt,
+                completedAt: completedAtMs,
+                pageCount: jobData?.pageCount ?? prevSession.pageCount,
+                output: jobData?.output ?? prevSession.output,
+                metrics: jobData?.metrics ?? prevSession.metrics,
             };
             saveConversionSession(updatedSession);
             return updatedSession;
@@ -226,8 +243,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         jobId: session?.jobId,
         enabled: isConverting,
         intervalMs: 500,
-        onComplete: () => {
-            updateStatus("done");
+        onComplete: (data) => {
+            updateStatus("done", undefined, data);
             setActiveView("result");
             if (typeof toast?.success === "function") {
                 toast.success("Conversion complete!", {

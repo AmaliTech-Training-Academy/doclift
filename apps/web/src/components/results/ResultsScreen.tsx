@@ -21,17 +21,51 @@ import DownloadButton from "@/components/results/DownloadButton";
 
 export default function ResultsScreen() {
   const { requestReset, session } = useConversion();
-  const docxTitle = session?.fileName
-    ? session.fileName.replace(/\.[^./]+$/, ".docx")
-    : "Word Document.docx";
-  const durationSeconds = session?.durationSeconds ?? 20;
-  const conversionTimeText = `${durationSeconds}s conversion time`;
+  const docxTitle =
+    session?.output?.filename ||
+    (session?.fileName
+      ? session.fileName.replace(/\.[^./]+$/, ".docx")
+      : "Word Document.docx");
 
-  const fileSizeText = session?.fileSize
-    ? session.fileSize < 1024 * 1024
-      ? `${(session.fileSize / 1024).toFixed(1)} KB`
-      : `${(session.fileSize / (1024 * 1024)).toFixed(1)} MB`
+  const durationSeconds = session?.durationSeconds;
+  const conversionTimeText = durationSeconds != null ? `${durationSeconds}s conversion time` : null;
+
+  const sizeBytes = session?.output?.sizeBytes ?? session?.fileSize;
+  const fileSizeText = sizeBytes
+    ? sizeBytes < 1024 * 1024
+      ? `${(sizeBytes / 1024).toFixed(1)} KB`
+      : `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
     : null;
+
+  const pageCountText =
+    session?.pageCount != null
+      ? `${session.pageCount} ${session.pageCount === 1 ? "page" : "pages"}`
+      : null;
+
+  const metadataSummary = [pageCountText, fileSizeText, conversionTimeText]
+    .filter(Boolean)
+    .join(" • ");
+
+  const sourceWords = session?.metrics?.sourceWordCount;
+  const outputWords = session?.metrics?.outputWordCount;
+  const wordCount = outputWords ?? sourceWords;
+
+  const textYieldPercent =
+    sourceWords != null && outputWords != null && sourceWords > 0
+      ? Number(
+          Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)).toFixed(1)
+        )
+      : 98;
+
+  const dynamicChecklistData = checklistData.map((item) => {
+    if (item.id === 1 && wordCount != null) {
+      return {
+        ...item,
+        badge: `${wordCount.toLocaleString()} Words`,
+      };
+    }
+    return item;
+  });
 
   return (
     <div className="flex-1 space-y-4 p-4">
@@ -64,10 +98,11 @@ export default function ResultsScreen() {
                     ID: {session.jobId}
                   </span>
                 )}
-                <p className="text-sm sm:text-md text-muted-foreground">
-                  {fileSizeText} • {conversionTimeText}{" "}
-                  {/* ToDo: File size and number of pages of .docx will be fetched from backend */}
-                </p>
+                {metadataSummary && (
+                  <p className="text-sm sm:text-md text-muted-foreground">
+                    {metadataSummary}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -94,7 +129,7 @@ export default function ResultsScreen() {
               Deterministic AST Validation
             </span>
           </div>
-          {checklistData.map((item) => (
+          {dynamicChecklistData.map((item) => (
             <ChecklistCard key={item.id} item={item} />
           ))}
         </div>
@@ -132,12 +167,12 @@ export default function ResultsScreen() {
                   fill="none"
                   stroke="#2563eb"
                   strokeWidth="3"
-                  strokeDasharray="98 100"
+                  strokeDasharray={`${textYieldPercent} 100`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute flex flex-col items-center leading-none">
-                <span className="text-lg font-bold">98%</span>
+                <span className="text-lg font-bold">{textYieldPercent}%</span>
                 <span className="text-[9px] text-gray-400 mt-0.5">
                   Text Match
                 </span>

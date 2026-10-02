@@ -1,11 +1,27 @@
 export type BackendJobStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
 
+export interface JobOutputResponse {
+  filename: string;
+  sizeBytes: number;
+  downloadUrl: string;
+}
+
+export interface JobMetricsResponse {
+  sourceWordCount: number | null;
+  outputWordCount: number | null;
+}
+
 export interface JobStatusResponse {
   jobId: string;
   status: BackendJobStatus;
   sourceFilename: string;
   pageCount: number | null;
   createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  output?: JobOutputResponse | null;
+  metrics?: JobMetricsResponse | null;
 }
 
 export interface ApiErrorResponse {
