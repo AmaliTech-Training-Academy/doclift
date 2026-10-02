@@ -482,6 +482,7 @@ class BorderedTableDetector {
         }
 
         Map<Integer, List<TextSpan>> spansByGroup = new LinkedHashMap<>();
+        Map<Integer, List<TextSpan>> spansByCell = new LinkedHashMap<>();
 
         float left = columnBoundaries.getFirst();
         float right = columnBoundaries.getLast();
@@ -504,10 +505,15 @@ class BorderedTableDetector {
                 continue;
             }
 
-            int root = find(parent, index(row, col, columnCount));
+            int cellIndex = index(row, col, columnCount);
+            int root = find(parent, cellIndex);
 
             spansByGroup
                     .computeIfAbsent(root, key -> new ArrayList<>())
+                    .add(span);
+
+            spansByCell
+                    .computeIfAbsent(cellIndex, key -> new ArrayList<>())
                     .add(span);
         }
 
@@ -531,6 +537,33 @@ class BorderedTableDetector {
             int maxRow = bounds[1];
             int minCol = bounds[2];
             int maxCol = bounds[3];
+
+            int memberCount = 0;
+
+            for (int row = minRow; row <= maxRow; row++) {
+                for (int col = minCol; col <= maxCol; col++) {
+                    if (find(parent, index(row, col, columnCount)) == entry.getKey()) {
+                        memberCount++;
+                    }
+                }
+            }
+
+            int boundingBoxSize = ((maxRow - minRow) + 1) * ((maxCol - minCol) + 1);
+
+            if (memberCount != boundingBoxSize) {
+                writeUnmergedCells(
+                        cells,
+                        parent,
+                        spansByCell,
+                        entry.getKey(),
+                        minRow,
+                        maxRow,
+                        minCol,
+                        maxCol,
+                        columnCount
+                );
+                continue;
+            }
 
             List<TextSpan> groupSpans = new ArrayList<>(
                     spansByGroup.getOrDefault(entry.getKey(), List.of())
@@ -589,6 +622,51 @@ class BorderedTableDetector {
         }
 
         return cells;
+    }
+
+    private void writeUnmergedCells(
+            List<List<TableCell>> cells,
+            int[] parent,
+            Map<Integer, List<TextSpan>> spansByCell,
+            int root,
+            int minRow,
+            int maxRow,
+            int minCol,
+            int maxCol,
+            int columnCount
+    ) {
+        for (int row = minRow; row <= maxRow; row++) {
+            for (int col = minCol; col <= maxCol; col++) {
+
+                int cellIndex = index(row, col, columnCount);
+
+                if (find(parent, cellIndex) != root) {
+                    continue;
+                }
+
+                List<TextSpan> cellSpans = new ArrayList<>(
+                        spansByCell.getOrDefault(cellIndex, List.of())
+                );
+
+                cellSpans.sort(
+                        Comparator.comparing(TextSpan::getY)
+                                .thenComparing(TextSpan::getX)
+                );
+
+                cells.get(row).set(
+                        col,
+                        new TableCell(
+                                row,
+                                col,
+                                1,
+                                1,
+                                buildCellText(cellSpans),
+                                cellSpans,
+                                null
+                        )
+                );
+            }
+        }
     }
 
     private int index(int row, int col, int columnCount) {

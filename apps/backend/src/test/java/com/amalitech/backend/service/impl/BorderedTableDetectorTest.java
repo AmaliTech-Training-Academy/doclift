@@ -418,18 +418,20 @@ class BorderedTableDetectorTest {
     }
 
     // =========================================================
-    // NON-RECTANGULAR (L-SHAPED) MERGE GROUPS MUST NOT CLOBBER
-    // UNRELATED CELLS THAT MERELY FALL INSIDE THEIR BOUNDING BOX
+    // NON-RECTANGULAR (L-SHAPED) MERGE GROUPS CANNOT BE REPRESENTED
+    // AS A SINGLE OOXML CELL, SO THEY MUST BE LEFT UNMERGED RATHER
+    // THAN CLOBBERING UNRELATED CELLS OR PRODUCING AN INVALID TABLE
     // =========================================================
 
     @Test
-    void shouldNotOverwriteUnrelatedCellsCoveredByAnLShapedMergeGroupsBoundingBox() {
+    void shouldLeaveNonRectangularMergeGroupsUnmergedInsteadOfProducingAnInvalidTable() {
 
         // 2 rows x 3 cols. (0,2)/(1,0)/(1,1)/(1,2) form one L-shaped merge
         // group (missing borders chain them together), while (0,0) and
-        // (0,1) are separate, fully-bordered cells. The L-group's bounding
-        // box is the entire grid, but its real membership is not a
-        // rectangle - (0,0) and (0,1) must keep their own text.
+        // (0,1) are separate, fully-bordered cells. A single anchor cell
+        // with one rowSpan/columnSpan pair cannot represent an L-shaped
+        // region in OOXML (gridSpan + vMerge only compose into rectangles),
+        // so the whole group must fall back to unmerged 1x1 cells.
         List<HorizontalLine> horizontalLines = List.of(
                 new HorizontalLine(0f, 0f, 300f),
                 new HorizontalLine(30f, 0f, 100f),
@@ -466,10 +468,9 @@ class BorderedTableDetectorTest {
         assertThat(table.cells().get(0).get(0).text()).isEqualTo("KeepMe00");
         assertThat(table.cells().get(0).get(1).text()).isEqualTo("KeepMe01");
 
-        // The L-shaped group's own anchor must survive: its bounding-box
-        // corner (0,0) belongs to a different group, so the anchor cannot
-        // always be placed there - it must land on an actual member of
-        // the group instead, carrying the group's text and real spans.
+        // The L-shaped group's own members must each stand alone: no
+        // merging at all, so the generated table can never declare a
+        // gridSpan that overruns the table's real column count.
         List<TableCell> mergeGroupMembers = List.of(
                 table.cells().get(0).get(2),
                 table.cells().get(1).get(0),
@@ -477,14 +478,17 @@ class BorderedTableDetectorTest {
                 table.cells().get(1).get(2)
         );
 
-        List<TableCell> anchors = mergeGroupMembers.stream()
-                .filter(cell -> cell.rowSpan() > 0)
-                .toList();
+        assertThat(mergeGroupMembers)
+                .as("a non-rectangular group must never merge - every member stays 1x1")
+                .allSatisfy(cell -> {
+                    assertThat(cell.rowSpan()).isEqualTo(1);
+                    assertThat(cell.columnSpan()).isEqualTo(1);
+                });
 
-        assertThat(anchors).hasSize(1);
-        assertThat(anchors.getFirst().text()).isEqualTo("Merged");
-        assertThat(anchors.getFirst().rowSpan()).isEqualTo(2);
-        assertThat(anchors.getFirst().columnSpan()).isEqualTo(3);
+        assertThat(table.cells().get(0).get(2).text()).isEqualTo("");
+        assertThat(table.cells().get(1).get(0).text()).isEqualTo("");
+        assertThat(table.cells().get(1).get(1).text()).isEqualTo("");
+        assertThat(table.cells().get(1).get(2).text()).isEqualTo("Merged");
     }
 
     private TextSpan span(String text, float x, float y) {
