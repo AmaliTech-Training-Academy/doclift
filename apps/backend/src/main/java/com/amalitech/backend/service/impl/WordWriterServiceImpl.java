@@ -1,6 +1,8 @@
 package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.service.BlockType;
+import com.amalitech.backend.service.ExtractedImage;
+import com.amalitech.backend.service.ImagePositionMapper;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.PdfExtractionResult;
 import com.amalitech.backend.service.StructuredBlock;
@@ -8,10 +10,16 @@ import com.amalitech.backend.service.TextSpan;
 import com.amalitech.backend.service.WordWriterService;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
+import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTDrawing;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTLvl;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STNumberFormat;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation;
 
 import java.math.BigInteger;
 import java.util.regex.Pattern;
@@ -300,7 +308,24 @@ public class WordWriterServiceImpl implements WordWriterService {
             BigInteger numberedNumId =
                     createNumberedNumbering(document);
 
-            for (PageExtraction page : extractionResult.getPages()) {
+            List<PageExtraction> pages =
+                    extractionResult.getPages();
+
+            if (!pages.isEmpty()) {
+                applyPageSize(document, pages.getFirst());
+            }
+
+            int shapeId = 1;
+
+            for (int pageNumber = 0;
+                 pageNumber < pages.size();
+                 pageNumber++) {
+
+                PageExtraction page = pages.get(pageNumber);
+
+                if (pageNumber > 0) {
+                    insertPageBreak(document);
+                }
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
@@ -311,6 +336,10 @@ public class WordWriterServiceImpl implements WordWriterService {
                             bulletNumId,
                             numberedNumId
                     );
+                }
+
+                for (ExtractedImage image : page.getImages()) {
+                    insertFloatingImage(document, page, image, shapeId++);
                 }
             }
 
@@ -324,6 +353,184 @@ public class WordWriterServiceImpl implements WordWriterService {
                     e
             );
         }
+    }
+
+    private static final double TWIPS_PER_POINT = 20.0;
+
+    private void applyPageSize(
+            XWPFDocument document,
+            PageExtraction firstPage
+    ) {
+        boolean swapped =
+                firstPage.getRotation() == 90
+                        || firstPage.getRotation() == 270;
+
+        float widthPt =
+                swapped ? firstPage.getCropHeight() : firstPage.getCropWidth();
+
+        float heightPt =
+                swapped ? firstPage.getCropWidth() : firstPage.getCropHeight();
+
+        CTBody body =
+                document.getDocument().getBody();
+
+        CTSectPr sectPr =
+                body.isSetSectPr() ? body.getSectPr() : body.addNewSectPr();
+
+        CTPageSz pageSz =
+                sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
+
+        pageSz.setW(
+                BigInteger.valueOf(Math.round(widthPt * TWIPS_PER_POINT))
+        );
+
+        pageSz.setH(
+                BigInteger.valueOf(Math.round(heightPt * TWIPS_PER_POINT))
+        );
+
+        pageSz.setOrient(
+                widthPt > heightPt
+                        ? STPageOrientation.LANDSCAPE
+                        : STPageOrientation.PORTRAIT
+        );
+    }
+
+    private void insertPageBreak(XWPFDocument document) {
+        XWPFParagraph paragraph = document.createParagraph();
+        XWPFRun run = paragraph.createRun();
+        run.addBreak(BreakType.PAGE);
+    }
+
+    private void insertFloatingImage(
+            XWPFDocument document,
+            PageExtraction page,
+            ExtractedImage image,
+            int shapeId
+    ) {
+        if (image.getData() == null || image.getData().length == 0) {
+            return;
+        }
+
+        ImagePositionMapper.Placement placement =
+                ImagePositionMapper.map(image, page);
+
+        if (placement.extentXEmu() <= 0 || placement.extentYEmu() <= 0) {
+            return;
+        }
+
+        try {
+            String relationId =
+                    document.addPictureData(
+                            image.getData(),
+                            Document.PICTURE_TYPE_PNG
+                    );
+
+            XWPFParagraph paragraph = document.createParagraph();
+            XWPFRun run = paragraph.createRun();
+
+            String pictureName =
+                    image.getImageName() == null
+                            ? "image-" + shapeId
+                            : image.getImageName();
+
+            String drawingXml = buildAnchorXml(
+                    relationId,
+                    pictureName,
+                    shapeId,
+                    placement
+            );
+
+            // Factory.parse() returns a document-rooted object; XmlCursor.moveXml() refuses to
+            // move a whole document ("Can't move/copy/insert a whole document"), and assigning
+            // it via setXxxArray()/.set() silently duplicates the wrapper element instead of
+            // raising an error. Stepping the source cursor onto the root element first, then
+            // transplanting just that node, is what actually attaches a single <w:drawing>.
+            CTDrawing parsedDrawing = CTDrawing.Factory.parse(drawingXml);
+
+            XmlCursor source = parsedDrawing.newCursor();
+            source.toFirstChild();
+
+            XmlCursor target = run.getCTR().newCursor();
+            target.toEndToken();
+
+            source.moveXml(target);
+            source.dispose();
+            target.dispose();
+
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to embed image '" + image.getImageName() + "' into Word document.",
+                    e
+            );
+        }
+    }
+
+    private String buildAnchorXml(
+            String relationId,
+            String name,
+            int shapeId,
+            ImagePositionMapper.Placement placement
+    ) {
+        return """
+                <w:drawing xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                             xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+                             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                             distT="0" distB="0" distL="0" distR="0" simplePos="0"
+                             relativeHeight="%1$d" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">
+                    <wp:simplePos x="0" y="0"/>
+                    <wp:positionH relativeFrom="page"><wp:posOffset>%2$d</wp:posOffset></wp:positionH>
+                    <wp:positionV relativeFrom="page"><wp:posOffset>%3$d</wp:posOffset></wp:positionV>
+                    <wp:extent cx="%4$d" cy="%5$d"/>
+                    <wp:effectExtent l="0" t="0" r="0" b="0"/>
+                    <wp:wrapNone/>
+                    <wp:docPr id="%1$d" name="%6$s"/>
+                    <wp:cNvGraphicFramePr>
+                      <a:graphicFrameLocks noChangeAspect="1"/>
+                    </wp:cNvGraphicFramePr>
+                    <a:graphic>
+                      <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                        <pic:pic>
+                          <pic:nvPicPr>
+                            <pic:cNvPr id="%1$d" name="%6$s"/>
+                            <pic:cNvPicPr/>
+                          </pic:nvPicPr>
+                          <pic:blipFill>
+                            <a:blip r:embed="%7$s"/>
+                            <a:stretch><a:fillRect/></a:stretch>
+                          </pic:blipFill>
+                          <pic:spPr>
+                            <a:xfrm rot="%8$d" flipH="%9$s">
+                              <a:off x="0" y="0"/>
+                              <a:ext cx="%4$d" cy="%5$d"/>
+                            </a:xfrm>
+                            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                          </pic:spPr>
+                        </pic:pic>
+                      </a:graphicData>
+                    </a:graphic>
+                  </wp:anchor>
+                </w:drawing>
+                """.formatted(
+                shapeId,
+                placement.offsetXEmu(),
+                placement.offsetYEmu(),
+                placement.extentXEmu(),
+                placement.extentYEmu(),
+                escapeXml(name),
+                relationId,
+                placement.rotation60000ths(),
+                placement.flipHorizontal() ? "1" : "0"
+        );
+    }
+
+    private String escapeXml(String value) {
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 
 private void writeBlock(
