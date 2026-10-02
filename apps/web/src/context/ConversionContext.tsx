@@ -184,7 +184,6 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     };
 
     const reset = () => {
-        // Cancel any in-flight upload before clearing state.
         abortControllerRef.current?.abort();
         abortControllerRef.current = null;
         isUploadingRef.current = false;

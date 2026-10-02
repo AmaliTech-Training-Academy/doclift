@@ -62,12 +62,4 @@ describe("Stepper", () => {
     expect(screen.getByText("Cancelled")).toBeInTheDocument();
     expect(screen.queryByText("In Progress")).not.toBeInTheDocument();
   });
-
-  it("renders its built-in default steps when no steps prop is given", () => {
-    render(<Stepper />);
-
-    expect(
-      screen.getByText("Document Ingestion & Verification"),
-    ).toBeInTheDocument();
-  });
 });

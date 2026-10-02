@@ -1,76 +1,73 @@
-import { useCallback, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Card } from "../ui/Card";
 import { Progress } from "../ui/Progress";
 import { Spinner } from "../ui/Spinner";
-import { CheckIcon, BadgeCheck, X } from "lucide-react";
-import {
-  StepperDemo,
-  type StepperDemoHandle,
-  type PipelineProgress,
-} from "../ui/Stepper";
-import Button from "../ui/Button";
+import { CheckIcon, BadgeCheck } from "lucide-react";
+import JobStepper, {
+  JOB_STEPS,
+  getActiveStepIndex,
+  getOverallPercent,
+  getProgressCeiling,
+} from "../ui/JobStepper";
 import ErrorStateCard from "./ErrorStateCard";
 
 import { useConversion } from "@/context/ConversionContext";
+import { useJobStatus } from "@/app/hooks/useJobStatus";
+import { useSmoothedProgress } from "@/app/hooks/useSmoothedProgress";
 
 const ProgressCard = () => {
   const { updateStatus, session } = useConversion();
-  const stepperRef = useRef<StepperDemoHandle>(null);
-  const [failed, setFailed] = useState(false);
-  const [progress, setProgress] = useState<PipelineProgress | null>(null);
-  const done = progress?.done ?? false;
+  const isActive =
+    session?.status === "queued" || session?.status === "processing";
+  const { job, notFound } = useJobStatus(isActive ? session.jobId : null);
 
-  const isFailed = session?.status === "failed" || Boolean(progress?.error);
-
-  const handleCancel = () => {
-    if (failed) return;
-    stepperRef.current?.cancel();
-    setFailed(true);
-    updateStatus("failed");
-    toast.error("Conversion failed");
-  };
-
-  const handleProgress = useCallback((state: PipelineProgress) => {
-    setProgress(state);
-    if (state.error || state.failed) {
-      updateStatus("failed");
-    } else if (state.done) {
-      updateStatus("done");
-    }
+  
+  const updateStatusRef = useRef(updateStatus);
+  useEffect(() => {
+    updateStatusRef.current = updateStatus;
   }, [updateStatus]);
 
-  const overallPercent = progress?.overallPercent ?? 0;
+  const jobStatus = job?.status;
+  const durationSeconds = job?.durationSeconds ?? undefined;
 
-  const steps = [
-    {
-      title: "Step 1",
-      description: "Initializing document processing...",
-    },
-    {
-      title: "Step 2",
-      description: "Analyzing document structure...",
-    },
-    {
-      title: "Step 3",
-      description:
-        "Reconstructing tabular data structures and nested headers...",
-    },
-    {
-      title: "Step 4",
-      description: "Validating and cleaning the reconstructed data...",
-    },
-    {
-      title: "Step 5",
-      description: "Finalizing the document reconstruction process...",
-    },
-  ];
+  useEffect(() => {
+    if (!isActive) return;
+    if (jobStatus === "DONE") {
+      updateStatusRef.current("done", durationSeconds);
+      toast.success("Conversion complete!");
+    } else if (jobStatus === "FAILED") {
+      updateStatusRef.current("failed");
+      toast.error("Conversion failed");
+    } else if (jobStatus === "PROCESSING" && session?.status === "queued") {
+      updateStatusRef.current("processing");
+    }
+  }, [isActive, jobStatus, durationSeconds, session?.status]);
 
-  const totalSteps = progress?.totalSteps ?? steps.length;
-  const currentStepIndex = Math.min(progress?.activeIndex ?? 0, totalSteps - 1);
-  const isFinalPhase = currentStepIndex + 1 === totalSteps;
+  useEffect(() => {
+    if (notFound && isActive) {
+      updateStatusRef.current("failed");
+      toast.error("Conversion job could not be found");
+    }
+  }, [notFound, isActive]);
 
-  if (isFailed) {
+  const totalSteps = JOB_STEPS.length;
+  const activeIndex = getActiveStepIndex(job);
+  const done = activeIndex >= totalSteps;
+  const queued = activeIndex < 0;
+  const currentStepIndex = Math.min(Math.max(activeIndex, 0), totalSteps - 1);
+  const overallPercent = useSmoothedProgress(
+    getOverallPercent(job),
+    getProgressCeiling(job),
+  );
+
+  const calloutText = queued
+    ? "Waiting in queue..."
+    : done
+      ? "Conversion complete. Preparing your results..."
+      : `${JOB_STEPS[currentStepIndex].description}...`;
+
+  if (session?.status === "failed") {
     return <ErrorStateCard />;
   }
 
@@ -92,28 +89,28 @@ const ProgressCard = () => {
         <div>
           <Progress
             value={overallPercent}
-            className="bg-primary-background mx-2 w-auto *:bg-primary"
+            className="bg-primary-background mx-2 w-auto *:bg-primary *:duration-700 *:ease-out"
           />
         </div>
         {/* Current Stage Callout */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-1 p-4">
           <div className="flex items-center gap-1 shrink-0">
-            {isFinalPhase ? (
+            {done ? (
               <CheckIcon className="w-4 h-4 text-primary" />
             ) : (
               <Spinner className="w-4 h-4 text-primary" />
             )}
             <p className="font-bold text-sm">
-              Phase {currentStepIndex + 1} of {totalSteps}:
+              {queued
+                ? "Queued:"
+                : `Phase ${done ? totalSteps : currentStepIndex + 1} of ${totalSteps}:`}
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {steps[currentStepIndex]?.description}
-          </p>
+          <p className="text-sm text-muted-foreground">{calloutText}</p>
         </div>
         {/* Timeline Stepper */}
         <div className="-mx-4">
-          <StepperDemo ref={stepperRef} onProgress={handleProgress} />
+          <JobStepper job={job} />
         </div>
         {/* Pipeline Footer */}
         <Card className="mx-2 my-6 bg-secondary border-secondary">
@@ -132,22 +129,6 @@ const ProgressCard = () => {
             </div>
           </div>
         </Card>
-        {/* Cancel Button */}
-        <div className="flex items-center gap-4 p-4">
-          <Button
-            variant="danger"
-            className="disabled:hover:text-inherit w-80"
-            onClick={handleCancel}
-            disabled={failed || done}
-          >
-            <X />
-            {failed
-              ? "Simulated failure"
-              : done
-                ? "Conversion Completed"
-                : "Simulate failure"}
-          </Button>
-        </div>
       </Card>
     </div>
   );
