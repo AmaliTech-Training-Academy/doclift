@@ -13,6 +13,8 @@ public class StructuredBlock {
 
     private BlockType type;
 
+    private ListType listType;
+
     private String text;
 
     private float x;

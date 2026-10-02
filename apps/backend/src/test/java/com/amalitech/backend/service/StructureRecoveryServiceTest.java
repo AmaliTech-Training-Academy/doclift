@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class StructureRecoveryServiceTest {
 
@@ -466,6 +467,55 @@ class StructureRecoveryServiceTest {
     }
 
     @Test
+    void shouldDetectLargeFontHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Main Title",
+                        50,
+                        50,
+                        200,
+                        20,
+                        "Helvetica-Bold",
+                        18,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        10,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.HEADING,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+    @Test
     void shouldPreserveMultiSpanRowCrossingColumnBoundary() {
         PageExtraction page = new PageExtraction(0);
 
@@ -778,5 +828,205 @@ class StructureRecoveryServiceTest {
                         .getFirst()
                         .getText()
         ).isEqualTo("This is important");
+    }
+
+    @Test
+    void shouldDetectBoldColonLabelAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Lowercase Roman numerals:",
+                        50,
+                        50,
+                        200,
+                        12,
+                        "Helvetica-Bold",
+                        12,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.HEADING,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldNotDetectNormalBodyTextAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "This is a normal sentence.",
+                        50,
+                        50,
+                        250,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "More normal body text.",
+                        50,
+                        80,
+                        250,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.PARAGRAPH,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldNotMisclassifyNormalListItemAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "1. First item",
+                        50,
+                        50,
+                        150,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.LIST_ITEM,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldPreferBoldColonHeadingOverListPattern() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "vii. Uppercase Roman numerals:",
+                        50,
+                        50,
+                        220,
+                        12,
+                        "Helvetica-Bold",
+                        12,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.HEADING,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
     }
 }

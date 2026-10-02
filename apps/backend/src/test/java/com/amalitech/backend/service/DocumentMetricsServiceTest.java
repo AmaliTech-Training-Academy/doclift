@@ -1,6 +1,7 @@
 package com.amalitech.backend.service;
 
 import com.amalitech.backend.service.impl.DocumentMetricsServiceImpl;
+import com.amalitech.backend.service.impl.WordWriterServiceImpl;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
@@ -15,11 +16,31 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class DocumentMetricsServiceTest {
 
     private DocumentMetricsService documentMetricsService;
+    private WordWriterService wordWriterService;
+
+    private StructuredBlock listBlock(
+            String text,
+            ListType listType
+    ) {
+        return new StructuredBlock(
+                0,
+                BlockType.LIST_ITEM,
+                listType,
+                text,
+                0,
+                0,
+                100,
+                20,
+                List.of()
+        );
+    }
 
     @BeforeEach
     void setUp() {
         documentMetricsService =
                 new DocumentMetricsServiceImpl();
+        wordWriterService =
+                new WordWriterServiceImpl();
     }
 
     @Test
@@ -108,6 +129,7 @@ class DocumentMetricsServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "Hello from DocLift",
                         0,
                         0,
@@ -120,6 +142,7 @@ class DocumentMetricsServiceTest {
                 new StructuredBlock(
                         0,
                         BlockType.PARAGRAPH,
+                        null,
                         "PDF-to-Word conversion works.",
                         0,
                         30,
@@ -137,6 +160,93 @@ class DocumentMetricsServiceTest {
                 6,
                 documentMetricsService.countSourceWords(result)
         );
+    }
+
+    @Test
+    void shouldCountOrderedListAsSingleList() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "1. First",
+                        ListType.ORDERED
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "2. Second",
+                        ListType.ORDERED
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "3. Third",
+                        ListType.ORDERED
+                )
+        );
+
+        result.getPages().add(page);
+
+        ListCountResult counts =
+                documentMetricsService.countSourceLists(result);
+
+        assertEquals(1, counts.ordered());
+        assertEquals(0, counts.unordered());
+    }
+
+    @Test
+    void shouldCountSeparateOrderedAndUnorderedLists() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                listBlock("1. First", ListType.ORDERED)
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock("2. Second", ListType.ORDERED)
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "Some paragraph",
+                        0,
+                        0,
+                        100,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock("• Java", ListType.UNORDERED)
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock("• Spring", ListType.UNORDERED)
+        );
+
+        result.getPages().add(page);
+
+        ListCountResult counts =
+                documentMetricsService.countSourceLists(result);
+
+        assertEquals(1, counts.ordered());
+        assertEquals(1, counts.unordered());
     }
 
     @Test
@@ -232,5 +342,140 @@ class DocumentMetricsServiceTest {
                         new byte[0]
                 )
         );
+    }
+
+    @Test
+    void shouldCountOneReconstructedOrderedList() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "1. First item",
+                        ListType.ORDERED
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "2. Second item",
+                        ListType.ORDERED
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "3. Third item",
+                        ListType.ORDERED
+                )
+        );
+
+        result.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(result);
+
+        ListCountResult counts =
+                documentMetricsService.countOutputLists(docx);
+
+        assertEquals(1, counts.ordered());
+        assertEquals(0, counts.unordered());
+    }
+
+    @Test
+    void shouldCountOneReconstructedUnorderedList() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "• Java",
+                        ListType.UNORDERED
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "• Spring Boot",
+                        ListType.UNORDERED
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock(
+                        "• PostgreSQL",
+                        ListType.UNORDERED
+                )
+        );
+
+        result.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(result);
+
+        ListCountResult counts =
+                documentMetricsService.countOutputLists(docx);
+
+        assertEquals(0, counts.ordered());
+        assertEquals(1, counts.unordered());
+    }
+
+    @Test
+    void shouldCountSeparateReconstructedOrderedAndUnorderedLists() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                listBlock("1. First", ListType.ORDERED)
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock("2. Second", ListType.ORDERED)
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "Some paragraph",
+                        0,
+                        0,
+                        100,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock("• Java", ListType.UNORDERED)
+        );
+
+        page.getStructuredBlocks().add(
+                listBlock("• Spring Boot", ListType.UNORDERED)
+        );
+
+        result.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(result);
+
+        ListCountResult counts =
+                documentMetricsService.countOutputLists(docx);
+
+        assertEquals(1, counts.ordered());
+        assertEquals(1, counts.unordered());
     }
 }
