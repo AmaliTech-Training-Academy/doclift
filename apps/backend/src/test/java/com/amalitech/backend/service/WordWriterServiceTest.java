@@ -1,6 +1,7 @@
 package com.amalitech.backend.service;
 
 import com.amalitech.backend.service.impl.WordWriterServiceImpl;
+import org.apache.poi.xwpf.usermodel.XWPFAbstractNum;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 
 import java.io.ByteArrayInputStream;
+import java.math.BigInteger;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +21,179 @@ class WordWriterServiceTest {
     private final WordWriterService wordWriterService =
             new WordWriterServiceImpl();
 
+    private record NumberingInfo(
+            String paragraphText,
+            String numFmt,
+            String levelText
+    ) {}
+
+    private NumberingInfo writeAndReadOrderedListItem(
+            String sourceText
+    ) throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.LIST_ITEM,
+                        ListType.ORDERED,
+                        sourceText,
+                        50,
+                        100,
+                        150,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        sourceText,
+                                        50,
+                                        100,
+                                        150,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            XWPFParagraph paragraph =
+                    document.getParagraphs().getFirst();
+
+            String numFmt =
+                    paragraph.getNumFmt();
+
+            BigInteger numId =
+                    paragraph.getNumID();
+
+            BigInteger abstractNumId =
+                    document.getNumbering()
+                            .getAbstractNumID(numId);
+
+            XWPFAbstractNum abstractNum =
+                    document.getNumbering()
+                            .getAbstractNum(
+                                    abstractNumId
+                            );
+
+            String levelText =
+                    abstractNum
+                            .getCTAbstractNum()
+                            .getLvlArray(0)
+                            .getLvlText()
+                            .getVal();
+
+            return new NumberingInfo(
+                    paragraph.getText(),
+                    numFmt,
+                    levelText
+            );
+        }
+    }
+
+    private XWPFParagraph writeSingleOrderedListItem(
+            String sourceText
+    ) throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.LIST_ITEM,
+                        ListType.ORDERED,
+                        sourceText,
+                        50,
+                        100,
+                        150,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        sourceText,
+                                        50,
+                                        100,
+                                        150,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        XWPFDocument document =
+                new XWPFDocument(
+                        new ByteArrayInputStream(docx)
+                );
+
+        return document.getParagraphs().getFirst();
+    }
+
+    private StructuredBlock unorderedListItem(
+            String text
+    ) {
+        TextSpan span =
+                new TextSpan(
+                        0,
+                        text,
+                        50,
+                        100,
+                        150,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                );
+
+        return new StructuredBlock(
+                0,
+                BlockType.LIST_ITEM,
+                ListType.UNORDERED,
+                text,
+                50,
+                100,
+                150,
+                12,
+                List.of(span)
+        );
+    }
     @Test
     void shouldApplyHeadingStyle() throws Exception {
 
@@ -686,6 +861,7 @@ class WordWriterServiceTest {
         }
     }
 
+
     @Test
     void shouldInsertSpacesBetweenSeparateTextSpans()
             throws Exception {
@@ -879,6 +1055,7 @@ class WordWriterServiceTest {
             ).isEqualTo(first.getNumID());
         }
     }
+
 
     @Test
     void shouldCreateValidDocxDocument() throws Exception {
@@ -1349,4 +1526,330 @@ class WordWriterServiceTest {
         }
     }
 
+    @Test
+    void shouldUseDifferentNumberingForSeparateUnorderedLists()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("• Java")
+        );
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("• Spring")
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "Between lists",
+                        50,
+                        140,
+                        200,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Between lists",
+                                        50,
+                                        140,
+                                        200,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("• PostgreSQL")
+        );
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("• Docker")
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            List<XWPFParagraph> paragraphs =
+                    document.getParagraphs();
+
+            BigInteger firstGroupNumId =
+                    paragraphs.get(0).getNumID();
+
+            BigInteger secondGroupNumId =
+                    paragraphs.get(3).getNumID();
+
+            assertThat(firstGroupNumId)
+                    .isNotNull();
+
+            assertThat(secondGroupNumId)
+                    .isNotNull();
+
+            assertThat(secondGroupNumId)
+                    .isNotEqualTo(
+                            firstGroupNumId
+                    );
+        }
+    }
+
+    @Test
+    void shouldRestartNumberingForSeparateOrderedLists() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                listItem("1. First item")
+        );
+
+        page.getStructuredBlocks().add(
+                listItem("2. Second item")
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        null,
+                        "Between lists",
+                        50,
+                        140,
+                        200,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "Between lists",
+                                        50,
+                                        140,
+                                        200,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                listItem("1. Another first item")
+        );
+
+        page.getStructuredBlocks().add(
+                listItem("2. Another second item")
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            List<XWPFParagraph> paragraphs =
+                    document.getParagraphs();
+
+            XWPFParagraph firstListFirst =
+                    paragraphs.get(0);
+
+            XWPFParagraph firstListSecond =
+                    paragraphs.get(1);
+
+            XWPFParagraph secondListFirst =
+                    paragraphs.get(3);
+
+            XWPFParagraph secondListSecond =
+                    paragraphs.get(4);
+
+            assertThat(
+                    firstListFirst.getNumID()
+            ).isNotNull();
+
+            assertThat(
+                    firstListSecond.getNumID()
+            ).isEqualTo(
+                    firstListFirst.getNumID()
+            );
+
+            assertThat(
+                    secondListFirst.getNumID()
+            ).isNotNull();
+
+            assertThat(
+                    secondListSecond.getNumID()
+            ).isEqualTo(
+                    secondListFirst.getNumID()
+            );
+
+            assertThat(
+                    secondListFirst.getNumID()
+            ).isNotEqualTo(
+                    firstListFirst.getNumID()
+            );
+        }
+    }
+
+    @Test
+    void shouldPreserveDecimalNumberingStyle()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "1. First item"
+                );
+
+        assertThat(info.paragraphText())
+                .isEqualTo("First item");
+
+        assertThat(info.numFmt())
+                .isEqualTo("decimal");
+
+        assertThat(info.levelText())
+                .isEqualTo("%1.");
+    }
+
+    @Test
+    void shouldPreserveLowerRomanNumberingStyle()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "i. Introduction"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("lowerRoman");
+
+        assertThat(info.levelText())
+                .isEqualTo("%1.");
+    }
+
+    @Test
+    void shouldPreserveUpperRomanNumberingStyle()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "IV. Results"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("upperRoman");
+
+        assertThat(info.levelText())
+                .isEqualTo("%1.");
+    }
+
+    @Test
+    void shouldPreserveLowerLetterNumberingStyle()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "a. First item"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("lowerLetter");
+
+        assertThat(info.levelText())
+                .isEqualTo("%1.");
+    }
+
+    @Test
+    void shouldPreserveUpperLetterNumberingStyle()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "A. First item"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("upperLetter");
+
+        assertThat(info.levelText())
+                .isEqualTo("%1.");
+    }
+
+    @Test
+    void shouldPreserveClosingParenthesisNumbering()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "1) First item"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("decimal");
+
+        assertThat(info.levelText())
+                .isEqualTo("%1)");
+    }
+
+    @Test
+    void shouldPreserveFullyParenthesizedNumbering()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "(1) First item"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("decimal");
+
+        assertThat(info.levelText())
+                .isEqualTo("(%1)");
+    }
+
+    @Test
+    void shouldPreserveParenthesizedLowerRomanNumbering()
+            throws Exception {
+
+        NumberingInfo info =
+                writeAndReadOrderedListItem(
+                        "(i) First item"
+                );
+
+        assertThat(info.numFmt())
+                .isEqualTo("lowerRoman");
+
+        assertThat(info.levelText())
+                .isEqualTo("(%1)");
+    }
 }
