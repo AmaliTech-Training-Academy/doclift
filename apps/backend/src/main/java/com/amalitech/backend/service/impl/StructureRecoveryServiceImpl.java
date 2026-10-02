@@ -7,6 +7,7 @@ import com.amalitech.backend.service.StructureRecoveryService;
 import com.amalitech.backend.service.StructuredBlock;
 import com.amalitech.backend.service.TableRegion;
 import com.amalitech.backend.service.TextSpan;
+import com.amalitech.backend.service.*;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -25,9 +26,15 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float MAX_FIRST_LINE_INDENT = 48f;
     private static final float HEADING_FONT_RATIO = 1.25f;
     private static final int HEADING_MAX_LENGTH = 120;
-    private static final Pattern LIST_PATTERN = Pattern.compile(
-            "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,})[.)]|[A-Z]\\))\\s+.+"
-    );
+    private static final Pattern UNORDERED_LIST_PATTERN =
+            Pattern.compile(
+                    "^\\s*[•◦▪‣⁃∙*\\-]\\s+.+"
+            );
+
+    private static final Pattern ORDERED_LIST_PATTERN =
+            Pattern.compile(
+                    "^\\s*(?:(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)])\\s+.+"
+            );
     private static final float MIN_SEGMENT_GAP = 8f;
     private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;
     private static final int MIN_MULTI_COLUMN_ROWS = 3;
@@ -115,6 +122,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return new StructuredBlock(
                 pageIndex,
                 BlockType.PARAGRAPH,
+                null,
                 text.toString(),
                 minX,
                 minY,
@@ -184,6 +192,14 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                         bodyRightMargin
                 );
 
+                blocks.add(
+                        toBlock(
+                                pageIndex,
+                                line,
+                                BlockType.PARAGRAPH,
+                                null
+                        )
+                );
                 for (LogicalLine cell : splitRowIntoCells(line)) {
                     blocks.add(
                             toBlock(
@@ -213,13 +229,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                 line,
                                 BlockType.HEADING,
                                 detectSingleLineAlignment(line, pageWidth)
+                                BlockType.HEADING,
+                                null
                         )
                 );
 
                 continue;
             }
 
-            if (isListItem(line)) {
+            ListType listType = detectListType(line);
+
+            if (listType != null) {
                 flushParagraph(
                         blocks,
                         paragraphLines,
@@ -234,6 +254,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                 line,
                                 BlockType.LIST_ITEM,
                                 BlockAlignment.LEFT
+                                BlockType.LIST_ITEM,
+                                listType
                         )
                 );
 
@@ -344,11 +366,14 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             int pageIndex,
             LogicalLine line,
             BlockType type,
+            ListType listType
+            BlockType type,
             BlockAlignment alignment
     ) {
         StructuredBlock block = new StructuredBlock(
                 pageIndex,
                 type,
+                listType,
                 line.getText(),
                 line.getX(),
                 line.getY(),
@@ -1163,14 +1188,26 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return closest;
     }
 
-    private boolean isListItem(LogicalLine line) {
+    private ListType detectListType(LogicalLine line) {
         String text = line.getText();
 
-        if (text.isBlank()) {
-            return false;
+        if (text == null || text.isBlank()) {
+            return null;
         }
 
-        return LIST_PATTERN.matcher(text).matches();
+        if (UNORDERED_LIST_PATTERN.matcher(text).matches()) {
+            return ListType.UNORDERED;
+        }
+
+        if (ORDERED_LIST_PATTERN.matcher(text).matches()) {
+            return ListType.ORDERED;
+        }
+
+        return null;
+    }
+
+    private boolean isListItem(LogicalLine line) {
+        return detectListType(line) != null;
     }
 
     private boolean isHeading(
