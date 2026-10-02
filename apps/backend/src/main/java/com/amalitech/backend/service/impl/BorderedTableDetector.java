@@ -554,6 +554,10 @@ class BorderedTableDetector {
             for (int row = minRow; row <= maxRow; row++) {
                 for (int col = minCol; col <= maxCol; col++) {
 
+                    if (find(parent, index(row, col, columnCount)) != entry.getKey()) {
+                        continue;
+                    }
+
                     TableCell entry2 = (row == minRow && col == minCol)
                             ? anchor
                             : new TableCell(

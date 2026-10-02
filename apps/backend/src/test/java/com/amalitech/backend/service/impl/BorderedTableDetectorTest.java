@@ -417,6 +417,56 @@ class BorderedTableDetectorTest {
         assertThat(table.cells().get(1).get(1).text()).isEqualTo("R2C2");
     }
 
+    // =========================================================
+    // NON-RECTANGULAR (L-SHAPED) MERGE GROUPS MUST NOT CLOBBER
+    // UNRELATED CELLS THAT MERELY FALL INSIDE THEIR BOUNDING BOX
+    // =========================================================
+
+    @Test
+    void shouldNotOverwriteUnrelatedCellsCoveredByAnLShapedMergeGroupsBoundingBox() {
+
+        // 2 rows x 3 cols. (0,2)/(1,0)/(1,1)/(1,2) form one L-shaped merge
+        // group (missing borders chain them together), while (0,0) and
+        // (0,1) are separate, fully-bordered cells. The L-group's bounding
+        // box is the entire grid, but its real membership is not a
+        // rectangle - (0,0) and (0,1) must keep their own text.
+        List<HorizontalLine> horizontalLines = List.of(
+                new HorizontalLine(0f, 0f, 300f),
+                new HorizontalLine(30f, 0f, 100f),
+                new HorizontalLine(30f, 100f, 200f),
+                // no segment at (30, 200-300): merges (0,2) with (1,2)
+                new HorizontalLine(60f, 0f, 300f)
+        );
+
+        List<VerticalLine> verticalLines = List.of(
+                new VerticalLine(0f, 0f, 60f),
+                new VerticalLine(100f, 0f, 30f),
+                // no segment at (100, 30-60): merges (1,0) with (1,1)
+                new VerticalLine(200f, 0f, 30f),
+                // no segment at (200, 30-60): merges (1,1) with (1,2)
+                new VerticalLine(300f, 0f, 60f)
+        );
+
+        List<TextSpan> textSpans = List.of(
+                span("KeepMe00", 10, 10),
+                span("KeepMe01", 110, 10),
+                span("Merged", 210, 40)
+        );
+
+        List<DetectedTable> tables =
+                detector.detect(0, textSpans, horizontalLines, verticalLines);
+
+        assertThat(tables).hasSize(1);
+
+        DetectedTable table = tables.getFirst();
+
+        assertThat(table.rowCount()).isEqualTo(2);
+        assertThat(table.columnCount()).isEqualTo(3);
+
+        assertThat(table.cells().get(0).get(0).text()).isEqualTo("KeepMe00");
+        assertThat(table.cells().get(0).get(1).text()).isEqualTo("KeepMe01");
+    }
+
     private TextSpan span(String text, float x, float y) {
         return new TextSpan(
                 0,
