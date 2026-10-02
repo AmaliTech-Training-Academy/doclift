@@ -24,6 +24,12 @@ class WordWriterServiceTest {
             String levelText
     ) {}
 
+    private record BulletInfo(
+            String paragraphText,
+            String levelText,
+            BigInteger numId
+    ) {}
+
     private NumberingInfo writeAndReadOrderedListItem(
             String sourceText
     ) throws Exception {
@@ -104,6 +110,85 @@ class WordWriterServiceTest {
                     paragraph.getText(),
                     numFmt,
                     levelText
+            );
+        }
+    }
+
+    private BulletInfo writeAndReadUnorderedListItem(
+            String sourceText
+    ) throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.LIST_ITEM,
+                        ListType.UNORDERED,
+                        sourceText,
+                        50,
+                        100,
+                        150,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        sourceText,
+                                        50,
+                                        100,
+                                        150,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            XWPFParagraph paragraph =
+                    document.getParagraphs().getFirst();
+
+            BigInteger numId =
+                    paragraph.getNumID();
+
+            BigInteger abstractNumId =
+                    document.getNumbering()
+                            .getAbstractNumID(numId);
+
+            XWPFAbstractNum abstractNum =
+                    document.getNumbering()
+                            .getAbstractNum(abstractNumId);
+
+            String levelText =
+                    abstractNum
+                            .getCTAbstractNum()
+                            .getLvlArray(0)
+                            .getLvlText()
+                            .getVal();
+
+            return new BulletInfo(
+                    paragraph.getText(),
+                    levelText,
+                    numId
             );
         }
     }
@@ -1630,5 +1715,124 @@ class WordWriterServiceTest {
 
         assertThat(info.levelText())
                 .isEqualTo("(%1)");
+    }
+
+    @Test
+    void shouldPreserveStandardBulletGlyph() throws Exception {
+
+        BulletInfo info =
+                writeAndReadUnorderedListItem(
+                        "• Java"
+                );
+
+        assertThat(info.paragraphText())
+                .isEqualTo("Java");
+
+        assertThat(info.levelText())
+                .isEqualTo("•");
+    }
+
+    @Test
+    void shouldPreserveSquareBulletGlyph() throws Exception {
+
+        BulletInfo info =
+                writeAndReadUnorderedListItem(
+                        "▪ Java"
+                );
+
+        assertThat(info.paragraphText())
+                .isEqualTo("Java");
+
+        assertThat(info.levelText())
+                .isEqualTo("▪");
+    }
+
+    @Test
+    void shouldPreserveCheckmarkBulletGlyph() throws Exception {
+
+        BulletInfo info =
+                writeAndReadUnorderedListItem(
+                        "✓ Java"
+                );
+
+        assertThat(info.paragraphText())
+                .isEqualTo("Java");
+
+        assertThat(info.levelText())
+                .isEqualTo("✓");
+    }
+
+    @Test
+    void shouldPreserveMiddleDotBulletGlyph() throws Exception {
+
+        BulletInfo info =
+                writeAndReadUnorderedListItem(
+                        "· Java"
+                );
+
+        assertThat(info.paragraphText())
+                .isEqualTo("Java");
+
+        assertThat(info.levelText())
+                .isEqualTo("·");
+    }
+
+    @Test
+    void shouldUseDifferentNumberingWhenBulletGlyphChanges()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("• Java")
+        );
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("• Spring")
+        );
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("▪ PostgreSQL")
+        );
+
+        page.getStructuredBlocks().add(
+                unorderedListItem("▪ Docker")
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+            List<XWPFParagraph> paragraphs =
+                    document.getParagraphs();
+
+            BigInteger firstGlyphNumId =
+                    paragraphs.get(0).getNumID();
+
+            BigInteger secondGlyphNumId =
+                    paragraphs.get(2).getNumID();
+
+            assertThat(
+                    paragraphs.get(1).getNumID()
+            ).isEqualTo(firstGlyphNumId);
+
+            assertThat(
+                    paragraphs.get(3).getNumID()
+            ).isEqualTo(secondGlyphNumId);
+
+            assertThat(secondGlyphNumId)
+                    .isNotEqualTo(firstGlyphNumId);
+        }
     }
 }

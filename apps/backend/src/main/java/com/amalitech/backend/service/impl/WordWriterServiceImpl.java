@@ -21,7 +21,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     private static final Pattern LIST_MARKER_PATTERN =
             Pattern.compile(
                     "^\\s*(?:"
-                            + "[•◦▪‣⁃∙*\\-]"
+                            + "[•◦▪‣⁃∙·✓*\\-]"
                             + "|"
                             + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
                             + "|"
@@ -142,13 +142,14 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private BigInteger createBulletNumbering(
             XWPFDocument document,
-            BigInteger abstractNumId
+            BigInteger abstractNumId,
+            String bulletGlyph
     ) {
         return createNumbering(
                 document,
                 abstractNumId,
                 STNumberFormat.BULLET,
-                "•",
+                bulletGlyph,
                 null
         );
     }
@@ -398,6 +399,7 @@ public class WordWriterServiceImpl implements WordWriterService {
             BigInteger activeBulletNumId = null;
             BigInteger activeNumberedNumId = null;
             ListType activeListType = null;
+            String activeBulletGlyph = null;
 
             for (PageExtraction page : extractionResult.getPages()) {
 
@@ -408,6 +410,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                         activeListType = null;
                         activeBulletNumId = null;
                         activeNumberedNumId = null;
+                        activeBulletGlyph = null;
 
                         writeBlock(
                                 document,
@@ -423,14 +426,14 @@ public class WordWriterServiceImpl implements WordWriterService {
                     ListType currentType =
                             block.getListType();
 
-                    if (currentType != activeListType) {
+                    if (currentType == ListType.ORDERED) {
 
-                        BigInteger abstractNumId =
-                                BigInteger.valueOf(
-                                        nextAbstractNumId++
-                                );
+                        if (activeListType != ListType.ORDERED) {
 
-                        if (currentType == ListType.ORDERED) {
+                            BigInteger abstractNumId =
+                                    BigInteger.valueOf(
+                                            nextAbstractNumId++
+                                    );
 
                             activeNumberedNumId =
                                     createNumberedNumbering(
@@ -438,17 +441,48 @@ public class WordWriterServiceImpl implements WordWriterService {
                                             abstractNumId,
                                             block.getText()
                                     );
+                        }
 
-                        } else if (currentType == ListType.UNORDERED) {
+                        activeListType =
+                                ListType.ORDERED;
+
+                        activeBulletGlyph =
+                                null;
+
+                    } else if (currentType == ListType.UNORDERED) {
+
+                        String currentBulletGlyph =
+                                resolveBulletGlyph(
+                                        block.getText()
+                                );
+
+                        boolean newBulletGroup =
+                                activeListType != ListType.UNORDERED
+                                        || activeBulletGlyph == null
+                                        || !currentBulletGlyph.equals(
+                                        activeBulletGlyph
+                                );
+
+                        if (newBulletGroup) {
+
+                            BigInteger abstractNumId =
+                                    BigInteger.valueOf(
+                                            nextAbstractNumId++
+                                    );
 
                             activeBulletNumId =
                                     createBulletNumbering(
                                             document,
-                                            abstractNumId
+                                            abstractNumId,
+                                            currentBulletGlyph
                                     );
                         }
 
-                        activeListType = currentType;
+                        activeListType =
+                                ListType.UNORDERED;
+
+                        activeBulletGlyph =
+                                currentBulletGlyph;
                     }
 
                     writeBlock(
@@ -665,5 +699,53 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         return "%1.";
+    }
+
+    private String resolveBulletGlyph(String text) {
+
+        if (text == null || text.isBlank()) {
+            return "•";
+        }
+
+        String trimmed =
+                text.stripLeading();
+
+        if (trimmed.startsWith("▪")) {
+            return "▪";
+        }
+
+        if (trimmed.startsWith("✓")) {
+            return "✓";
+        }
+
+        if (trimmed.startsWith("·")) {
+            return "·";
+        }
+
+        if (trimmed.startsWith("◦")) {
+            return "◦";
+        }
+
+        if (trimmed.startsWith("‣")) {
+            return "‣";
+        }
+
+        if (trimmed.startsWith("⁃")) {
+            return "⁃";
+        }
+
+        if (trimmed.startsWith("∙")) {
+            return "∙";
+        }
+
+        if (trimmed.startsWith("-")) {
+            return "-";
+        }
+
+        if (trimmed.startsWith("*")) {
+            return "*";
+        }
+
+        return "•";
     }
 }
