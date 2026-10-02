@@ -1,11 +1,6 @@
 package com.amalitech.backend.service.impl;
 
-import com.amalitech.backend.service.BlockType;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.PdfExtractionResult;
-import com.amalitech.backend.service.StructuredBlock;
-import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.WordWriterService;
+import com.amalitech.backend.service.*;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
@@ -23,27 +18,10 @@ import java.util.List;
 @Service
 public class WordWriterServiceImpl implements WordWriterService {
 
-
-    private static final Pattern NUMBERED_PATTERN =
-            Pattern.compile(
-                    "^\\s*(?:\\d+|[a-z]|[ivx]+|[IVX]{2,}|[A-Z])[.)]\\s*"
-            );
-
     private static final Pattern LIST_MARKER_PATTERN =
             Pattern.compile(
                     "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,}|[A-Z])[.)])\\s*"
             );
-
-    private boolean isNumberedListItem(String text) {
-
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-
-        return NUMBERED_PATTERN
-                .matcher(text)
-                .find();
-    }
 
     private void applyFormatting(
             XWPFRun run,
@@ -97,11 +75,11 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private BigInteger createNumbering(
             XWPFDocument document,
+            BigInteger abstractNumId,
             STNumberFormat.Enum format,
             String levelText,
             BigInteger start
     ) {
-
         XWPFNumbering numbering =
                 document.getNumbering();
 
@@ -113,12 +91,12 @@ public class WordWriterServiceImpl implements WordWriterService {
         CTAbstractNum abstractNum =
                 CTAbstractNum.Factory.newInstance();
 
+        abstractNum.setAbstractNumId(abstractNumId);
+
         CTLvl level =
                 abstractNum.addNewLvl();
 
-        level.setIlvl(
-                BigInteger.ZERO
-        );
+        level.setIlvl(BigInteger.ZERO);
 
         if (start != null) {
             level.addNewStart()
@@ -134,12 +112,9 @@ public class WordWriterServiceImpl implements WordWriterService {
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
-        BigInteger abstractNumId =
-                numbering.addAbstractNum(
-                        new XWPFAbstractNum(
-                                abstractNum
-                        )
-                );
+        numbering.addAbstractNum(
+                new XWPFAbstractNum(abstractNum)
+        );
 
         return numbering.addNum(
                 abstractNumId
@@ -151,6 +126,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     ) {
         return createNumbering(
                 document,
+                BigInteger.ZERO,
                 STNumberFormat.BULLET,
                 "•",
                 null
@@ -162,6 +138,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     ) {
         return createNumbering(
                 document,
+                BigInteger.ONE,
                 STNumberFormat.DECIMAL,
                 "%1.",
                 BigInteger.ONE
@@ -344,10 +321,13 @@ private void writeBlock(
 
     if (block.getType() == BlockType.LIST_ITEM) {
 
-        if (isNumberedListItem(block.getText())) {
+        if (block.getListType() == ListType.ORDERED) {
             paragraph.setNumID(numberedNumId);
-        } else {
+            paragraph.setNumILvl(BigInteger.ZERO);
+
+        } else if (block.getListType() == ListType.UNORDERED) {
             paragraph.setNumID(bulletNumId);
+            paragraph.setNumILvl(BigInteger.ZERO);
         }
 
         writeListRuns(paragraph, block);

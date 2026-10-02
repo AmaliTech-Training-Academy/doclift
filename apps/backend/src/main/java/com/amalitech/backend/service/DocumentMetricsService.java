@@ -7,4 +7,12 @@ public interface DocumentMetricsService {
     int countSourceWords(PdfExtractionResult extractionResult);
 
     int countOutputWords(byte[] docxBytes);
+
+    ListCountResult countSourceLists(
+            PdfExtractionResult extractionResult
+    );
+
+    ListCountResult countOutputLists(
+            byte[] docxBytes
+    );
 }
