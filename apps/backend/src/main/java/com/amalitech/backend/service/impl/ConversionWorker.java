@@ -25,13 +25,17 @@ public class ConversionWorker {
     private final PdfExtractionService pdfExtractionService;
     private final StructureRecoveryService structureRecoveryService;
     private final WordWriterService wordWriterService;
+    private final DocumentMetricsService documentMetricsService;
+    private final JobMetricsService jobMetricsService;
 
     public ConversionWorker(
             JobService jobService,
             FileStorageService fileStorageService,
             PdfExtractionService pdfExtractionService,
             StructureRecoveryService structureRecoveryService,
-            WordWriterService wordWriterService
+            WordWriterService wordWriterService,
+            DocumentMetricsService documentMetricsService,
+            JobMetricsService jobMetricsService
     ) {
         this.jobService = jobService;
         this.fileStorageService = fileStorageService;
@@ -39,6 +43,8 @@ public class ConversionWorker {
         this.structureRecoveryService =
                 structureRecoveryService;
         this.wordWriterService = wordWriterService;
+        this.documentMetricsService = documentMetricsService;
+        this.jobMetricsService = jobMetricsService;
     }
 
     @Async("conversionExecutor")
@@ -72,6 +78,11 @@ public class ConversionWorker {
                 structureRecoveryService.recoverStructure(page);
             }
 
+            int sourceWordCount =
+                    documentMetricsService.countSourceWords(
+                            extractionResult
+                    );
+
             jobService.updateProgress(
                     jobId,
                     JobPhase.GENERATING_DOCUMENT,
@@ -79,6 +90,9 @@ public class ConversionWorker {
             );
 
             byte[] docx = wordWriterService.write(extractionResult);
+
+            int outputWordCount =
+                    documentMetricsService.countOutputWords(docx);
 
             jobService.updateProgress(
                     jobId,
@@ -90,6 +104,12 @@ public class ConversionWorker {
                     fileStorageService.storeOutputDocx(jobId, docx);
 
             long sizeBytes = Files.size(outputPath);
+
+            jobMetricsService.saveWordCounts(
+                    jobId,
+                    sourceWordCount,
+                    outputWordCount
+            );
 
             jobService.markCompleted(
                     jobId,
