@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ResultsScreen from "./ResultsScreen";
 import { ConversionProvider, useConversion } from "@/context/ConversionContext";
+import { saveConversionSession } from "@/lib/conversionSession";
 
 function TestWrapper() {
   const { file, resetKey, activeView, setFile, setActiveView } = useConversion();
@@ -37,8 +38,28 @@ describe("ResultsScreen", () => {
       screen.getByRole("button", { name: /convert another file/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /download word document/i }),
+      screen.queryByRole("button", { name: /download/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the download button when a completed session has a jobId", async () => {
+    saveConversionSession({
+      jobId: "job-123",
+      fileName: "report.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: /download/i }),
     ).toBeInTheDocument();
+    expect(screen.getByText("report.docx")).toBeInTheDocument();
   });
 
   it("calls reset() when 'Convert Another File' is clicked, resetting app state and view", async () => {
