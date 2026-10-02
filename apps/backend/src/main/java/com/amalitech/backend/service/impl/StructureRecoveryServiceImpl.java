@@ -2,12 +2,12 @@ package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.service.BlockAlignment;
 import com.amalitech.backend.service.BlockType;
+import com.amalitech.backend.service.ListType;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.StructureRecoveryService;
 import com.amalitech.backend.service.StructuredBlock;
 import com.amalitech.backend.service.TableRegion;
 import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.*;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -192,20 +192,13 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                         bodyRightMargin
                 );
 
-                blocks.add(
-                        toBlock(
-                                pageIndex,
-                                line,
-                                BlockType.PARAGRAPH,
-                                null
-                        )
-                );
                 for (LogicalLine cell : splitRowIntoCells(line)) {
                     blocks.add(
                             toBlock(
                                     pageIndex,
                                     cell,
                                     BlockType.PARAGRAPH,
+                                    null,
                                     BlockAlignment.LEFT
                             )
                     );
@@ -228,9 +221,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                 pageIndex,
                                 line,
                                 BlockType.HEADING,
-                                detectSingleLineAlignment(line, pageWidth)
-                                BlockType.HEADING,
-                                null
+                                null,
+                                detectSingleLineAlignment(
+                                        line,
+                                        pageWidth
+                                )
                         )
                 );
 
@@ -253,9 +248,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                 pageIndex,
                                 line,
                                 BlockType.LIST_ITEM,
+                                listType,
                                 BlockAlignment.LEFT
-                                BlockType.LIST_ITEM,
-                                listType
                         )
                 );
 
@@ -366,8 +360,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             int pageIndex,
             LogicalLine line,
             BlockType type,
-            ListType listType
-            BlockType type,
+            ListType listType,
             BlockAlignment alignment
     ) {
         StructuredBlock block = new StructuredBlock(
@@ -1204,10 +1197,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         return null;
-    }
-
-    private boolean isListItem(LogicalLine line) {
-        return detectListType(line) != null;
     }
 
     private boolean isHeading(

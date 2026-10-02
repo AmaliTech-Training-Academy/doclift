@@ -1,5 +1,6 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.service.*;
 import com.amalitech.backend.service.BlockAlignment;
 import com.amalitech.backend.service.BlockType;
 import com.amalitech.backend.service.ExtractedImage;
@@ -127,6 +128,7 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private BigInteger createNumbering(
             XWPFDocument document,
+            BigInteger abstractNumId,
             STNumberFormat.Enum format,
             String levelText,
             BigInteger start
@@ -143,12 +145,12 @@ public class WordWriterServiceImpl implements WordWriterService {
         CTAbstractNum abstractNum =
                 CTAbstractNum.Factory.newInstance();
 
+        abstractNum.setAbstractNumId(abstractNumId);
+
         CTLvl level =
                 abstractNum.addNewLvl();
 
-        level.setIlvl(
-                BigInteger.ZERO
-        );
+        level.setIlvl(BigInteger.ZERO);
 
         if (start != null) {
             level.addNewStart()
@@ -164,12 +166,9 @@ public class WordWriterServiceImpl implements WordWriterService {
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
-        BigInteger abstractNumId =
-                numbering.addAbstractNum(
-                        new XWPFAbstractNum(
-                                abstractNum
-                        )
-                );
+        numbering.addAbstractNum(
+                new XWPFAbstractNum(abstractNum)
+        );
 
         return numbering.addNum(
                 abstractNumId
@@ -181,6 +180,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     ) {
         return createNumbering(
                 document,
+                BigInteger.ZERO,
                 STNumberFormat.BULLET,
                 "•",
                 null
@@ -192,6 +192,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     ) {
         return createNumbering(
                 document,
+                BigInteger.ONE,
                 STNumberFormat.DECIMAL,
                 "%1.",
                 BigInteger.ONE
@@ -654,10 +655,13 @@ private void writeBlock(
 
     if (block.getType() == BlockType.LIST_ITEM) {
 
-        if (isNumberedListItem(block.getText())) {
+        if (block.getListType() == ListType.ORDERED) {
             paragraph.setNumID(numberedNumId);
-        } else {
+            paragraph.setNumILvl(BigInteger.ZERO);
+
+        } else if (block.getListType() == ListType.UNORDERED) {
             paragraph.setNumID(bulletNumId);
+            paragraph.setNumILvl(BigInteger.ZERO);
         }
 
         writeListRuns(paragraph, block);

@@ -1,16 +1,13 @@
 package com.amalitech.backend.service.impl;
 
-import com.amalitech.backend.service.DocumentMetricsService;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.PdfExtractionResult;
-import com.amalitech.backend.service.StructuredBlock;
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFTable;
+import com.amalitech.backend.service.*;
+import org.apache.poi.xwpf.usermodel.*;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTLvl;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,6 +36,26 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
         return count;
     }
 
+    private ListType resolveListType(
+            XWPFParagraph paragraph
+    ) {
+        if (paragraph.getNumID() == null) {
+            return null;
+        }
+
+        String format = paragraph.getNumFmt();
+
+        if (format == null || format.isBlank()) {
+            return null;
+        }
+
+        if ("bullet".equalsIgnoreCase(format)) {
+            return ListType.UNORDERED;
+        }
+
+        return ListType.ORDERED;
+    }
+
     @Override
     public int countSourceWords(PdfExtractionResult extractionResult) {
         if (extractionResult == null) {
@@ -54,6 +71,116 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
         }
 
         return totalWords;
+    }
+
+    @Override
+    public ListCountResult countSourceLists(
+            PdfExtractionResult extractionResult
+    ) {
+        if (extractionResult == null) {
+            return new ListCountResult(0, 0);
+        }
+
+        int ordered = 0;
+        int unordered = 0;
+
+        ListType activeType = null;
+
+        for (PageExtraction page : extractionResult.getPages()) {
+
+            for (StructuredBlock block : page.getStructuredBlocks()) {
+
+                if (block.getType() != BlockType.LIST_ITEM) {
+                    activeType = null;
+                    continue;
+                }
+
+                ListType currentType =
+                        block.getListType();
+
+                if (currentType == null) {
+                    activeType = null;
+                    continue;
+                }
+
+                if (currentType != activeType) {
+
+                    if (currentType == ListType.ORDERED) {
+                        ordered++;
+                    } else if (currentType == ListType.UNORDERED) {
+                        unordered++;
+                    }
+
+                    activeType = currentType;
+                }
+            }
+        }
+
+        return new ListCountResult(
+                ordered,
+                unordered
+        );
+    }
+
+    @Override
+    public ListCountResult countOutputLists(
+            byte[] docxBytes
+    ) {
+        if (docxBytes == null || docxBytes.length == 0) {
+            return new ListCountResult(0, 0);
+        }
+
+        try (
+                ByteArrayInputStream inputStream =
+                        new ByteArrayInputStream(docxBytes);
+
+                XWPFDocument document =
+                        new XWPFDocument(inputStream)
+        ) {
+            int ordered = 0;
+            int unordered = 0;
+
+            ListType activeType = null;
+
+            for (XWPFParagraph paragraph :
+                    document.getParagraphs()) {
+
+                if (paragraph.getNumID() == null) {
+                    activeType = null;
+                    continue;
+                }
+
+                ListType currentType =
+                        resolveListType(paragraph);
+
+                if (currentType == null) {
+                    activeType = null;
+                    continue;
+                }
+
+                if (currentType != activeType) {
+
+                    if (currentType == ListType.ORDERED) {
+                        ordered++;
+                    } else {
+                        unordered++;
+                    }
+
+                    activeType = currentType;
+                }
+            }
+
+            return new ListCountResult(
+                    ordered,
+                    unordered
+            );
+
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to inspect generated Word document.",
+                    e
+            );
+        }
     }
 
     @Override
