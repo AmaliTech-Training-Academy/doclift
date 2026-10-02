@@ -26,6 +26,19 @@ public class JobMetrics {
     @Column(name = "output_word_count")
     private Integer outputWordCount;
 
+    @Column(name = "ordered_lists_detected")
+    private Integer orderedListsDetected;
+
+    @Column(name = "unordered_lists_detected")
+    private Integer unorderedListsDetected;
+
+    @Column(name = "ordered_lists_reconstructed")
+    private Integer orderedListsReconstructed;
+
+    @Column(name = "unordered_lists_reconstructed")
+    private Integer unorderedListsReconstructed;
+
+
     public JobMetrics(
             Job job,
             Integer sourceWordCount,
