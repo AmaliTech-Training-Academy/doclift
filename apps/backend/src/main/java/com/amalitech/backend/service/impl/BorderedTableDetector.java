@@ -541,9 +541,22 @@ class BorderedTableDetector {
                             .thenComparing(TextSpan::getX)
             );
 
+            int anchorRow = -1;
+            int anchorCol = -1;
+
+            for (int row = minRow; row <= maxRow && anchorRow < 0; row++) {
+                for (int col = minCol; col <= maxCol; col++) {
+                    if (find(parent, index(row, col, columnCount)) == entry.getKey()) {
+                        anchorRow = row;
+                        anchorCol = col;
+                        break;
+                    }
+                }
+            }
+
             TableCell anchor = new TableCell(
-                    minRow,
-                    minCol,
+                    anchorRow,
+                    anchorCol,
                     (maxRow - minRow) + 1,
                     (maxCol - minCol) + 1,
                     buildCellText(groupSpans),
@@ -558,11 +571,11 @@ class BorderedTableDetector {
                         continue;
                     }
 
-                    TableCell entry2 = (row == minRow && col == minCol)
+                    TableCell entry2 = (row == anchorRow && col == anchorCol)
                             ? anchor
                             : new TableCell(
-                                    minRow,
-                                    minCol,
+                                    anchorRow,
+                                    anchorCol,
                                     0,
                                     0,
                                     "",

@@ -465,6 +465,26 @@ class BorderedTableDetectorTest {
 
         assertThat(table.cells().get(0).get(0).text()).isEqualTo("KeepMe00");
         assertThat(table.cells().get(0).get(1).text()).isEqualTo("KeepMe01");
+
+        // The L-shaped group's own anchor must survive: its bounding-box
+        // corner (0,0) belongs to a different group, so the anchor cannot
+        // always be placed there - it must land on an actual member of
+        // the group instead, carrying the group's text and real spans.
+        List<TableCell> mergeGroupMembers = List.of(
+                table.cells().get(0).get(2),
+                table.cells().get(1).get(0),
+                table.cells().get(1).get(1),
+                table.cells().get(1).get(2)
+        );
+
+        List<TableCell> anchors = mergeGroupMembers.stream()
+                .filter(cell -> cell.rowSpan() > 0)
+                .toList();
+
+        assertThat(anchors).hasSize(1);
+        assertThat(anchors.getFirst().text()).isEqualTo("Merged");
+        assertThat(anchors.getFirst().rowSpan()).isEqualTo(2);
+        assertThat(anchors.getFirst().columnSpan()).isEqualTo(3);
     }
 
     private TextSpan span(String text, float x, float y) {
