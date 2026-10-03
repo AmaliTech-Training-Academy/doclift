@@ -1,11 +1,6 @@
 package com.amalitech.backend.service.impl;
 
-import com.amalitech.backend.service.BlockType;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.PdfExtractionResult;
-import com.amalitech.backend.service.StructuredBlock;
-import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.WordWriterService;
+import com.amalitech.backend.service.*;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
@@ -23,27 +18,16 @@ import java.util.List;
 @Service
 public class WordWriterServiceImpl implements WordWriterService {
 
-
-    private static final Pattern NUMBERED_PATTERN =
-            Pattern.compile(
-                    "^\\s*(?:\\d+|[a-z]|[ivx]+|[IVX]{2,}|[A-Z])[.)]\\s*"
-            );
-
     private static final Pattern LIST_MARKER_PATTERN =
             Pattern.compile(
-                    "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,}|[A-Z])[.)])\\s*"
+                    "^\\s*(?:"
+                            + "[•◦▪‣⁃∙·✓*\\-]"
+                            + "|"
+                            + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
+                            + "|"
+                            + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
+                            + ")\\s*"
             );
-
-    private boolean isNumberedListItem(String text) {
-
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-
-        return NUMBERED_PATTERN
-                .matcher(text)
-                .find();
-    }
 
     private void applyFormatting(
             XWPFRun run,
@@ -97,11 +81,11 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private BigInteger createNumbering(
             XWPFDocument document,
+            BigInteger abstractNumId,
             STNumberFormat.Enum format,
             String levelText,
             BigInteger start
     ) {
-
         XWPFNumbering numbering =
                 document.getNumbering();
 
@@ -113,12 +97,12 @@ public class WordWriterServiceImpl implements WordWriterService {
         CTAbstractNum abstractNum =
                 CTAbstractNum.Factory.newInstance();
 
+        abstractNum.setAbstractNumId(abstractNumId);
+
         CTLvl level =
                 abstractNum.addNewLvl();
 
-        level.setIlvl(
-                BigInteger.ZERO
-        );
+        level.setIlvl(BigInteger.ZERO);
 
         if (start != null) {
             level.addNewStart()
@@ -134,12 +118,22 @@ public class WordWriterServiceImpl implements WordWriterService {
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
-        BigInteger abstractNumId =
-                numbering.addAbstractNum(
-                        new XWPFAbstractNum(
-                                abstractNum
-                        )
-                );
+        var pPr = level.addNewPPr();
+
+        var tabs = pPr.addNewTabs();
+        var tab = tabs.addNewTab();
+        tab.setVal(
+                org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabJc.NUM
+        );
+        tab.setPos(BigInteger.valueOf(720));
+
+        var ind = pPr.addNewInd();
+        ind.setLeft(BigInteger.valueOf(720));
+        ind.setHanging(BigInteger.valueOf(360));
+
+        numbering.addAbstractNum(
+                new XWPFAbstractNum(abstractNum)
+        );
 
         return numbering.addNum(
                 abstractNumId
@@ -147,23 +141,104 @@ public class WordWriterServiceImpl implements WordWriterService {
     }
 
     private BigInteger createBulletNumbering(
-            XWPFDocument document
+            XWPFDocument document,
+            BigInteger abstractNumId,
+            String bulletGlyph
     ) {
         return createNumbering(
                 document,
+                abstractNumId,
                 STNumberFormat.BULLET,
-                "•",
+                bulletGlyph,
                 null
         );
     }
 
+    private float getBlockMaxFontSize(
+            StructuredBlock block
+    ) {
+        if (block.getSpans() == null
+                || block.getSpans().isEmpty()) {
+            return 0f;
+        }
+
+        return block.getSpans().stream()
+                .map(TextSpan::getFontSize)
+                .filter(size -> size > 0f)
+                .max(Float::compare)
+                .orElse(0f);
+    }
+
+    private float determineBodyFontSize(
+            PdfExtractionResult extractionResult
+    ) {
+        List<Float> sizes =
+                extractionResult.getPages().stream()
+                        .flatMap(page ->
+                                page.getStructuredBlocks().stream()
+                        )
+                        .filter(block ->
+                                block.getType() == BlockType.PARAGRAPH
+                                        || block.getType()
+                                        == BlockType.LIST_ITEM
+                        )
+                        .flatMap(block ->
+                                block.getSpans().stream()
+                        )
+                        .map(TextSpan::getFontSize)
+                        .filter(size -> size > 0f)
+                        .sorted()
+                        .toList();
+
+        if (sizes.isEmpty()) {
+            return 0f;
+        }
+
+        return sizes.get(
+                (sizes.size() - 1) / 2
+        );
+    }
+
+    private String resolveHeadingStyle(
+            StructuredBlock block,
+            float bodyFontSize
+    ) {
+        float headingSize =
+                getBlockMaxFontSize(block);
+
+        if (bodyFontSize <= 0f
+                || headingSize <= 0f) {
+            return "Heading2";
+        }
+
+        float ratio =
+                headingSize / bodyFontSize;
+
+        if (ratio >= 1.60f) {
+            return "Heading1";
+        }
+
+        if (ratio >= 1.30f) {
+            return "Heading2";
+        }
+
+        return "Heading3";
+    }
+
     private BigInteger createNumberedNumbering(
-            XWPFDocument document
+            XWPFDocument document,
+            BigInteger abstractNumId,
+            String firstItemText
     ) {
         return createNumbering(
                 document,
-                STNumberFormat.DECIMAL,
-                "%1.",
+                abstractNumId,
+                resolveOrderedNumberFormat(
+                        firstItemText
+                ),
+                resolveOrderedLevelText(
+                        firstItemText
+                ),
                 BigInteger.ONE
         );
     }
@@ -268,6 +343,13 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
+    private void applyParagraphSpacing(
+            XWPFParagraph paragraph,
+            int spacingBefore
+    ) {
+        paragraph.setSpacingBefore(spacingBefore);
+        paragraph.setSpacingAfter(0);
+    }
     private String removeListMarker(String text) {
 
         if (text == null) {
@@ -282,11 +364,19 @@ public class WordWriterServiceImpl implements WordWriterService {
     @Override
     public byte[] write(PdfExtractionResult extractionResult) {
 
+
+
         if (extractionResult == null) {
             throw new IllegalArgumentException(
                     "Extraction result cannot be null."
             );
         }
+
+        float bodyFontSize =
+                determineBodyFontSize(
+                        extractionResult
+                );
+        int nextAbstractNumId = 0;
 
         try (
                 XWPFDocument document = new XWPFDocument();
@@ -294,23 +384,117 @@ public class WordWriterServiceImpl implements WordWriterService {
                         new ByteArrayOutputStream()
         ) {
 
-            BigInteger bulletNumId =
-                    createBulletNumbering(document);
+            BigInteger activeBulletNumId = null;
+            BigInteger activeNumberedNumId = null;
+            ListType activeListType = null;
+            String activeBulletGlyph = null;
 
-            BigInteger numberedNumId =
-                    createNumberedNumbering(document);
+            for (PageExtraction page :
+                    extractionResult.getPages()) {
 
-            for (PageExtraction page : extractionResult.getPages()) {
+                StructuredBlock previousBlock = null;
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
 
+                    int spacingBefore =
+                            calculateSpacingBefore(
+                                    previousBlock,
+                                    block
+                            );
+
+                    if (block.getType() != BlockType.LIST_ITEM) {
+                        activeListType = null;
+                        activeBulletNumId = null;
+                        activeNumberedNumId = null;
+                        activeBulletGlyph = null;
+
+                        writeBlock(
+                                document,
+                                block,
+                                null,
+                                null,
+                                bodyFontSize,
+                                spacingBefore
+                        );
+
+
+                        previousBlock = block;
+
+                        continue;
+                    }
+
+                    ListType currentType =
+                            block.getListType();
+
+                    if (currentType == ListType.ORDERED) {
+
+                        if (activeListType != ListType.ORDERED) {
+
+                            BigInteger abstractNumId =
+                                    BigInteger.valueOf(
+                                            nextAbstractNumId++
+                                    );
+
+                            activeNumberedNumId =
+                                    createNumberedNumbering(
+                                            document,
+                                            abstractNumId,
+                                            block.getText()
+                                    );
+                        }
+
+                        activeListType =
+                                ListType.ORDERED;
+
+                        activeBulletGlyph =
+                                null;
+
+                    } else if (currentType == ListType.UNORDERED) {
+
+                        String currentBulletGlyph =
+                                resolveBulletGlyph(
+                                        block.getText()
+                                );
+
+                        boolean newBulletGroup =
+                                activeListType != ListType.UNORDERED
+                                        || !currentBulletGlyph.equals(
+                                        activeBulletGlyph
+                                );
+
+                        if (newBulletGroup) {
+
+                            BigInteger abstractNumId =
+                                    BigInteger.valueOf(
+                                            nextAbstractNumId++
+                                    );
+
+                            activeBulletNumId =
+                                    createBulletNumbering(
+                                            document,
+                                            abstractNumId,
+                                            currentBulletGlyph
+                                    );
+                        }
+
+                        activeListType =
+                                ListType.UNORDERED;
+
+                        activeBulletGlyph =
+                                currentBulletGlyph;
+                    }
+
                     writeBlock(
                             document,
                             block,
-                            bulletNumId,
-                            numberedNumId
+                            activeBulletNumId,
+                            activeNumberedNumId,
+                            bodyFontSize,
+                            spacingBefore
                     );
+
+                    previousBlock = block;
                 }
             }
 
@@ -326,28 +510,45 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
-private void writeBlock(
-        XWPFDocument document,
-        StructuredBlock block,
-        BigInteger bulletNumId,
-        BigInteger numberedNumId
-) {
+    private void writeBlock(
+            XWPFDocument document,
+            StructuredBlock block,
+            BigInteger bulletNumId,
+            BigInteger numberedNumId,
+            float bodyFontSize,
+            int spacingBefore
+    ) {
 
     XWPFParagraph paragraph =
             document.createParagraph();
 
-    if (block.getType() == BlockType.HEADING) {
-        paragraph.setStyle("Heading1");
-    } else {
-        paragraph.setStyle("Normal");
-    }
+        applyParagraphSpacing(
+                paragraph,
+                spacingBefore
+        );
+
+        if (block.getType() == BlockType.HEADING) {
+
+            paragraph.setStyle(
+                    resolveHeadingStyle(
+                            block,
+                            bodyFontSize
+                    )
+            );
+
+        } else {
+            paragraph.setStyle("Normal");
+        }
 
     if (block.getType() == BlockType.LIST_ITEM) {
 
-        if (isNumberedListItem(block.getText())) {
+        if (block.getListType() == ListType.ORDERED) {
             paragraph.setNumID(numberedNumId);
-        } else {
+            paragraph.setNumILvl(BigInteger.ZERO);
+
+        } else if (block.getListType() == ListType.UNORDERED) {
             paragraph.setNumID(bulletNumId);
+            paragraph.setNumILvl(BigInteger.ZERO);
         }
 
         writeListRuns(paragraph, block);
@@ -432,5 +633,153 @@ private void writeBlock(
 
             previousText = text;
         }
+    }
+
+    private STNumberFormat.Enum resolveOrderedNumberFormat(
+            String text
+    ) {
+        if (text == null) {
+            return STNumberFormat.DECIMAL;
+        }
+
+        String trimmed =
+                text.stripLeading();
+
+        String marker =
+                trimmed.split("\\s+", 2)[0];
+
+        String normalized =
+                marker
+                        .replace("(", "")
+                        .replace(")", "")
+                        .replace(".", "");
+
+        if (normalized.matches(
+                "[ivxlcdm]+"
+        )) {
+            return STNumberFormat.LOWER_ROMAN;
+        }
+
+        if (normalized.matches(
+                "[IVXLCDM]+"
+        )) {
+            return STNumberFormat.UPPER_ROMAN;
+        }
+
+        if (normalized.matches(
+                "[a-z]"
+        )) {
+            return STNumberFormat.LOWER_LETTER;
+        }
+
+        if (normalized.matches(
+                "[A-Z]"
+        )) {
+            return STNumberFormat.UPPER_LETTER;
+        }
+
+        return STNumberFormat.DECIMAL;
+    }
+
+    private String resolveOrderedLevelText(
+            String text
+    ) {
+        if (text == null) {
+            return "%1.";
+        }
+
+        String trimmed = text.stripLeading();
+
+        if (trimmed.matches(
+                "^\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)\\s+.*"
+        )) {
+            return "(%1)";
+        }
+
+        if (trimmed.matches(
+                "^(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)\\s+.*"
+        )) {
+            return "%1)";
+        }
+
+        return "%1.";
+    }
+
+    private String resolveBulletGlyph(String text) {
+
+        if (text == null || text.isBlank()) {
+            return "•";
+        }
+
+        String trimmed =
+                text.stripLeading();
+
+        if (trimmed.startsWith("▪")) {
+            return "▪";
+        }
+
+        if (trimmed.startsWith("✓")) {
+            return "✓";
+        }
+
+        if (trimmed.startsWith("·")) {
+            return "·";
+        }
+
+        if (trimmed.startsWith("◦")) {
+            return "◦";
+        }
+
+        if (trimmed.startsWith("‣")) {
+            return "‣";
+        }
+
+        if (trimmed.startsWith("⁃")) {
+            return "⁃";
+        }
+
+        if (trimmed.startsWith("∙")) {
+            return "∙";
+        }
+
+        if (trimmed.startsWith("-")) {
+            return "-";
+        }
+
+        if (trimmed.startsWith("*")) {
+            return "*";
+        }
+
+        return "•";
+    }
+
+    private int calculateSpacingBefore(
+            StructuredBlock previousBlock,
+            StructuredBlock currentBlock
+    ) {
+        if (previousBlock == null
+                || currentBlock == null) {
+            return 0;
+        }
+
+        float previousBottom =
+                previousBlock.getY()
+                        + previousBlock.getHeight();
+
+        float gap =
+                currentBlock.getY()
+                        - previousBottom;
+
+        if (gap <= 0f) {
+            return 0;
+        }
+
+        int spacingTwips =
+                Math.round(gap * 20f);
+
+        return Math.min(
+                spacingTwips,
+                720
+        );
     }
 }

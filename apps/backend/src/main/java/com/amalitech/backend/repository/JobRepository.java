@@ -19,8 +19,13 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     Optional<Job> findBySourceFilename(String sourceFilename);
 
 
-    @Query("SELECT j FROM Job j LEFT JOIN FETCH j.file WHERE j.id = :id")
+    @Query("""
+    SELECT j
+    FROM Job j
+    LEFT JOIN FETCH j.file
+    LEFT JOIN FETCH j.metrics
+    WHERE j.id = :id
+""")
     Optional<Job> findByIdWithFile(@Param("id") UUID id);
-
     List<Job> findByStatusOrderByCreatedAtAsc(JobStatus status);
 }
