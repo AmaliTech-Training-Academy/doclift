@@ -19,6 +19,7 @@ public record JobStatusResponse(
         Double durationSeconds,
         Double estimatedRemainingSeconds,
         Double estimatedTotalSeconds,
+        Double currentPhaseEstimatedRemainingSeconds,
         JobOutputResponse output,
         JobMetricsResponse metrics
 ) {}

@@ -264,5 +264,9 @@ class JobStatusResponseMapperTest {
                 3,
                 response.metrics().unorderedListsReconstructed()
         );
+        assertEquals(
+                0.0,
+                response.currentPhaseEstimatedRemainingSeconds()
+        );
     }
 }

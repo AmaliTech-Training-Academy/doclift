@@ -43,6 +43,8 @@ public class JobStatusResponseMapper {
                         .calculateEstimatedRemainingSeconds(job),
                 jobEtaCalculator
                         .calculateEstimatedTotalSeconds(job),
+                jobEtaCalculator
+                        .calculateCurrentPhaseEstimatedRemainingSeconds(job),
                 buildOutput(job),
                 buildMetrics(job)
         );
