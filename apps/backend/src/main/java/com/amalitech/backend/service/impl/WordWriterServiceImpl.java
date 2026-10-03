@@ -345,22 +345,10 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private void applyParagraphSpacing(
             XWPFParagraph paragraph,
-            StructuredBlock block
+            int spacingBefore
     ) {
-        if (block.getType() == BlockType.HEADING) {
-            paragraph.setSpacingBefore(240); // 12 pt
-            paragraph.setSpacingAfter(120);  // 6 pt
-            return;
-        }
-
-        if (block.getType() == BlockType.LIST_ITEM) {
-            paragraph.setSpacingBefore(0);
-            paragraph.setSpacingAfter(40);   // 2 pt
-            return;
-        }
-
-        paragraph.setSpacingBefore(0);
-        paragraph.setSpacingAfter(120);      // 6 pt
+        paragraph.setSpacingBefore(spacingBefore);
+        paragraph.setSpacingAfter(0);
     }
     private String removeListMarker(String text) {
 
@@ -401,10 +389,19 @@ public class WordWriterServiceImpl implements WordWriterService {
             ListType activeListType = null;
             String activeBulletGlyph = null;
 
-            for (PageExtraction page : extractionResult.getPages()) {
+            for (PageExtraction page :
+                    extractionResult.getPages()) {
+
+                StructuredBlock previousBlock = null;
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
+
+                    int spacingBefore =
+                            calculateSpacingBefore(
+                                    previousBlock,
+                                    block
+                            );
 
                     if (block.getType() != BlockType.LIST_ITEM) {
                         activeListType = null;
@@ -417,8 +414,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 block,
                                 null,
                                 null,
-                                bodyFontSize
+                                bodyFontSize,
+                                spacingBefore
                         );
+
+
+                        previousBlock = block;
 
                         continue;
                     }
@@ -458,7 +459,6 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                         boolean newBulletGroup =
                                 activeListType != ListType.UNORDERED
-                                        || activeBulletGlyph == null
                                         || !currentBulletGlyph.equals(
                                         activeBulletGlyph
                                 );
@@ -490,8 +490,11 @@ public class WordWriterServiceImpl implements WordWriterService {
                             block,
                             activeBulletNumId,
                             activeNumberedNumId,
-                            bodyFontSize
+                            bodyFontSize,
+                            spacingBefore
                     );
+
+                    previousBlock = block;
                 }
             }
 
@@ -512,16 +515,17 @@ public class WordWriterServiceImpl implements WordWriterService {
             StructuredBlock block,
             BigInteger bulletNumId,
             BigInteger numberedNumId,
-            float bodyFontSize
+            float bodyFontSize,
+            int spacingBefore
     ) {
 
     XWPFParagraph paragraph =
             document.createParagraph();
 
-    applyParagraphSpacing(
-            paragraph,
-            block
-    );
+        applyParagraphSpacing(
+                paragraph,
+                spacingBefore
+        );
 
         if (block.getType() == BlockType.HEADING) {
 
@@ -747,5 +751,35 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         return "•";
+    }
+
+    private int calculateSpacingBefore(
+            StructuredBlock previousBlock,
+            StructuredBlock currentBlock
+    ) {
+        if (previousBlock == null
+                || currentBlock == null) {
+            return 0;
+        }
+
+        float previousBottom =
+                previousBlock.getY()
+                        + previousBlock.getHeight();
+
+        float gap =
+                currentBlock.getY()
+                        - previousBottom;
+
+        if (gap <= 0f) {
+            return 0;
+        }
+
+        int spacingTwips =
+                Math.round(gap * 20f);
+
+        return Math.min(
+                spacingTwips,
+                720
+        );
     }
 }
