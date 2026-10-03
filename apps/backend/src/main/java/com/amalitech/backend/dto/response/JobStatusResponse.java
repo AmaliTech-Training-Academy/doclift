@@ -17,6 +17,8 @@ public record JobStatusResponse(
         JobPhase phase,
         Integer progressPercent,
         Double durationSeconds,
+        Double estimatedRemainingSeconds,
+        Double estimatedTotalSeconds,
         JobOutputResponse output,
         JobMetricsResponse metrics
 ) {}
