@@ -399,22 +399,10 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private void applyParagraphSpacing(
             XWPFParagraph paragraph,
-            StructuredBlock block
+            int spacingBefore
     ) {
-        if (block.getType() == BlockType.HEADING) {
-            paragraph.setSpacingBefore(240); // 12 pt
-            paragraph.setSpacingAfter(120);  // 6 pt
-            return;
-        }
-
-        if (block.getType() == BlockType.LIST_ITEM) {
-            paragraph.setSpacingBefore(0);
-            paragraph.setSpacingAfter(40);   // 2 pt
-            return;
-        }
-
-        paragraph.setSpacingBefore(0);
-        paragraph.setSpacingAfter(120);      // 6 pt
+        paragraph.setSpacingBefore(spacingBefore);
+        paragraph.setSpacingAfter(0);
     }
     private String removeListMarker(String text) {
 
@@ -429,6 +417,8 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     @Override
     public byte[] write(PdfExtractionResult extractionResult) {
+
+
 
         if (extractionResult == null) {
             throw new IllegalArgumentException(
@@ -463,9 +453,19 @@ public class WordWriterServiceImpl implements WordWriterService {
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
 
                 PageExtraction page = pages.get(pageIndex);
+            for (PageExtraction page :
+                    extractionResult.getPages()) {
+
+                StructuredBlock previousBlock = null;
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
+
+                    int spacingBefore =
+                            calculateSpacingBefore(
+                                    previousBlock,
+                                    block
+                            );
 
                     if (block.getType() != BlockType.LIST_ITEM) {
                         activeListType = null;
@@ -478,8 +478,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 block,
                                 null,
                                 null,
-                                bodyFontSize
+                                bodyFontSize,
+                                spacingBefore
                         );
+
+
+                        previousBlock = block;
 
                         continue;
                     }
@@ -554,7 +558,11 @@ public class WordWriterServiceImpl implements WordWriterService {
                             bodyFontSize
                             numberedNumId,
                             footnotesByKey
+                            bodyFontSize,
+                            spacingBefore
                     );
+
+                    previousBlock = block;
                 }
 
                 if (!page.getImages().isEmpty()) {
@@ -843,16 +851,17 @@ private void writeBlock(
             StructuredBlock block,
             BigInteger bulletNumId,
             BigInteger numberedNumId,
-            float bodyFontSize
+            float bodyFontSize,
+            int spacingBefore
     ) {
 
     XWPFParagraph paragraph =
             document.createParagraph();
 
-    applyParagraphSpacing(
-            paragraph,
-            block
-    );
+        applyParagraphSpacing(
+                paragraph,
+                spacingBefore
+        );
 
         if (block.getType() == BlockType.HEADING) {
 
@@ -1383,5 +1392,35 @@ private void writeBlock(
         }
 
         return "•";
+    }
+
+    private int calculateSpacingBefore(
+            StructuredBlock previousBlock,
+            StructuredBlock currentBlock
+    ) {
+        if (previousBlock == null
+                || currentBlock == null) {
+            return 0;
+        }
+
+        float previousBottom =
+                previousBlock.getY()
+                        + previousBlock.getHeight();
+
+        float gap =
+                currentBlock.getY()
+                        - previousBottom;
+
+        if (gap <= 0f) {
+            return 0;
+        }
+
+        int spacingTwips =
+                Math.round(gap * 20f);
+
+        return Math.min(
+                spacingTwips,
+                720
+        );
     }
 }
