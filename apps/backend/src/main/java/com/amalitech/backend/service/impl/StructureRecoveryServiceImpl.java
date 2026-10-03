@@ -21,12 +21,16 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final int HEADING_MAX_LENGTH = 120;
     private static final Pattern UNORDERED_LIST_PATTERN =
             Pattern.compile(
-                    "^\\s*[•◦▪‣⁃∙*\\-]\\s+.+"
+                    "^\\s*[•◦▪‣⁃∙·✓*\\-]\\s+.+"
             );
 
     private static final Pattern ORDERED_LIST_PATTERN =
             Pattern.compile(
-                    "^\\s*(?:(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)])\\s+.+"
+                    "^\\s*(?:"
+                            + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
+                            + "|"
+                            + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
+                            + ")\\s+.+"
             );
     private static final float MIN_SEGMENT_GAP = 8f;
     private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;

@@ -11,12 +11,30 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class DocumentMetricsServiceTest {
 
     private DocumentMetricsService documentMetricsService;
     private WordWriterService wordWriterService;
+
+    private PdfExtractionResult extractionResultWithBlocks(
+            StructuredBlock... blocks
+    ) {
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks()
+                .addAll(List.of(blocks));
+
+        result.getPages().add(page);
+
+        return result;
+    }
 
     private StructuredBlock listBlock(
             String text,
@@ -478,4 +496,170 @@ class DocumentMetricsServiceTest {
         assertEquals(1, counts.ordered());
         assertEquals(1, counts.unordered());
     }
+
+    @Test
+    void countSourceWordsShouldIgnoreDecimalListMarker() {
+
+        PdfExtractionResult extractionResult =
+                extractionResultWithBlocks(
+                        new StructuredBlock(
+                                0,
+                                BlockType.LIST_ITEM,
+                                ListType.ORDERED,
+                                "1. First item",
+                                0,
+                                0,
+                                100,
+                                12,
+                                List.of()
+                        )
+                );
+
+        assertThat(
+                documentMetricsService
+                        .countSourceWords(
+                                extractionResult
+                        )
+        ).isEqualTo(2);
+    }
+
+    @Test
+    void sourceAndOutputWordCountsShouldMatchForOrderedList()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.LIST_ITEM,
+                        ListType.ORDERED,
+                        "1. First item",
+                        0,
+                        0,
+                        100,
+                        12,
+                        List.of(
+                                new TextSpan(
+                                        0,
+                                        "1. First item",
+                                        0,
+                                        0,
+                                        100,
+                                        12,
+                                        "Helvetica",
+                                        12,
+                                        false,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        )
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        int sourceCount =
+                documentMetricsService
+                        .countSourceWords(
+                                extractionResult
+                        );
+
+        int outputCount =
+                documentMetricsService
+                        .countOutputWords(
+                                docx
+                        );
+
+        assertThat(sourceCount)
+                .isEqualTo(2);
+
+        assertThat(outputCount)
+                .isEqualTo(2);
+    }
+
+    @Test
+    void countSourceWordsShouldIgnoreRomanListMarker() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        listBlock(
+                                "iv. Final results",
+                                ListType.ORDERED
+                        )
+                );
+
+        assertThat(
+                documentMetricsService
+                        .countSourceWords(result)
+        ).isEqualTo(2);
+    }
+
+    @Test
+    void countSourceWordsShouldIgnoreParenthesizedListMarker() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        listBlock(
+                                "(a) First item",
+                                ListType.ORDERED
+                        )
+                );
+
+        assertThat(
+                documentMetricsService
+                        .countSourceWords(result)
+        ).isEqualTo(2);
+    }
+
+    @Test
+    void countSourceWordsShouldIgnoreBulletMarker() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        listBlock(
+                                "✓ Blue diamond",
+                                ListType.UNORDERED
+                        )
+                );
+
+        assertThat(
+                documentMetricsService
+                        .countSourceWords(result)
+        ).isEqualTo(2);
+    }
+
+    @Test
+    void countSourceWordsShouldNotStripMarkerFromParagraph() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        new StructuredBlock(
+                                0,
+                                BlockType.PARAGRAPH,
+                                null,
+                                "1. First item",
+                                0,
+                                0,
+                                100,
+                                12,
+                                List.of()
+                        )
+                );
+
+        assertThat(
+                documentMetricsService
+                        .countSourceWords(result)
+        ).isEqualTo(3);
+    }
+
+
 }

@@ -19,6 +19,27 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
                     "[\\p{L}\\p{N}]+(?:['’\\-][\\p{L}\\p{N}]+)*"
             );
 
+    private static final Pattern LIST_MARKER_PATTERN =
+            Pattern.compile(
+                    "^\\s*(?:"
+                            + "[•◦▪‣⁃∙·✓*\\-]"
+                            + "|"
+                            + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
+                            + "|"
+                            + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
+                            + ")\\s*"
+            );
+
+    private String removeListMarker(String text) {
+
+        if (text == null) {
+            return "";
+        }
+
+        return LIST_MARKER_PATTERN
+                .matcher(text)
+                .replaceFirst("");
+    }
     @Override
     public int countWords(String text) {
         if (text == null || text.isBlank()) {
@@ -57,20 +78,46 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
     }
 
     @Override
-    public int countSourceWords(PdfExtractionResult extractionResult) {
-        if (extractionResult == null) {
+    public int countSourceWords(
+            PdfExtractionResult extractionResult
+    ) {
+
+        if (extractionResult == null
+                || extractionResult.getPages() == null) {
             return 0;
         }
 
-        int totalWords = 0;
+        int total = 0;
 
-        for (PageExtraction page : extractionResult.getPages()) {
-            for (StructuredBlock block : page.getStructuredBlocks()) {
-                totalWords += countWords(block.getText());
+        for (PageExtraction page :
+                extractionResult.getPages()) {
+
+            if (page.getStructuredBlocks() == null) {
+                continue;
+            }
+
+            for (StructuredBlock block :
+                    page.getStructuredBlocks()) {
+
+                String text =
+                        block.getText();
+
+                if (text == null || text.isBlank()) {
+                    continue;
+                }
+
+                if (block.getType()
+                        == BlockType.LIST_ITEM) {
+
+                    text =
+                            removeListMarker(text);
+                }
+
+                total += countWords(text);
             }
         }
 
-        return totalWords;
+        return total;
     }
 
     @Override
