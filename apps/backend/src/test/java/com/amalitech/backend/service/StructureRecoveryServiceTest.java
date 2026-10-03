@@ -634,14 +634,10 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
-                        "Item",
-                        "Price",
-                        "Laptop",
-                        "1200",
-                        "Keyboard",
-                        "100",
-                        "Mouse",
-                        "50"
+                        "Item Price",
+                        "Laptop 1200",
+                        "Keyboard 100",
+                        "Mouse 50"
                 );
     }
     @Test
@@ -1158,5 +1154,148 @@ class StructureRecoveryServiceTest {
                 false,
                 false
         );
+    }
+    @Test
+    void shouldClassifyParenthesizedDecimalAsOrderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("(1) First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.ORDERED);
+    }
+
+    @Test
+    void shouldClassifyParenthesizedRomanAsOrderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("(i) First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.ORDERED);
+    }
+
+    @Test
+    void shouldClassifyParenthesizedUppercaseLetterAsOrderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("(A) First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.ORDERED);
+    }
+
+    @Test
+    void shouldClassifyCheckmarkAsUnorderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("✓ First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.UNORDERED);
+    }
+
+    @Test
+    void shouldClassifyMiddleDotAsUnorderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("· First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.UNORDERED);
+    }
+
+    @Test
+    void shouldNotClassifyPlainOAsUnorderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("o First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isNotEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isNull();
     }
 }
