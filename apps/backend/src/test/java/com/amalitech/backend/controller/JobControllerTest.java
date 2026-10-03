@@ -86,6 +86,7 @@ class JobControllerTest {
                         null,
                         20.0,
                         44.44,
+                        8.0,
                         null,
                         null
                 );
@@ -188,6 +189,7 @@ class JobControllerTest {
                         11.0,
                         0.0,
                         11.0,
+                        0.0,
                         output,
                         metrics
                 );

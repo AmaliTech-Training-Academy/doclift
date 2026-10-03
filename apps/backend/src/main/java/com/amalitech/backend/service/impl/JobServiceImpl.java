@@ -42,6 +42,7 @@ public class JobServiceImpl implements JobService {
 
         job.setPhase(JobPhase.LOADING_SOURCE);
         job.setProgressPercent(10);
+        job.setPhaseStartedAt(Instant.now());
 
         return job;
     }
@@ -61,6 +62,7 @@ public class JobServiceImpl implements JobService {
         job.setStatus(JobStatus.DONE);
         job.setPhase(JobPhase.COMPLETED);
         job.setProgressPercent(100);
+        job.setPhaseStartedAt(Instant.now());
         job.setCompletedAt(Instant.now());
 
         return job;
@@ -92,9 +94,12 @@ public class JobServiceImpl implements JobService {
 
         job.setPhase(phase);
         job.setProgressPercent(progressPercent);
+        job.setPhaseStartedAt(Instant.now());
 
         return job;
     }
+
+
     @Override
     @Transactional(readOnly = true)
     public Job getJobWithFile(UUID jobId) {
