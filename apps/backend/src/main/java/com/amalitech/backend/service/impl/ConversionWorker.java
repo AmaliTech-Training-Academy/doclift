@@ -83,16 +83,29 @@ public class ConversionWorker {
                             extractionResult
                     );
 
+            ListCountResult sourceLists =
+                    documentMetricsService.countSourceLists(
+                            extractionResult
+                    );
+
             jobService.updateProgress(
                     jobId,
                     JobPhase.GENERATING_DOCUMENT,
                     75
             );
 
-            byte[] docx = wordWriterService.write(extractionResult);
+            byte[] docx =
+                    wordWriterService.write(extractionResult);
 
             int outputWordCount =
-                    documentMetricsService.countOutputWords(docx);
+                    documentMetricsService.countOutputWords(
+                            docx
+                    );
+
+            ListCountResult outputLists =
+                    documentMetricsService.countOutputLists(
+                            docx
+                    );
 
             jobService.updateProgress(
                     jobId,
@@ -101,14 +114,22 @@ public class ConversionWorker {
             );
 
             Path outputPath =
-                    fileStorageService.storeOutputDocx(jobId, docx);
+                    fileStorageService.storeOutputDocx(
+                            jobId,
+                            docx
+                    );
 
-            long sizeBytes = Files.size(outputPath);
+            long sizeBytes =
+                    Files.size(outputPath);
 
-            jobMetricsService.saveWordCounts(
+            jobMetricsService.saveMetrics(
                     jobId,
                     sourceWordCount,
-                    outputWordCount
+                    outputWordCount,
+                    sourceLists.ordered(),
+                    sourceLists.unordered(),
+                    outputLists.ordered(),
+                    outputLists.unordered()
             );
 
             jobService.markCompleted(

@@ -6,9 +6,13 @@ import java.util.UUID;
 
 public interface JobMetricsService {
 
-    JobMetrics saveWordCounts(
+    JobMetrics saveMetrics(
             UUID jobId,
             int sourceWordCount,
-            int outputWordCount
+            int outputWordCount,
+            int orderedListsDetected,
+            int unorderedListsDetected,
+            int orderedListsReconstructed,
+            int unorderedListsReconstructed
     );
 }

@@ -1,8 +1,16 @@
 package com.amalitech.backend.controller;
 
+import com.amalitech.backend.dto.response.JobMetricsResponse;
+import com.amalitech.backend.dto.response.JobOutputResponse;
+import com.amalitech.backend.dto.response.JobStatusResponse;
+import com.amalitech.backend.exception.JobFailedException;
 import com.amalitech.backend.exception.JobNotFoundException;
+import com.amalitech.backend.exception.JobNotReadyException;
 import com.amalitech.backend.model.*;
 import com.amalitech.backend.service.JobService;
+import com.amalitech.backend.service.impl.JobDownloadService;
+import com.amalitech.backend.service.impl.JobStatusResponseMapper;
+import org.springframework.core.io.FileSystemResource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -36,8 +44,16 @@ class JobControllerTest {
     @MockitoBean
     private JobService jobService;
 
+    @MockitoBean
+    private JobStatusResponseMapper jobStatusResponseMapper;
+
+    @MockitoBean
+    private JobDownloadService jobDownloadService;
+
     @TempDir
     Path tempDir;
+
+
 
     @Test
     void shouldReturnProcessingJobStatus() throws Exception {
@@ -55,6 +71,28 @@ class JobControllerTest {
                         "2026-09-30T18:00:00Z"
                 )
         );
+
+        JobStatusResponse response =
+                new JobStatusResponse(
+                        JOB_ID,
+                        JobStatus.PROCESSING,
+                        "sample.pdf",
+                        3,
+                        Instant.parse("2026-09-30T18:00:00Z"),
+                        Instant.parse("2026-10-02T08:00:01Z"),
+                        null,
+                        JobPhase.RECOVERING_STRUCTURE,
+                        55,
+                        null,
+                        20.0,
+                        44.44,
+                        8.0,
+                        null,
+                        null
+                );
+
+        when(jobStatusResponseMapper.toResponse(job))
+                .thenReturn(response);
 
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
@@ -120,6 +158,44 @@ class JobControllerTest {
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
+        JobOutputResponse output =
+                new JobOutputResponse(
+                        "sample.docx",
+                        245120L,
+                        "/api/v1/jobs/" + JOB_ID + "/download"
+                );
+
+        JobMetricsResponse metrics =
+                new JobMetricsResponse(
+                        120,
+                        118,
+                        0,
+                        0,
+                        0,
+                        0
+                );
+
+        JobStatusResponse response =
+                new JobStatusResponse(
+                        JOB_ID,
+                        JobStatus.DONE,
+                        "sample.pdf",
+                        3,
+                        Instant.parse("2026-09-30T18:00:00Z"),
+                        Instant.parse("2026-10-02T08:00:01Z"),
+                        Instant.parse("2026-10-02T08:00:12Z"),
+                        JobPhase.COMPLETED,
+                        100,
+                        11.0,
+                        0.0,
+                        11.0,
+                        0.0,
+                        output,
+                        metrics
+                );
+
+        when(jobStatusResponseMapper.toResponse(job))
+                .thenReturn(response);
         mockMvc.perform(
                         get("/api/v1/jobs/{jobId}", JOB_ID)
                 )
@@ -128,7 +204,7 @@ class JobControllerTest {
                         .value(JOB_ID.toString()))
                 .andExpect(jsonPath("$.phase").value("COMPLETED"))
                 .andExpect(jsonPath("$.progressPercent").value(100))
-                .andExpect(jsonPath("$.durationSeconds").value(11))
+                .andExpect(jsonPath("$.durationSeconds").value(11.0))
                 .andExpect(jsonPath("$.output.filename")
                         .value("sample.docx"))
                 .andExpect(jsonPath("$.output.sizeBytes")
@@ -189,6 +265,18 @@ class JobControllerTest {
 
         job.setFile(jobFile);
 
+        JobDownloadService.DownloadResult download =
+                new JobDownloadService.DownloadResult(
+                        new FileSystemResource(
+                                outputPath.toFile()
+                        ),
+                        "sample.docx",
+                        content.length
+                );
+
+        when(jobDownloadService.prepareDownload(job))
+                .thenReturn(download);
+
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
 
@@ -224,7 +312,10 @@ class JobControllerTest {
 
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
-
+        when(jobDownloadService.prepareDownload(job))
+                .thenThrow(
+                        new JobNotReadyException()
+                );
         mockMvc.perform(
                         get(
                                 "/api/v1/jobs/{jobId}/download",
@@ -248,6 +339,10 @@ class JobControllerTest {
 
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
+        when(jobDownloadService.prepareDownload(job))
+                .thenThrow(
+                        new JobFailedException()
+                );
 
         mockMvc.perform(
                         get(
@@ -272,6 +367,12 @@ class JobControllerTest {
 
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
+        when(jobDownloadService.prepareDownload(job))
+                .thenThrow(
+                        new IllegalStateException(
+                                "Completed job has no output file."
+                        )
+                );
 
         mockMvc.perform(
                         get(
@@ -311,6 +412,12 @@ class JobControllerTest {
 
         when(jobService.getJobWithFile(JOB_ID))
                 .thenReturn(job);
+        when(jobDownloadService.prepareDownload(job))
+                .thenThrow(
+                        new IllegalStateException(
+                                "Converted output file is missing."
+                        )
+                );
 
         mockMvc.perform(
                         get(

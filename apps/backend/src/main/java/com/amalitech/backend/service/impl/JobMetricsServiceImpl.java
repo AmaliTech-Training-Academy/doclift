@@ -26,11 +26,14 @@ public class JobMetricsServiceImpl implements JobMetricsService {
     }
 
     @Override
-    @Transactional
-    public JobMetrics saveWordCounts(
+    public JobMetrics saveMetrics(
             UUID jobId,
             int sourceWordCount,
-            int outputWordCount
+            int outputWordCount,
+            int orderedListsDetected,
+            int unorderedListsDetected,
+            int orderedListsReconstructed,
+            int unorderedListsReconstructed
     ) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(JobNotFoundException::new);
@@ -38,17 +41,29 @@ public class JobMetricsServiceImpl implements JobMetricsService {
         JobMetrics metrics = job.getMetrics();
 
         if (metrics == null) {
-            metrics = new JobMetrics(
-                    job,
-                    sourceWordCount,
-                    outputWordCount
-            );
-
+            metrics = new JobMetrics();
+            metrics.setJob(job);
             job.setMetrics(metrics);
-        } else {
-            metrics.setSourceWordCount(sourceWordCount);
-            metrics.setOutputWordCount(outputWordCount);
         }
+
+        metrics.setSourceWordCount(sourceWordCount);
+        metrics.setOutputWordCount(outputWordCount);
+
+        metrics.setOrderedListsDetected(
+                orderedListsDetected
+        );
+
+        metrics.setUnorderedListsDetected(
+                unorderedListsDetected
+        );
+
+        metrics.setOrderedListsReconstructed(
+                orderedListsReconstructed
+        );
+
+        metrics.setUnorderedListsReconstructed(
+                unorderedListsReconstructed
+        );
 
         return jobMetricsRepository.save(metrics);
     }

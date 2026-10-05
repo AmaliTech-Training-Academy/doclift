@@ -126,6 +126,27 @@ class ConversionWorkerTest {
                 )
         )
                 .thenReturn(docxContent);
+        when(
+                documentMetricsService.countSourceLists(
+                        extractionResult
+                )
+        ).thenReturn(
+                new ListCountResult(
+                        1,
+                        1
+                )
+        );
+
+        when(
+                documentMetricsService.countOutputLists(
+                        docxContent
+                )
+        ).thenReturn(
+                new ListCountResult(
+                        1,
+                        1
+                )
+        );
 
         when(
                 fileStorageService
@@ -162,6 +183,9 @@ class ConversionWorkerTest {
         verify(documentMetricsService)
                 .countSourceWords(extractionResult);
 
+        verify(documentMetricsService)
+                .countSourceLists(extractionResult);
+
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.GENERATING_DOCUMENT,
@@ -173,6 +197,9 @@ class ConversionWorkerTest {
 
         verify(documentMetricsService)
                 .countOutputWords(docxContent);
+
+        verify(documentMetricsService)
+                .countOutputLists(docxContent);
 
         verify(jobService).updateProgress(
                 JOB_ID,
@@ -187,10 +214,14 @@ class ConversionWorkerTest {
                 );
 
         verify(jobMetricsService)
-                .saveWordCounts(
+                .saveMetrics(
                         JOB_ID,
                         120,
-                        118
+                        118,
+                        1,
+                        1,
+                        1,
+                        1
                 );
 
         verify(jobService)

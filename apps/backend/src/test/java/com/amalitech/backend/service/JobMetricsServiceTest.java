@@ -56,17 +56,57 @@ class JobMetricsServiceTest {
                 );
 
         JobMetrics result =
-                jobMetricsService.saveWordCounts(
+                jobMetricsService.saveMetrics(
                         JOB_ID,
                         120,
-                        118
+                        118,
+                        2,
+                        1,
+                        2,
+                        1
                 );
 
         assertNotNull(result);
-        assertEquals(120, result.getSourceWordCount());
-        assertEquals(118, result.getOutputWordCount());
-        assertSame(job, result.getJob());
-        assertSame(result, job.getMetrics());
+
+        assertEquals(
+                120,
+                result.getSourceWordCount()
+        );
+
+        assertEquals(
+                118,
+                result.getOutputWordCount()
+        );
+
+        assertEquals(
+                2,
+                result.getOrderedListsDetected()
+        );
+
+        assertEquals(
+                1,
+                result.getUnorderedListsDetected()
+        );
+
+        assertEquals(
+                2,
+                result.getOrderedListsReconstructed()
+        );
+
+        assertEquals(
+                1,
+                result.getUnorderedListsReconstructed()
+        );
+
+        assertSame(
+                job,
+                result.getJob()
+        );
+
+        assertSame(
+                result,
+                job.getMetrics()
+        );
 
         verify(jobRepository)
                 .findById(JOB_ID);
@@ -97,15 +137,50 @@ class JobMetricsServiceTest {
                 .thenReturn(existingMetrics);
 
         JobMetrics result =
-                jobMetricsService.saveWordCounts(
+                jobMetricsService.saveMetrics(
                         JOB_ID,
                         120,
-                        118
+                        118,
+                        2,
+                        1,
+                        2,
+                        1
                 );
 
-        assertSame(existingMetrics, result);
-        assertEquals(120, result.getSourceWordCount());
-        assertEquals(118, result.getOutputWordCount());
+        assertSame(
+                existingMetrics,
+                result
+        );
+
+        assertEquals(
+                120,
+                result.getSourceWordCount()
+        );
+
+        assertEquals(
+                118,
+                result.getOutputWordCount()
+        );
+
+        assertEquals(
+                2,
+                result.getOrderedListsDetected()
+        );
+
+        assertEquals(
+                1,
+                result.getUnorderedListsDetected()
+        );
+
+        assertEquals(
+                2,
+                result.getOrderedListsReconstructed()
+        );
+
+        assertEquals(
+                1,
+                result.getUnorderedListsReconstructed()
+        );
 
         verify(jobMetricsRepository)
                 .save(existingMetrics);
@@ -119,16 +194,22 @@ class JobMetricsServiceTest {
 
         assertThrows(
                 JobNotFoundException.class,
-                () -> jobMetricsService.saveWordCounts(
+                () -> jobMetricsService.saveMetrics(
                         JOB_ID,
                         120,
-                        118
+                        118,
+                        2,
+                        1,
+                        2,
+                        1
                 )
         );
 
         verify(jobRepository)
                 .findById(JOB_ID);
 
-        verifyNoInteractions(jobMetricsRepository);
+        verifyNoInteractions(
+                jobMetricsRepository
+        );
     }
 }

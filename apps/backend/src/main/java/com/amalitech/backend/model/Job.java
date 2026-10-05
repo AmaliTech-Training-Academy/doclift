@@ -45,6 +45,9 @@ public class Job {
     @Column(name = "progress_percent")
     private Integer progressPercent;
 
+    @Column(name = "phase_started_at")
+    private Instant phaseStartedAt;
+
     @OneToOne(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
     private JobFile file;
 
