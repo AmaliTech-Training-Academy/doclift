@@ -1,9 +1,9 @@
 export interface UploadApiResponse {
-  jobId: number;
+  jobId: string;
 }
 
 export interface ApiErrorResponse {
-  code?: string;
+  error?: string;
   message?: string;
 }
 
