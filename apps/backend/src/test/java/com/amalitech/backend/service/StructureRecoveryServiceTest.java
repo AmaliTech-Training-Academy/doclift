@@ -17,10 +17,6 @@ class StructureRecoveryServiceTest {
         structureRecoveryService = new StructureRecoveryServiceImpl();
     }
 
-    // =========================================================
-    // SINGLE-COLUMN READING ORDER
-    // =========================================================
-
     @Test
     void shouldOrderSingleColumnTopToBottom() {
         PageExtraction page = new PageExtraction(0);
@@ -40,10 +36,6 @@ class StructureRecoveryServiceTest {
                 );
     }
 
-    // =========================================================
-    // SAME-LINE GROUPING
-    // =========================================================
-
     @Test
     void shouldGroupSpansOnSameLineLeftToRight() {
         PageExtraction page = new PageExtraction(0);
@@ -60,10 +52,6 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks().getFirst().getText())
                 .isEqualTo("Hello world");
     }
-
-    // =========================================================
-    // DIFFERENT LINES
-    // =========================================================
 
     @Test
     void shouldKeepVerticallySeparatedSpansOnDifferentLines() {
@@ -84,10 +72,6 @@ class StructureRecoveryServiceTest {
                 );
     }
 
-    // =========================================================
-    // EMPTY PAGE
-    // =========================================================
-
     @Test
     void shouldReturnNoBlocksForEmptyPage() {
         PageExtraction page = new PageExtraction(0);
@@ -96,10 +80,6 @@ class StructureRecoveryServiceTest {
 
         assertThat(page.getStructuredBlocks()).isEmpty();
     }
-
-    // =========================================================
-    // TEST DATA
-    // =========================================================
 
     private TextSpan span(
             String text,
@@ -143,10 +123,6 @@ class StructureRecoveryServiceTest {
         );
     }
 
-    // =========================================================
-// TWO-COLUMN READING ORDER
-// =========================================================
-
     @Test
     void shouldOrderTwoColumnLayoutColumnByColumn() {
         PageExtraction page = new PageExtraction(0);
@@ -171,10 +147,6 @@ class StructureRecoveryServiceTest {
                         "Right one Right two Right three"
                 );
     }
-
-    // =========================================================
-// SPANNING HEADING + TWO-COLUMN READING ORDER
-// =========================================================
 
     @Test
     void shouldPlaceSpanningHeadingBeforeColumns() {
@@ -445,7 +417,6 @@ class StructureRecoveryServiceTest {
                 );
     }
 
-
     @Test
     void shouldSeparateParagraphsOnLargeVerticalGap() {
         PageExtraction page = new PageExtraction(0);
@@ -582,9 +553,6 @@ class StructureRecoveryServiceTest {
 
         structureRecoveryService.recoverStructure(page);
 
-        // Each table row is split back into one block per cell (not
-        // flattened into one string) so a borderless table's columns
-        // can still be positioned independently later.
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
@@ -787,10 +755,6 @@ class StructureRecoveryServiceTest {
         ).isEqualTo("This is important");
     }
 
-    // =========================================================
-    // TEXT ALIGNMENT
-    // =========================================================
-
     @Test
     void shouldDetectCenteredSingleLineAlignment() {
         PageExtraction page = new PageExtraction(0);
@@ -860,11 +824,6 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks().getFirst().getAlignment())
                 .isEqualTo(BlockAlignment.LEFT);
     }
-
-    // =========================================================
-    // LINE SPACING ROBUSTNESS (a glyph's own bounding-box height is not
-    // a reliable stand-in for a font's true line pitch)
-    // =========================================================
 
     @Test
     void shouldMergeSingleSpacedLinesEvenWhenGlyphBoundingBoxIsUnreliablySmall() {

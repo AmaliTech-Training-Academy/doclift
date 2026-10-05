@@ -19,7 +19,6 @@ class WordWriterServiceTest {
     private final WordWriterService wordWriterService =
             new WordWriterServiceImpl();
 
-
     @Test
     void shouldApplyHeadingStyle() throws Exception {
 
@@ -473,7 +472,6 @@ class WordWriterServiceTest {
         }
     }
 
-
     @Test
     void shouldInsertSpacesBetweenSeparateTextSpans()
             throws Exception {
@@ -667,7 +665,6 @@ class WordWriterServiceTest {
         }
     }
 
-
     @Test
     void shouldCreateValidDocxDocument() throws Exception {
 
@@ -733,10 +730,6 @@ class WordWriterServiceTest {
             ).isEqualTo("Hello Word");
         }
     }
-
-    // =========================================================
-    // BORDERED TABLE BLOCKS
-    // =========================================================
 
     @Test
     void shouldWriteThreeByThreeTableWithCorrectRowColumnCountAndCellMapping()

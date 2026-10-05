@@ -12,10 +12,6 @@ class BorderedTableDetectorTest {
 
     private final BorderedTableDetector detector = new BorderedTableDetector();
 
-    // =========================================================
-    // 3x3 GRID DRAWN AS FULL-WIDTH/HEIGHT BORDER LINES
-    // =========================================================
-
     @Test
     void shouldDetectThreeByThreeBorderedGridAndMapCellsCorrectly() {
 
@@ -69,10 +65,6 @@ class BorderedTableDetectorTest {
             }
         }
     }
-
-    // =========================================================
-    // 3x3 GRID ASSEMBLED FROM NINE INDIVIDUALLY BORDERED CELLS
-    // =========================================================
 
     @Test
     void shouldDetectGridAssembledFromIndividualCellRectangles() {
@@ -135,15 +127,9 @@ class BorderedTableDetectorTest {
         assertThat(table.cells().get(1).get(0).text()).isEmpty();
     }
 
-    // =========================================================
-    // MERGED / SPANNING CELLS (e.g. a header spanning columns)
-    // =========================================================
-
     @Test
     void shouldMapHeaderCellSpanningMultipleColumnsAsOneAnchorWithColumnSpan() {
 
-        // 2 rows x 4 cols; row 1's middle 3 columns merge into one cell,
-        // mirroring a real-world "label | spanning value" table.
         List<HorizontalLine> horizontalLines = List.of(
                 new HorizontalLine(0f, 0f, 400f),
                 new HorizontalLine(30f, 0f, 400f),
@@ -194,11 +180,6 @@ class BorderedTableDetectorTest {
         assertThat(table.cells().get(1).get(0).text()).isEqualTo("Continent");
     }
 
-    // =========================================================
-    // UNRELATED LINES ELSEWHERE ON THE PAGE MUST NOT BE FUSED
-    // INTO THE REAL TABLE'S GRID
-    // =========================================================
-
     @Test
     void shouldNotFuseUnrelatedStrayLineWithRealTableGrid() {
 
@@ -209,8 +190,6 @@ class BorderedTableDetectorTest {
                 new HorizontalLine(90f, 0f, 300f)
         ));
 
-        // An unrelated short rule elsewhere on the page (e.g. a footnote
-        // separator) that does not span the table's width.
         horizontalLines.add(new HorizontalLine(400f, 0f, 80f));
 
         List<VerticalLine> verticalLines = List.of(
@@ -238,10 +217,6 @@ class BorderedTableDetectorTest {
         assertThat(table.height()).isEqualTo(90f);
     }
 
-    // =========================================================
-    // INCOMPLETE / NON-GRID GEOMETRY SHOULD NOT BE DETECTED
-    // =========================================================
-
     @Test
     void shouldIgnoreIncompleteGridWithMissingBorders() {
 
@@ -263,20 +238,9 @@ class BorderedTableDetectorTest {
         assertThat(tables).isEmpty();
     }
 
-    // =========================================================
-    // TWO INDEPENDENT BORDERED TABLES ON THE SAME PAGE MUST NOT
-    // BLEED COLUMN/ROW BOUNDARIES INTO EACH OTHER'S GRID
-    // =========================================================
-
     @Test
     void shouldDetectTwoSeparateTablesOnSamePageWithoutCrossContamination() {
 
-        // Mirrors the geometry of a real two-table PDF page: table A's
-        // column boundaries (108.5, 163.5, 283.5, 433.5, 503.5) and table
-        // B's (96, 226, 356, 436, 516) are numerically interleaved, and
-        // 433.5 sits within LINE_POSITION_TOLERANCE of table B's 436 - close
-        // enough to fuse if positions were clustered globally across the
-        // whole page instead of per physical table.
         List<HorizontalLine> horizontalLines = List.of(
                 new HorizontalLine(140f, 108.5f, 503.5f),
                 new HorizontalLine(168f, 108.5f, 503.5f),
@@ -359,23 +323,9 @@ class BorderedTableDetectorTest {
         assertThat(tables).isEmpty();
     }
 
-    // =========================================================
-    // A SINGLE RULED BOUNDARY DRAWN AS A SHORT CHAIN OF NEARLY-
-    // TOUCHING LINES (e.g. a cell's border box layered under an
-    // inset background-shading box - see TableLineStreamEngine)
-    // MUST NOT BE READ AS TWO SEPARATE GRID LINES
-    // =========================================================
-
     @Test
     void shouldMergeAChainOfNearDuplicateRowBoundariesIntoOneRow() {
 
-        // The three lines at 50.0/51.75/53.5 all represent the SAME
-        // visual divider between row 1 and row 2 - each adjacent pair is
-        // only 1.75pt apart, but the chain spans 3.5pt end to end, more
-        // than LINE_POSITION_TOLERANCE. Comparing every candidate
-        // against a fixed cluster anchor (instead of its neighbor) used
-        // to let that drift split one boundary into two, producing a
-        // phantom extra row.
         List<HorizontalLine> horizontalLines = List.of(
                 new HorizontalLine(0f, 0f, 200f),
                 new HorizontalLine(50.0f, 0f, 200f),
@@ -417,35 +367,20 @@ class BorderedTableDetectorTest {
         assertThat(table.cells().get(1).get(1).text()).isEqualTo("R2C2");
     }
 
-    // =========================================================
-    // NON-RECTANGULAR (L-SHAPED) MERGE GROUPS CANNOT BE REPRESENTED
-    // AS A SINGLE OOXML CELL, SO THEY MUST BE LEFT UNMERGED RATHER
-    // THAN CLOBBERING UNRELATED CELLS OR PRODUCING AN INVALID TABLE
-    // =========================================================
-
     @Test
     void shouldLeaveNonRectangularMergeGroupsUnmergedInsteadOfProducingAnInvalidTable() {
 
-        // 2 rows x 3 cols. (0,2)/(1,0)/(1,1)/(1,2) form one L-shaped merge
-        // group (missing borders chain them together), while (0,0) and
-        // (0,1) are separate, fully-bordered cells. A single anchor cell
-        // with one rowSpan/columnSpan pair cannot represent an L-shaped
-        // region in OOXML (gridSpan + vMerge only compose into rectangles),
-        // so the whole group must fall back to unmerged 1x1 cells.
         List<HorizontalLine> horizontalLines = List.of(
                 new HorizontalLine(0f, 0f, 300f),
                 new HorizontalLine(30f, 0f, 100f),
                 new HorizontalLine(30f, 100f, 200f),
-                // no segment at (30, 200-300): merges (0,2) with (1,2)
                 new HorizontalLine(60f, 0f, 300f)
         );
 
         List<VerticalLine> verticalLines = List.of(
                 new VerticalLine(0f, 0f, 60f),
                 new VerticalLine(100f, 0f, 30f),
-                // no segment at (100, 30-60): merges (1,0) with (1,1)
                 new VerticalLine(200f, 0f, 30f),
-                // no segment at (200, 30-60): merges (1,1) with (1,2)
                 new VerticalLine(300f, 0f, 60f)
         );
 
@@ -468,9 +403,6 @@ class BorderedTableDetectorTest {
         assertThat(table.cells().get(0).get(0).text()).isEqualTo("KeepMe00");
         assertThat(table.cells().get(0).get(1).text()).isEqualTo("KeepMe01");
 
-        // The L-shaped group's own members must each stand alone: no
-        // merging at all, so the generated table can never declare a
-        // gridSpan that overruns the table's real column count.
         List<TableCell> mergeGroupMembers = List.of(
                 table.cells().get(0).get(2),
                 table.cells().get(1).get(0),

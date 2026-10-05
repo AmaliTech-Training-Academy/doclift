@@ -433,7 +433,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             float baselineDelta = current.getY() - previous.getY();
 
             closeVertically =
-                    baselineDelta <= dominantLineSpacing * PARAGRAPH_GAP_FACTOR;
+                    Math.abs(baselineDelta - dominantLineSpacing)
+                            <= LINE_SPACING_CLUSTER_TOLERANCE;
         } else {
             float previousBottom =
                     previous.getY() + previous.getHeight();

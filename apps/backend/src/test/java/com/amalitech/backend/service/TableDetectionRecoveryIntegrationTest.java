@@ -18,11 +18,6 @@ import java.io.ByteArrayOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * End-to-end coverage for DOC-2-T8: a bordered table sample should be
- * detected, recovered as a real cell grid, and written out as an
- * editable Word table with cell text mapped to the correct positions.
- */
 class TableDetectionRecoveryIntegrationTest {
 
     private PdfExtractionService pdfExtractionService;
@@ -112,13 +107,6 @@ class TableDetectionRecoveryIntegrationTest {
         }
     }
 
-    // =========================================================
-    // A BORDERED TABLE WITH NO TEXT INSIDE IT (every cell blank)
-    // HAS NOTHING TO ANCHOR ON, SO IT MUST STILL BE PLACED BY ITS
-    // OWN PAGE POSITION RATHER THAN DEFAULTING TO THE END OF THE
-    // PAGE'S BLOCK LIST
-    // =========================================================
-
     @Test
     void shouldPositionAnEmptyBorderedTableByItsPageLocationNotAtTheEndOfThePage()
             throws Exception {
@@ -181,8 +169,6 @@ class TableDetectionRecoveryIntegrationTest {
                 content.showText("Above the table");
                 content.endText();
 
-                // A 2x2 bordered grid with no text in any cell, roughly
-                // in the middle of the page.
                 float originX = 80f;
                 float originTopY = 450f;
                 float cellWidth = 100f;

@@ -17,6 +17,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTLvl;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageMar;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGrid;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
@@ -41,6 +42,9 @@ import java.util.Map;
 public class WordWriterServiceImpl implements WordWriterService {
 
     private static final int TWIPS_PER_POINT = 20;
+
+    private static final float DEFAULT_PAGE_WIDTH_POINTS = 612f;
+    private static final float DEFAULT_PAGE_HEIGHT_POINTS = 792f;
 
     private static final float ASCENT_RATIO = 0.8f;
 
@@ -391,11 +395,19 @@ public class WordWriterServiceImpl implements WordWriterService {
             CTSectPr sectPr,
             PageExtraction page
     ) {
-        CTPageSz pageSize = sectPr.addNewPgSz();
-        pageSize.setW(toTwips(page.getPageWidth()));
-        pageSize.setH(toTwips(page.getPageHeight()));
+        float pageWidth = page.getPageWidth() > 0f
+                ? page.getPageWidth()
+                : DEFAULT_PAGE_WIDTH_POINTS;
 
-        if (page.getPageWidth() > page.getPageHeight()) {
+        float pageHeight = page.getPageHeight() > 0f
+                ? page.getPageHeight()
+                : DEFAULT_PAGE_HEIGHT_POINTS;
+
+        CTPageSz pageSize = sectPr.addNewPgSz();
+        pageSize.setW(toTwips(pageWidth));
+        pageSize.setH(toTwips(pageHeight));
+
+        if (pageWidth > pageHeight) {
             pageSize.setOrient(STPageOrientation.LANDSCAPE);
         }
 
@@ -570,6 +582,8 @@ private void writeBlock(
         List<Float> columnWidths = block.getColumnWidths();
         List<Float> rowHeights = block.getRowHeights();
 
+        applyTableGrid(table, columnWidths, columnCount);
+
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
 
             XWPFTableRow tableRow =
@@ -591,9 +605,67 @@ private void writeBlock(
                 writeTableCell(rows, tableRow, rowIndex, columnIndex, footnotesByKey);
 
                 if (columnWidths != null && columnIndex < columnWidths.size()) {
-                    setColumnWidth(tableRow, columnIndex, columnWidths.get(columnIndex));
+
+                    int span = effectiveColumnSpan(rows, rowIndex, columnIndex);
+
+                    setColumnWidth(
+                            tableRow,
+                            columnIndex,
+                            sumColumnWidths(columnWidths, columnIndex, span)
+                    );
                 }
             }
+        }
+    }
+
+    private int effectiveColumnSpan(
+            List<List<TableCell>> rows,
+            int rowIndex,
+            int columnIndex
+    ) {
+        TableCell cell = rows.get(rowIndex).get(columnIndex);
+
+        if (cell.rowSpan() >= 1) {
+            return Math.max(1, cell.columnSpan());
+        }
+
+        TableCell anchor = rows.get(cell.row()).get(cell.column());
+
+        return Math.max(1, anchor.columnSpan());
+    }
+
+    private float sumColumnWidths(
+            List<Float> columnWidths,
+            int startColumn,
+            int span
+    ) {
+        float total = 0f;
+
+        for (int i = startColumn;
+             i < startColumn + span && i < columnWidths.size();
+             i++) {
+
+            total += columnWidths.get(i);
+        }
+
+        return total;
+    }
+
+    private void applyTableGrid(
+            XWPFTable table,
+            List<Float> columnWidths,
+            int columnCount
+    ) {
+        CTTblGrid grid = table.getCTTbl().addNewTblGrid();
+
+        for (int column = 0; column < columnCount; column++) {
+
+            float widthPoints =
+                    columnWidths != null && column < columnWidths.size()
+                            ? columnWidths.get(column)
+                            : 0f;
+
+            grid.addNewGridCol().setW(toTwips(widthPoints));
         }
     }
 

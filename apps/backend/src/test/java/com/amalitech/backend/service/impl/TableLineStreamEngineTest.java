@@ -8,15 +8,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-/**
- * Covers the fill-path handling added for pdfTeX-style table rules,
- * which draws a rule as a thin filled rectangle rather than a stroked
- * line: {@code TableLineStreamEngine} must collapse that sliver to the
- * single ruling line it represents, while a plain (non-stroked) fill
- * that isn't sliver-shaped - ordinary cell background shading - must
- * contribute no lines at all, since walking its edges would otherwise
- * invent a phantom table boundary around every colored cell.
- */
 class TableLineStreamEngineTest {
 
     @Test
@@ -75,8 +66,6 @@ class TableLineStreamEngineTest {
             document.addPage(page);
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                // A header-row / alternating-stripe background color -
-                // not a rule - large in both dimensions.
                 content.addRect(100f, 400f, 200f, 30f);
                 content.fill();
             }
@@ -96,8 +85,6 @@ class TableLineStreamEngineTest {
             document.addPage(page);
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                // Fill AND stroke means a visible outline is intended,
-                // so this should still be walked as a genuine border box.
                 content.addRect(100f, 400f, 200f, 30f);
                 content.fillAndStroke();
             }

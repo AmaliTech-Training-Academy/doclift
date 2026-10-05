@@ -30,10 +30,6 @@ class PdfStructureRecoveryIntegrationTest {
 
     }
 
-    // =========================================================
-    // MULTI-COLUMN STRUCTURE RECOVERY
-    // =========================================================
-
     @Test
     void shouldRecoverReadingOrderForMultiColumnPdf() throws Exception {
 
@@ -57,10 +53,6 @@ class PdfStructureRecoveryIntegrationTest {
 
             assertThat(blocks).isNotEmpty();
 
-            // ---------------------------------------------------------
-            // HEADING CHECK
-            // ---------------------------------------------------------
-
             assertThat(blocks.getFirst().getType())
                     .isEqualTo(BlockType.HEADING);
 
@@ -68,10 +60,6 @@ class PdfStructureRecoveryIntegrationTest {
                     .isEqualTo(
                             "Two-Column Document with Lorem Ipsum"
                     );
-
-            // ---------------------------------------------------------
-            // MULTI-COLUMN READING ORDER CHECK
-            // ---------------------------------------------------------
 
             int leftColumnIndex = -1;
             int rightColumnIndex = -1;
@@ -107,10 +95,6 @@ class PdfStructureRecoveryIntegrationTest {
                             "Left column should be ordered before right column"
                     )
                     .isLessThan(rightColumnIndex);
-
-            // ---------------------------------------------------------
-            // FOOTER / PAGE NUMBER SHOULD REMAIN SEPARATE
-            // ---------------------------------------------------------
 
             assertThat(blocks)
                     .extracting(StructuredBlock::getText)
@@ -188,9 +172,6 @@ class PdfStructureRecoveryIntegrationTest {
                             .isEqualTo(4);
                 });
 
-        // Each table row is split back into one block per cell (not
-        // flattened into one string) so a borderless table's columns
-        // can still be positioned independently later.
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsSubsequence(
@@ -378,23 +359,12 @@ class PdfStructureRecoveryIntegrationTest {
 
             assertThat(blocks).isNotEmpty();
 
-            // ---------------------------------------------------------
-            // HEADING CLASSIFICATION
-            // ---------------------------------------------------------
-
             assertThat(blocks.getFirst().getType())
                     .isEqualTo(BlockType.HEADING);
 
             assertThat(blocks.getFirst().getText())
                     .isEqualTo("Contents");
 
-            // ---------------------------------------------------------
-            // PARAGRAPH CLASSIFICATION
-            // ---------------------------------------------------------
-
-            // Each table row is split back into one block per cell (not
-            // flattened into one string) so a borderless table's columns
-            // can still be positioned independently later.
             assertThat(blocks)
                     .extracting(StructuredBlock::getText)
                     .containsSubsequence("1", "Foo", "2");
@@ -402,10 +372,6 @@ class PdfStructureRecoveryIntegrationTest {
             assertThat(blocks)
                     .extracting(StructuredBlock::getText)
                     .containsSubsequence("2", "Bar", "2");
-
-            // ---------------------------------------------------------
-            // HEADING SHOULD APPEAR BEFORE BODY CONTENT
-            // ---------------------------------------------------------
 
             int headingIndex = -1;
             int firstParagraphIndex = -1;

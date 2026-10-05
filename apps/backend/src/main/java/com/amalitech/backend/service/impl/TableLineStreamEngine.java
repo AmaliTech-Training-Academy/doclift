@@ -118,12 +118,16 @@ class TableLineStreamEngine extends PDFGraphicsStreamEngine {
         float height = (float) bounds.getHeight();
 
         boolean thinHorizontalBar =
-                height <= MAX_FILL_LINE_THICKNESS && width >= MIN_LINE_LENGTH;
+                height <= MAX_FILL_LINE_THICKNESS
+                        && width >= MIN_LINE_LENGTH
+                        && width > height;
 
         boolean thinVerticalBar =
-                width <= MAX_FILL_LINE_THICKNESS && height >= MIN_LINE_LENGTH;
+                width <= MAX_FILL_LINE_THICKNESS
+                        && height >= MIN_LINE_LENGTH
+                        && height > width;
 
-        if (thinHorizontalBar && !thinVerticalBar) {
+        if (thinHorizontalBar) {
             float y = flipY(bounds.getCenterY());
 
             if (!isPageEdge(y, 0f, pageHeight)) {

@@ -12,15 +12,6 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Manual, developer-driven conversion check: point it at any PDF on disk
- * via -Dpdf.path=/path/to/file.pdf and it converts it through the real
- * extraction + Word-writing pipeline, then writes the resulting .docx
- * next to the input so it can be opened and inspected by eye.
- *
- * Skipped unless pdf.path is supplied, so it never runs as part of the
- * normal test suite or CI.
- */
 class ManualPdfToDocxConversionTest {
 
     @Test

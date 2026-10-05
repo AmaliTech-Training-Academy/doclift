@@ -15,13 +15,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * A footnote reference marker is a small, often-superscript digit -
- * matching a bare digit by text alone would also catch an ordinary
- * full-size digit that happens to equal the marker, such as a table's
- * numeric ID column. These cover both that false-positive and the
- * genuine small-marker case the feature is meant for.
- */
 class FootnoteRecoveryIntegrationTest {
 
     private PdfExtractionService pdfExtractionService;
@@ -84,15 +77,6 @@ class FootnoteRecoveryIntegrationTest {
                 .isTrue();
     }
 
-    /**
-     * Builds one page containing, top to bottom: a bordered 2x2 table
-     * whose first column is a normal-size numeric ID ("1"/"2"); a line
-     * with a small superscript-style marker ("2") immediately followed
-     * by normal-size text, mimicking a genuine inline footnote
-     * reference; and a trailing line alternating small markers and
-     * normal-size note text, which {@code recoverFootnotes} recognizes
-     * as the footnote area.
-     */
     private byte[] buildPdfWithTableIdColumnAndFootnoteArea() throws Exception {
 
         try (PDDocument document = new PDDocument()) {
@@ -132,9 +116,6 @@ class FootnoteRecoveryIntegrationTest {
                     }
                 }
 
-                // Genuine inline reference: a small marker directly
-                // followed by normal-size body text, well away from the
-                // table and the trailing footnote area.
                 content.beginText();
                 content.setFont(font, 6);
                 content.newLineAtOffset(80f, 500f);
@@ -147,8 +128,6 @@ class FootnoteRecoveryIntegrationTest {
                 content.showText("Claim requiring a citation");
                 content.endText();
 
-                // Trailing footnote area: alternating small markers and
-                // normal-size note text, on its own near the bottom.
                 content.beginText();
                 content.setFont(font, 6);
                 content.newLineAtOffset(80f, 100f);
