@@ -158,7 +158,7 @@ class ImageRecoveryIntegrationTest {
     }
 
     @Test
-    void insertsPageBreakBetweenMultiPagePdfPages() throws Exception {
+    void insertsSectionBreakBetweenMultiPagePdfPages() throws Exception {
         byte[] pdfBytes = buildTwoPagePdfEachWithAnImage();
 
         byte[] docx = convertToDocx(pdfBytes);
@@ -166,13 +166,35 @@ class ImageRecoveryIntegrationTest {
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
             assertThat(countAnchors(document)).isEqualTo(2);
 
-            boolean hasPageBreak = document.getParagraphs().stream()
-                    .flatMap(p -> p.getRuns().stream())
-                    .anyMatch(run -> run.getCTR().getBrList().stream()
-                            .anyMatch(br -> br.isSetType()
-                                    && br.getType().toString().equals("page")));
+            boolean hasSectionBreak = document.getParagraphs().stream()
+                    .anyMatch(p -> p.getCTP().isSetPPr() && p.getCTP().getPPr().isSetSectPr());
 
-            assertThat(hasPageBreak).isTrue();
+            assertThat(hasSectionBreak).isTrue();
+        }
+    }
+
+    @Test
+    void sizesEachSectionToItsOwnPageWhenRotationDiffersAcrossPages() throws Exception {
+        Path path = Path.of(
+                "src/test/resources/sample-files-main/027-cropped-rotated-scaled/cropped-rotated-scaled.pdf"
+        );
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.isRegularFile(path));
+
+        byte[] pdfBytes = Files.readAllBytes(path);
+        byte[] docx = convertToDocx(pdfBytes);
+
+        try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
+            List<String> orientations = document.getParagraphs().stream()
+                    .filter(p -> p.getCTP().isSetPPr() && p.getCTP().getPPr().isSetSectPr())
+                    .map(p -> p.getCTP().getPPr().getSectPr())
+                    .map(sectPr -> sectPr.getPgSz().getOrient())
+                    .map(Object::toString)
+                    .toList();
+
+            // Source pages rotate 0/90/180/270 in order, so landscape and portrait sections
+            // must both appear - a single document-wide page size would collapse this to one.
+            assertThat(orientations).contains("landscape");
+            assertThat(orientations).contains("portrait");
         }
     }
 

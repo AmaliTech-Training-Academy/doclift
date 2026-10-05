@@ -15,6 +15,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTDrawing;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTLvl;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
@@ -311,10 +312,6 @@ public class WordWriterServiceImpl implements WordWriterService {
             List<PageExtraction> pages =
                     extractionResult.getPages();
 
-            if (!pages.isEmpty()) {
-                applyPageSize(document, pages.getFirst());
-            }
-
             int shapeId = 1;
 
             for (int pageNumber = 0;
@@ -322,10 +319,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                  pageNumber++) {
 
                 PageExtraction page = pages.get(pageNumber);
-
-                if (pageNumber > 0) {
-                    insertPageBreak(document);
-                }
 
                 for (StructuredBlock block :
                         page.getStructuredBlocks()) {
@@ -340,6 +333,14 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 for (ExtractedImage image : page.getImages()) {
                     insertFloatingImage(document, page, image, shapeId++);
+                }
+
+                boolean isLastPage = pageNumber == pages.size() - 1;
+
+                if (isLastPage) {
+                    applyPageSize(document, page);
+                } else {
+                    insertSectionBreak(document, page);
                 }
             }
 
@@ -359,23 +360,44 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private void applyPageSize(
             XWPFDocument document,
-            PageExtraction firstPage
+            PageExtraction page
     ) {
-        boolean swapped =
-                firstPage.getRotation() == 90
-                        || firstPage.getRotation() == 270;
-
-        float widthPt =
-                swapped ? firstPage.getCropHeight() : firstPage.getCropWidth();
-
-        float heightPt =
-                swapped ? firstPage.getCropWidth() : firstPage.getCropHeight();
-
         CTBody body =
                 document.getDocument().getBody();
 
         CTSectPr sectPr =
                 body.isSetSectPr() ? body.getSectPr() : body.addNewSectPr();
+
+        setPageSize(sectPr, page);
+    }
+
+    private void insertSectionBreak(
+            XWPFDocument document,
+            PageExtraction page
+    ) {
+        XWPFParagraph paragraph = document.createParagraph();
+        CTPPr pPr =
+                paragraph.getCTP().isSetPPr()
+                        ? paragraph.getCTP().getPPr()
+                        : paragraph.getCTP().addNewPPr();
+
+        CTSectPr sectPr = pPr.addNewSectPr();
+        setPageSize(sectPr, page);
+    }
+
+    private void setPageSize(
+            CTSectPr sectPr,
+            PageExtraction page
+    ) {
+        boolean swapped =
+                page.getRotation() == 90
+                        || page.getRotation() == 270;
+
+        float widthPt =
+                swapped ? page.getCropHeight() : page.getCropWidth();
+
+        float heightPt =
+                swapped ? page.getCropWidth() : page.getCropHeight();
 
         CTPageSz pageSz =
                 sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
@@ -393,12 +415,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                         ? STPageOrientation.LANDSCAPE
                         : STPageOrientation.PORTRAIT
         );
-    }
-
-    private void insertPageBreak(XWPFDocument document) {
-        XWPFParagraph paragraph = document.createParagraph();
-        XWPFRun run = paragraph.createRun();
-        run.addBreak(BreakType.PAGE);
     }
 
     private void insertFloatingImage(
@@ -440,11 +456,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                     placement
             );
 
-            // Factory.parse() returns a document-rooted object; XmlCursor.moveXml() refuses to
-            // move a whole document ("Can't move/copy/insert a whole document"), and assigning
-            // it via setXxxArray()/.set() silently duplicates the wrapper element instead of
-            // raising an error. Stepping the source cursor onto the root element first, then
-            // transplanting just that node, is what actually attaches a single <w:drawing>.
             CTDrawing parsedDrawing = CTDrawing.Factory.parse(drawingXml);
 
             XmlCursor source = parsedDrawing.newCursor();

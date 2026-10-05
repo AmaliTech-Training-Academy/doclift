@@ -25,6 +25,8 @@ import org.apache.pdfbox.contentstream.operator.state.Save;
 import org.apache.pdfbox.contentstream.operator.state.SetGraphicsStateParameters;
 import org.apache.pdfbox.contentstream.operator.state.SetMatrix;
 import org.apache.pdfbox.util.Matrix;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 import java.awt.image.BufferedImage;
@@ -680,6 +682,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     private static class ImageLocationStreamEngine extends PDFStreamEngine {
 
+        private static final Logger log = LoggerFactory.getLogger(ImageLocationStreamEngine.class);
+
         private final int pageIndex;
         private final List<ExtractedImage> images;
         private final Deque<COSBase> formsInProgress = new ArrayDeque<>();
@@ -724,13 +728,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
 
 
-        private void recordImagePlacement(String imageName, PDImageXObject image) throws IOException {
+        private void recordImagePlacement(String imageName, PDImageXObject image) {
             Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
 
-            // CTM linear part: column (a,b) is the image's "width" basis vector, column (c,d)
-            // is its "height" basis vector. Decomposing these directly (instead of taking the
-            // axis-aligned bounding box of the transformed unit square) preserves the image's
-            // true rotation and scale instead of inflating a rotated image into a larger box.
             float a = ctm.getScaleX();
             float b = ctm.getShearY();
             float c = ctm.getShearX();
@@ -755,7 +755,16 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             double centerX = 0.5 * a + 0.5 * c + e;
             double centerY = 0.5 * b + 0.5 * d + f;
 
-            byte[] data = encodeAsPng(image);
+            byte[] data;
+            try {
+                data = encodeAsPng(image);
+            } catch (IOException e2) {
+                // A single undecodable image (unsupported JPXDecode/JBIG2 variant, malformed
+                // stream, ...) must not abort extraction of everything else on the page/document.
+                log.warn("Skipping image '{}' on page {}: could not decode/re-encode it",
+                        imageName, pageIndex, e2);
+                return;
+            }
 
             images.add(new ExtractedImage(
                     pageIndex,

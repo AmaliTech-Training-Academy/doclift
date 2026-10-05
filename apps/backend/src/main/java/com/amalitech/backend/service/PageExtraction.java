@@ -23,7 +23,6 @@ public class PageExtraction {
     private float cropWidth = 612f;
     private float cropHeight = 792f;
 
-    /** Clockwise page rotation in degrees as declared by the PDF (one of 0, 90, 180, 270). */
     private int rotation;
 
     public PageExtraction(int pageIndex) {
