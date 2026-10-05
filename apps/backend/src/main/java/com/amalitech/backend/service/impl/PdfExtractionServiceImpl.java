@@ -758,9 +758,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             byte[] data;
             try {
                 data = encodeAsPng(image);
-            } catch (IOException e2) {
-                // A single undecodable image (unsupported JPXDecode/JBIG2 variant, malformed
-                // stream, ...) must not abort extraction of everything else on the page/document.
+            } catch (Exception e2) {
                 log.warn("Skipping image '{}' on page {}: could not decode/re-encode it",
                         imageName, pageIndex, e2);
                 return;

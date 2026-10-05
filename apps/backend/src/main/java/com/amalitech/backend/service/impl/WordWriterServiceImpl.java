@@ -331,8 +331,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                     );
                 }
 
-                for (ExtractedImage image : page.getImages()) {
-                    insertFloatingImage(document, page, image, shapeId++);
+                if (!page.getImages().isEmpty()) {
+                    XWPFParagraph carrier = document.createParagraph();
+
+                    for (ExtractedImage image : page.getImages()) {
+                        insertFloatingImage(carrier, page, image, shapeId++);
+                    }
                 }
 
                 boolean isLastPage = pageNumber == pages.size() - 1;
@@ -418,7 +422,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     }
 
     private void insertFloatingImage(
-            XWPFDocument document,
+            XWPFParagraph carrier,
             PageExtraction page,
             ExtractedImage image,
             int shapeId
@@ -436,13 +440,12 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         try {
             String relationId =
-                    document.addPictureData(
+                    carrier.getDocument().addPictureData(
                             image.getData(),
                             Document.PICTURE_TYPE_PNG
                     );
 
-            XWPFParagraph paragraph = document.createParagraph();
-            XWPFRun run = paragraph.createRun();
+            XWPFRun run = carrier.createRun();
 
             String pictureName =
                     image.getImageName() == null
