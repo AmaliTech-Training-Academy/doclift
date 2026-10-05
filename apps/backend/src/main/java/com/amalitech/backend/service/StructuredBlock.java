@@ -1,12 +1,11 @@
 package com.amalitech.backend.service;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
 @Getter
-@AllArgsConstructor
 public class StructuredBlock {
 
     private int pageIndex;
@@ -20,5 +19,54 @@ public class StructuredBlock {
     private float width;
     private float height;
 
+    @Setter
+    private BlockAlignment alignment = BlockAlignment.LEFT;
+
+    @Setter
+    private String footnoteKey;
+
     private List<TextSpan> spans;
+
+    private List<List<TableCell>> tableRows;
+
+    @Setter
+    private List<Float> columnWidths;
+
+    @Setter
+    private List<Float> rowHeights;
+
+    public StructuredBlock(
+            int pageIndex,
+            BlockType type,
+            String text,
+            float x,
+            float y,
+            float width,
+            float height,
+            List<TextSpan> spans
+    ) {
+        this(pageIndex, type, text, x, y, width, height, spans, null);
+    }
+
+    public StructuredBlock(
+            int pageIndex,
+            BlockType type,
+            String text,
+            float x,
+            float y,
+            float width,
+            float height,
+            List<TextSpan> spans,
+            List<List<TableCell>> tableRows
+    ) {
+        this.pageIndex = pageIndex;
+        this.type = type;
+        this.text = text;
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.spans = spans;
+        this.tableRows = tableRows;
+    }
 }

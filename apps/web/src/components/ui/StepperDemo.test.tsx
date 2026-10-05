@@ -42,7 +42,7 @@ describe("StepperDemo", () => {
     const firstCall = onProgress.mock.calls[0][0] as PipelineProgress;
     expect(firstCall.activeIndex).toBe(0);
     expect(firstCall.done).toBe(false);
-    expect(firstCall.cancelled).toBe(false);
+    expect(firstCall.failed).toBe(false);
   });
 
   it("advances progress over time via onProgress", async () => {
@@ -55,7 +55,7 @@ describe("StepperDemo", () => {
     expect(latest.currentStepPercent).toBeGreaterThan(0);
   });
 
-  it("stops progressing and reports cancelled after cancel() is called via the ref", async () => {
+  it("stops progressing and reports failed after fail() is called via the ref", async () => {
     const onProgress = vi.fn();
     const ref = createRef<StepperDemoHandle>();
     render(<StepperDemo ref={ref} onProgress={onProgress} />);
@@ -63,19 +63,19 @@ describe("StepperDemo", () => {
     await advanceTime(220 * 2);
 
     act(() => {
-      ref.current?.cancel();
+      ref.current?.fail();
     });
 
-    const afterCancel = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
-    expect(afterCancel.cancelled).toBe(true);
+    const afterFail = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
+    expect(afterFail.failed).toBe(true);
 
-    const percentAtCancel = afterCancel.currentStepPercent;
+    const percentAtFail = afterFail.currentStepPercent;
 
     await advanceTime(5000);
 
     const afterMoreTime = onProgress.mock.calls.at(-1)?.[0] as PipelineProgress;
-    expect(afterMoreTime.currentStepPercent).toBe(percentAtCancel);
-    expect(afterMoreTime.cancelled).toBe(true);
+    expect(afterMoreTime.currentStepPercent).toBe(percentAtFail);
+    expect(afterMoreTime.failed).toBe(true);
   });
 
   it("reaches done=true once every step completes, and reports 100% overall", async () => {

@@ -8,7 +8,7 @@ import type { ConversionSession } from "@/lib/conversionSession";
 
 const stepperMocks = vi.hoisted(() => ({
   onProgress: undefined as ((state: PipelineProgress) => void) | undefined,
-  cancel: vi.fn(),
+  fail: vi.fn(),
 }));
 
 vi.mock("../ui/Stepper", () => ({
@@ -17,7 +17,11 @@ vi.mock("../ui/Stepper", () => ({
     ref,
   ) {
     stepperMocks.onProgress = props.onProgress;
-    useImperativeHandle(ref, () => ({ cancel: stepperMocks.cancel, complete: () => {} }));
+    useImperativeHandle(ref, () => ({
+      fail: stepperMocks.fail,
+      failed: stepperMocks.fail,
+      complete: () => {},
+    }));
     return null;
   }),
   VerticalStepperDemo: forwardRef(function MockStepper(
@@ -25,7 +29,11 @@ vi.mock("../ui/Stepper", () => ({
     ref,
   ) {
     stepperMocks.onProgress = props.onProgress;
-    useImperativeHandle(ref, () => ({ cancel: stepperMocks.cancel, complete: () => {} }));
+    useImperativeHandle(ref, () => ({
+      fail: stepperMocks.fail,
+      failed: stepperMocks.fail,
+      complete: () => {},
+    }));
     return null;
   }),
 }));
@@ -53,7 +61,6 @@ function emitProgress(overrides: Partial<PipelineProgress> = {}) {
     currentStepPercent: 0,
     overallPercent: 0,
     done: false,
-    cancelled: false,
     ...overrides,
   };
   act(() => stepperMocks.onProgress?.(state));
@@ -61,7 +68,7 @@ function emitProgress(overrides: Partial<PipelineProgress> = {}) {
 
 describe("ProgressCard", () => {
   beforeEach(() => {
-    stepperMocks.cancel.mockClear();
+    stepperMocks.fail.mockClear();
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.success).mockClear();
   });
@@ -101,29 +108,31 @@ describe("ProgressCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("cancels the conversion when the cancel button is clicked", async () => {
+  it("triggers failure when the simulate failure button is clicked", async () => {
     const user = userEvent.setup();
     renderWithProvider();
 
-    const cancelButton = screen.getByRole("button", { name: /simulate failure/i });
-    await user.click(cancelButton);
+    const failureButton = screen.getByRole("button", { name: /simulate failure/i });
+    await user.click(failureButton);
 
-    expect(stepperMocks.cancel).toHaveBeenCalledTimes(1);
-    expect(toast.error).toHaveBeenCalledWith("Conversion failed");
+    expect(stepperMocks.fail).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith("Conversion failed", {
+      description: "DocLift could not convert your document.",
+    });
     expect(
       screen.getByRole("button", { name: "Simulated failure" }),
     ).toBeDisabled();
   });
 
-  it("ignores repeated cancel clicks", async () => {
+  it("ignores repeated failure button clicks", async () => {
     const user = userEvent.setup();
     renderWithProvider();
 
-    const cancelButton = screen.getByRole("button", { name: /simulate failure/i });
-    await user.click(cancelButton);
+    const failureButton = screen.getByRole("button", { name: /simulate failure/i });
+    await user.click(failureButton);
     // Button is now disabled, so a second click is a no-op through the DOM,
     // but we also guard in the handler itself.
-    expect(stepperMocks.cancel).toHaveBeenCalledTimes(1);
+    expect(stepperMocks.fail).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledTimes(1);
   });
 

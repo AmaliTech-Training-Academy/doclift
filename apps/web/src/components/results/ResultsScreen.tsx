@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Download,
   RotateCw,
   CircleCheck,
   Info,
@@ -18,6 +17,7 @@ import {
   summaryCards,
 } from "@/data/resultsData";
 import { useConversion } from "@/context/ConversionContext";
+import DownloadButton from "@/components/results/DownloadButton";
 
 export default function ResultsScreen() {
   const { requestReset, session } = useConversion();
@@ -76,10 +76,7 @@ export default function ResultsScreen() {
               <RotateCw className="size-4" />
               <span>Convert Another File</span>
             </Button>
-            <Button variant="primary">
-              <Download className="size-4" />
-              <span>Download Word Document</span>
-            </Button>
+            {session?.jobId && <DownloadButton jobId={session.jobId} />}
           </div>
         </div>
       </div>

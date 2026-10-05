@@ -23,20 +23,20 @@ const ProgressCard = () => {
 
   const isFailed = session?.status === "failed" || Boolean(progress?.error);
 
-  const handleCancel = () => {
+  const handleFail = () => {
     if (failed) return;
-    stepperRef.current?.cancel();
+    stepperRef.current?.failed();
     setFailed(true);
     updateStatus("failed");
-    toast.error("Conversion failed");
+    toast.error("Conversion failed", {
+      description: "DocLift could not convert your document."
+    });
   };
 
   const handleProgress = useCallback((state: PipelineProgress) => {
     setProgress(state);
     if (state.error || state.failed) {
       updateStatus("failed");
-    } else if (state.done) {
-      updateStatus("done");
     }
   }, [updateStatus]);
 
@@ -132,12 +132,12 @@ const ProgressCard = () => {
             </div>
           </div>
         </Card>
-        {/* Cancel Button */}
+        {/* Simulate Failure Button */}
         <div className="flex items-center gap-4 p-4">
           <Button
             variant="danger"
             className="disabled:hover:text-inherit w-80"
-            onClick={handleCancel}
+            onClick={handleFail}
             disabled={failed || done}
           >
             <X />

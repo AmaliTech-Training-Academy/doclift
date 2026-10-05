@@ -4,22 +4,14 @@ import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
 import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import com.amalitech.backend.service.impl.WordWriterServiceImpl;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Manual conversion utility, not part of the regular suite's coverage: converts one PDF to a
- * DOCX file on disk so the result can be opened and inspected by eye. Skipped unless pdf.path
- * is passed. Run with:
- *
- * ./mvnw test -Dtest=ManualPdfToDocxConversionTest -Dpdf.path=/absolute/path/to/file.pdf
- *
- * Optionally pass -Ddocx.out=/absolute/path/to/output.docx to control where it's written;
- * otherwise it's written next to the source PDF with a "-converted.docx" suffix.
- */
 class ManualPdfToDocxConversionTest {
 
     private final PdfExtractionServiceImpl extractionService =
@@ -28,34 +20,78 @@ class ManualPdfToDocxConversionTest {
     private final WordWriterServiceImpl wordWriterService = new WordWriterServiceImpl();
 
     @Test
-    void shouldConvertProvidedPdfToDocxFile() throws Exception {
-        String pdfPath = System.getProperty("pdf.path");
-        assumeTrue(pdfPath != null && !pdfPath.isBlank(),
-                "Pass a PDF with -Dpdf.path=/absolute/path/to/file.pdf");
+    @EnabledIfSystemProperty(named = "pdf.path", matches = ".+")
+    void convertGivenPdfToDocxForManualInspection() throws IOException {
 
-        Path source = Path.of(pdfPath);
-        assumeTrue(Files.isRegularFile(source), "PDF file does not exist: " + source);
+        Path inputPath = Path.of(System.getProperty("pdf.path"));
 
-        String outPath = System.getProperty("docx.out");
-        Path destination = (outPath != null && !outPath.isBlank())
-                ? Path.of(outPath)
-                : source.resolveSibling(
-                        source.getFileName().toString().replaceFirst("\\.pdf$", "") + "-converted.docx"
+        assertThat(Files.exists(inputPath))
+                .as("PDF file should exist at " + inputPath)
+                .isTrue();
+
+        byte[] pdfBytes = Files.readAllBytes(inputPath);
+
+        PdfExtractionResult extractionResult = extractionService.extract(pdfBytes);
+
+        System.out.println("Pages: " + extractionResult.getPages().size());
+
+        int totalImages = 0;
+
+        for (PageExtraction page : extractionResult.getPages()) {
+
+            totalImages += page.getImages().size();
+
+            long tableBlockCount = page.getStructuredBlocks().stream()
+                    .filter(block -> block.getType() == BlockType.TABLE)
+                    .count();
+
+            System.out.println(
+                    "Page " + page.getPageIndex()
+                            + ": " + tableBlockCount + " table(s), "
+                            + page.getImages().size() + " image(s)"
+            );
+
+            for (StructuredBlock block : page.getStructuredBlocks()) {
+
+                if (block.getType() != BlockType.TABLE) {
+                    continue;
+                }
+
+                int rowCount = block.getTableRows().size();
+
+                int columnCount = rowCount == 0
+                        ? 0
+                        : block.getTableRows().getFirst().size();
+
+                System.out.println(
+                        "  table: " + rowCount + " rows x "
+                                + columnCount + " cols"
                 );
 
-        byte[] pdfBytes = Files.readAllBytes(source);
-        PdfExtractionResult result = extractionService.extract(pdfBytes);
-        byte[] docx = wordWriterService.write(result);
+                for (var row : block.getTableRows()) {
+                    for (var cell : row) {
+                        System.out.print("[" + cell.text() + "] ");
+                    }
+                    System.out.println();
+                }
+            }
+        }
 
-        Files.write(destination, docx);
+        byte[] docxBytes = wordWriterService.write(extractionResult);
 
-        int totalImages = result.getPages().stream()
-                .mapToInt(p -> p.getImages().size())
-                .sum();
+        String outPath = System.getProperty("docx.out");
+
+        Path outputPath = (outPath != null && !outPath.isBlank())
+                ? Path.of(outPath)
+                : inputPath.resolveSibling(
+                        inputPath.getFileName().toString().replaceAll("(?i)\\.pdf$", "") + "-converted.docx"
+                );
+
+        Files.write(outputPath, docxBytes);
 
         System.out.printf(
                 "Converted %s -> %s (pages=%d, images=%d, bytes=%d)%n",
-                source, destination, result.getPages().size(), totalImages, docx.length
+                inputPath, outputPath, extractionResult.getPages().size(), totalImages, docxBytes.length
         );
     }
 }

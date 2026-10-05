@@ -1,12 +1,11 @@
 export interface UploadApiResponse {
-  jobId: number;
+  jobId: string;
 }
 
 export interface ApiErrorResponse {
-  code?: string;
+  error?: string;
   message?: string;
 }
-
 
 async function extractMessage(response: Response): Promise<string | null> {
   try {
@@ -17,7 +16,10 @@ async function extractMessage(response: Response): Promise<string | null> {
   }
 }
 
-export async function uploadFile(file: File, signal?: AbortSignal): Promise<UploadApiResponse> {
+export async function uploadFile(
+  file: File,
+  signal?: AbortSignal,
+): Promise<UploadApiResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -33,12 +35,13 @@ export async function uploadFile(file: File, signal?: AbortSignal): Promise<Uplo
 
       if (response.status === 413) {
         throw new Error(
-          backendMessage ?? "File is too large. Please upload a PDF smaller than 10MB."
+          backendMessage ??
+            "File is too large. Please upload a PDF smaller than 10MB.",
         );
       }
 
       throw new Error(
-        backendMessage ?? `Upload failed with status code ${response.status}.`
+        backendMessage ?? `Upload failed with status code ${response.status}.`,
       );
     }
 
@@ -48,6 +51,8 @@ export async function uploadFile(file: File, signal?: AbortSignal): Promise<Uplo
     if (err instanceof Error) {
       throw err;
     }
-    throw new Error("An unexpected error occurred while connecting to the conversion service.");
+    throw new Error(
+      "An unexpected error occurred while connecting to the conversion service.",
+    );
   }
 }
