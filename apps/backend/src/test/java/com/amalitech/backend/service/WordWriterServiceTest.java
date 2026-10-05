@@ -4,7 +4,10 @@ import com.amalitech.backend.service.impl.WordWriterServiceImpl;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.junit.jupiter.api.Test;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 
 import java.io.ByteArrayInputStream;
 import java.util.List;
@@ -15,7 +18,6 @@ class WordWriterServiceTest {
 
     private final WordWriterService wordWriterService =
             new WordWriterServiceImpl();
-
 
     @Test
     void shouldApplyHeadingStyle() throws Exception {
@@ -470,7 +472,6 @@ class WordWriterServiceTest {
         }
     }
 
-
     @Test
     void shouldInsertSpacesBetweenSeparateTextSpans()
             throws Exception {
@@ -664,7 +665,6 @@ class WordWriterServiceTest {
         }
     }
 
-
     @Test
     void shouldCreateValidDocxDocument() throws Exception {
 
@@ -729,6 +729,224 @@ class WordWriterServiceTest {
                             .getText()
             ).isEqualTo("Hello Word");
         }
+    }
+
+    @Test
+    void shouldWriteThreeByThreeTableWithCorrectRowColumnCountAndCellMapping()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        List<List<TableCell>> tableRows = List.of(
+                List.of(
+                        tableCell(0, 0, "R1C1"),
+                        tableCell(0, 1, "R1C2"),
+                        tableCell(0, 2, "R1C3")
+                ),
+                List.of(
+                        tableCell(1, 0, "R2C1"),
+                        tableCell(1, 1, "R2C2"),
+                        tableCell(1, 2, "R2C3")
+                ),
+                List.of(
+                        tableCell(2, 0, "R3C1"),
+                        tableCell(2, 1, "R3C2"),
+                        tableCell(2, 2, "R3C3")
+                )
+        );
+
+        StructuredBlock tableBlock =
+                new StructuredBlock(
+                        0,
+                        BlockType.TABLE,
+                        "table",
+                        50,
+                        50,
+                        300,
+                        90,
+                        List.of(),
+                        tableRows
+                );
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+
+            assertThat(document.getTables())
+                    .hasSize(1);
+
+            XWPFTable table =
+                    document.getTables().getFirst();
+
+            assertThat(table.getRows())
+                    .hasSize(3);
+
+            for (int row = 0; row < 3; row++) {
+
+                assertThat(table.getRow(row).getTableCells())
+                        .hasSize(3);
+
+                for (int col = 0; col < 3; col++) {
+                    assertThat(table.getRow(row).getCell(col).getText())
+                            .isEqualTo("R" + (row + 1) + "C" + (col + 1));
+                }
+            }
+        }
+    }
+
+    @Test
+    void shouldWriteHorizontallyMergedHeaderCellWithGridSpan() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        TableCell europeAnchor =
+                new TableCell(0, 1, 1, 3, "Europe", List.of(), null);
+
+        TableCell coveredByEurope =
+                new TableCell(0, 1, 0, 0, "", List.of(), null);
+
+        List<List<TableCell>> tableRows = List.of(
+                List.of(
+                        tableCell(0, 0, "Continent"),
+                        europeAnchor,
+                        coveredByEurope,
+                        coveredByEurope
+                )
+        );
+
+        StructuredBlock tableBlock =
+                new StructuredBlock(
+                        0,
+                        BlockType.TABLE,
+                        "table",
+                        0, 0, 400, 30,
+                        List.of(),
+                        tableRows
+                );
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+
+            XWPFTable table =
+                    document.getTables().getFirst();
+
+            XWPFTableRow row =
+                    table.getRow(0);
+
+            assertThat(row.getTableCells())
+                    .as("swallowed cells should not remain as separate physical cells")
+                    .hasSize(2);
+
+            assertThat(row.getCell(0).getText())
+                    .isEqualTo("Continent");
+
+            assertThat(row.getCell(1).getText())
+                    .isEqualTo("Europe");
+
+            assertThat(
+                    row.getCell(1).getCTTc().getTcPr().getGridSpan().getVal().intValue()
+            ).isEqualTo(3);
+        }
+    }
+
+    @Test
+    void shouldWriteVerticallyMergedCellWithVMergeRestartAndContinue() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        TableCell anchor =
+                new TableCell(0, 0, 2, 1, "Spans two rows", List.of(), null);
+
+        TableCell covered =
+                new TableCell(0, 0, 0, 0, "", List.of(), null);
+
+        List<List<TableCell>> tableRows = List.of(
+                List.of(anchor, tableCell(0, 1, "Row 1")),
+                List.of(covered, tableCell(1, 1, "Row 2"))
+        );
+
+        StructuredBlock tableBlock =
+                new StructuredBlock(
+                        0,
+                        BlockType.TABLE,
+                        "table",
+                        0, 0, 200, 60,
+                        List.of(),
+                        tableRows
+                );
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        new XWPFDocument(
+                                new ByteArrayInputStream(docx)
+                        )
+        ) {
+
+            XWPFTable table =
+                    document.getTables().getFirst();
+
+            assertThat(table.getRows()).hasSize(2);
+
+            assertThat(table.getRow(0).getCell(0).getText())
+                    .isEqualTo("Spans two rows");
+
+            assertThat(
+                    table.getRow(0).getCell(0)
+                            .getCTTc().getTcPr().getVMerge().getVal()
+            ).isEqualTo(STMerge.RESTART);
+
+            assertThat(table.getRow(1).getCell(0).getText())
+                    .isEqualTo("");
+
+            assertThat(
+                    table.getRow(1).getCell(0)
+                            .getCTTc().getTcPr().getVMerge().getVal()
+            ).isEqualTo(STMerge.CONTINUE);
+
+            assertThat(table.getRow(1).getCell(1).getText())
+                    .isEqualTo("Row 2");
+        }
+    }
+
+    private TableCell tableCell(int row, int column, String text) {
+        return new TableCell(row, column, 1, 1, text, List.of(), null);
     }
 
     private StructuredBlock listItem(String text) {

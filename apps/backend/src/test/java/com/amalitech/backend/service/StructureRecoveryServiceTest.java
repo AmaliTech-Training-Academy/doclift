@@ -17,10 +17,6 @@ class StructureRecoveryServiceTest {
         structureRecoveryService = new StructureRecoveryServiceImpl();
     }
 
-    // =========================================================
-    // SINGLE-COLUMN READING ORDER
-    // =========================================================
-
     @Test
     void shouldOrderSingleColumnTopToBottom() {
         PageExtraction page = new PageExtraction(0);
@@ -40,10 +36,6 @@ class StructureRecoveryServiceTest {
                 );
     }
 
-    // =========================================================
-    // SAME-LINE GROUPING
-    // =========================================================
-
     @Test
     void shouldGroupSpansOnSameLineLeftToRight() {
         PageExtraction page = new PageExtraction(0);
@@ -60,10 +52,6 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks().getFirst().getText())
                 .isEqualTo("Hello world");
     }
-
-    // =========================================================
-    // DIFFERENT LINES
-    // =========================================================
 
     @Test
     void shouldKeepVerticallySeparatedSpansOnDifferentLines() {
@@ -84,10 +72,6 @@ class StructureRecoveryServiceTest {
                 );
     }
 
-    // =========================================================
-    // EMPTY PAGE
-    // =========================================================
-
     @Test
     void shouldReturnNoBlocksForEmptyPage() {
         PageExtraction page = new PageExtraction(0);
@@ -96,10 +80,6 @@ class StructureRecoveryServiceTest {
 
         assertThat(page.getStructuredBlocks()).isEmpty();
     }
-
-    // =========================================================
-    // TEST DATA
-    // =========================================================
 
     private TextSpan span(
             String text,
@@ -143,10 +123,6 @@ class StructureRecoveryServiceTest {
         );
     }
 
-    // =========================================================
-// TWO-COLUMN READING ORDER
-// =========================================================
-
     @Test
     void shouldOrderTwoColumnLayoutColumnByColumn() {
         PageExtraction page = new PageExtraction(0);
@@ -171,10 +147,6 @@ class StructureRecoveryServiceTest {
                         "Right one Right two Right three"
                 );
     }
-
-    // =========================================================
-// SPANNING HEADING + TWO-COLUMN READING ORDER
-// =========================================================
 
     @Test
     void shouldPlaceSpanningHeadingBeforeColumns() {
@@ -445,7 +417,6 @@ class StructureRecoveryServiceTest {
                 );
     }
 
-
     @Test
     void shouldSeparateParagraphsOnLargeVerticalGap() {
         PageExtraction page = new PageExtraction(0);
@@ -585,10 +556,14 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
-                        "Item Price",
-                        "Laptop 1200",
-                        "Keyboard 100",
-                        "Mouse 50"
+                        "Item",
+                        "Price",
+                        "Laptop",
+                        "1200",
+                        "Keyboard",
+                        "100",
+                        "Mouse",
+                        "50"
                 );
     }
     @Test
@@ -778,5 +753,132 @@ class StructureRecoveryServiceTest {
                         .getFirst()
                         .getText()
         ).isEqualTo("This is important");
+    }
+
+    @Test
+    void shouldDetectCenteredSingleLineAlignment() {
+        PageExtraction page = new PageExtraction(0);
+        page.setPageWidth(612f);
+
+        page.getTextSpans().add(
+                spanWithSize("Centered Title", 186f, 50f, 240f, 18f, "Times-Bold")
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks()).hasSize(1);
+
+        assertThat(page.getStructuredBlocks().getFirst().getAlignment())
+                .isEqualTo(BlockAlignment.CENTER);
+    }
+
+    @Test
+    void shouldNotTreatFullWidthLeftAlignedLineAsCentered() {
+        PageExtraction page = new PageExtraction(0);
+        page.setPageWidth(612f);
+
+        page.getTextSpans().add(
+                spanWithSize("Left aligned heading", 72f, 50f, 468f, 18f, "Times-Bold")
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks().getFirst().getAlignment())
+                .isEqualTo(BlockAlignment.LEFT);
+    }
+
+    @Test
+    void shouldDetectJustifiedParagraphWhenWrappedLinesReachTheSameRightMargin() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                spanWithSize("First line reaching the margin", 50f, 100f, 450f, 12f, "Times-Roman"),
+                spanWithSize("Second line reaching the margin", 50f, 114f, 452f, 12f, "Times-Roman"),
+                spanWithSize("Third line reaching the margin", 50f, 128f, 448f, 12f, "Times-Roman"),
+                spanWithSize("Short final line", 50f, 142f, 150f, 12f, "Times-Roman")
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks()).hasSize(1);
+
+        assertThat(page.getStructuredBlocks().getFirst().getAlignment())
+                .isEqualTo(BlockAlignment.JUSTIFY);
+    }
+
+    @Test
+    void shouldNotJustifyOrdinaryRaggedRightParagraph() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                spanWithSize("First line falls well short", 50f, 100f, 300f, 12f, "Times-Roman"),
+                spanWithSize("Second line also falls short", 50f, 114f, 250f, 12f, "Times-Roman"),
+                spanWithSize("Third line falls short too", 50f, 128f, 280f, 12f, "Times-Roman"),
+                spanWithSize("Short final line", 50f, 142f, 150f, 12f, "Times-Roman")
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks()).hasSize(1);
+
+        assertThat(page.getStructuredBlocks().getFirst().getAlignment())
+                .isEqualTo(BlockAlignment.LEFT);
+    }
+
+    @Test
+    void shouldMergeSingleSpacedLinesEvenWhenGlyphBoundingBoxIsUnreliablySmall() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                tinyHeightSpan("Line one continues", 50f, 100f, 12f),
+                tinyHeightSpan("onto line two here", 50f, 114f, 12f),
+                tinyHeightSpan("and line three too", 50f, 128f, 12f),
+                tinyHeightSpan("finishing on four", 50f, 142f, 12f)
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks()).hasSize(1);
+
+        assertThat(page.getStructuredBlocks().getFirst().getType())
+                .isEqualTo(BlockType.PARAGRAPH);
+    }
+
+    @Test
+    void shouldNotTrustImplausiblyLargeDominantSpacingAsSingleLinePitch() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                span("First separate line", 50, 100),
+                span("Second separate line", 50, 125),
+                span("Third separate line", 50, 150),
+                span("Fourth separate line", 50, 175)
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks()).hasSize(4);
+    }
+
+    private TextSpan tinyHeightSpan(
+            String text,
+            float x,
+            float y,
+            float fontSize
+    ) {
+        return new TextSpan(
+                0,
+                text,
+                x,
+                y,
+                200f,
+                4f,
+                "Times-Roman",
+                fontSize,
+                false,
+                false,
+                false,
+                false
+        );
     }
 }
