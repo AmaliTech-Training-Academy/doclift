@@ -63,9 +63,6 @@ public class JobEtaCalculator {
             return calculateDurationSeconds(job);
         }
 
-        if (!hasReliableEta(job, now)) {
-            return null;
-        }
         Double remaining =
                 calculateEstimatedRemainingSeconds(
                         job,
@@ -120,9 +117,7 @@ public class JobEtaCalculator {
             return null;
         }
 
-        if (!hasReliableEta(job, now)) {
-            return null;
-        }
+
         Double currentPhaseRemaining =
                 calculateCurrentPhaseEstimatedRemainingSeconds(
                         job,
@@ -326,27 +321,6 @@ public class JobEtaCalculator {
         return roundToTwoDecimals(
                 elapsedSeconds / progressFraction
         );
-    }
-
-    private boolean hasReliableEta(Job job, Instant now) {
-        if (job == null
-                || job.getStartedAt() == null
-                || job.getPhase() == null) {
-            return false;
-        }
-
-        if (job.getPhase() == JobPhase.COMPLETED) {
-            return true;
-        }
-
-        double elapsedSeconds =
-                Duration.between(
-                        job.getStartedAt(),
-                        now
-                ).toMillis() / 1000.0;
-
-        return elapsedSeconds >= 5.0
-                && job.getPhase() != JobPhase.LOADING_SOURCE;
     }
 
 }
