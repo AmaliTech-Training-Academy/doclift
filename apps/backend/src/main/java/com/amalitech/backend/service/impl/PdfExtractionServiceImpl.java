@@ -93,9 +93,12 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             pageExtraction.getImages().addAll(extractImages(pageIndex, page));
             pageExtraction.getCandidateTableRegions().addAll(detectCandidateTableRegions(pageIndex, textSpans));
 
+            List<DetectedTable> borderedTables =
+                    detectBorderedTables(pageIndex, page, textSpans, pageExtraction);
+
             structureRecoveryService.recoverStructure(pageExtraction);
 
-            recoverBorderedTables(pageIndex, page, textSpans, pageExtraction);
+            mergeBorderedTables(pageExtraction, borderedTables);
 
             recoverFootnotes(pageIndex, pageExtraction, result);
 
@@ -105,7 +108,16 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return result;
     }
 
-    private void recoverBorderedTables(
+    /**
+     * Runs bordered-table detection and registers each detected table as a
+     * {@link TableRegion} on the page before {@link StructureRecoveryService}
+     * runs. Structure recovery consults those candidate regions to keep
+     * table-area spans out of paragraph joining, so detection must happen
+     * first - merging the detected tables into {@link StructuredBlock}s
+     * happens separately, after structure recovery, via
+     * {@link #mergeBorderedTables}.
+     */
+    private List<DetectedTable> detectBorderedTables(
             int pageIndex,
             PDPage page,
             List<TextSpan> textSpans,
@@ -123,7 +135,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         );
 
         for (DetectedTable table : tables) {
-
             pageExtraction.getCandidateTableRegions().add(
                     new TableRegion(
                             table.pageIndex(),
@@ -135,7 +146,16 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                             table.columnCount()
                     )
             );
+        }
 
+        return tables;
+    }
+
+    private void mergeBorderedTables(
+            PageExtraction pageExtraction,
+            List<DetectedTable> tables
+    ) {
+        for (DetectedTable table : tables) {
             mergeDetectedTable(pageExtraction, table);
         }
     }
