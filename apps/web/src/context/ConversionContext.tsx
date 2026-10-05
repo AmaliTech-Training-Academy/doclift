@@ -30,7 +30,7 @@ interface ConversionContextValue {
     isConverting: boolean;
     isInitialized: boolean;
     startConversion: (fileOverride?: File | null) => Promise<ConversionSession | null>;
-    updateStatus: (status: ConversionStatus, durationOverride?: number) => void;
+    updateStatus: (status: ConversionStatus, durationOverride?: number, outputSizeOverride?: number) => void;
 }
 
 const ConversionContext = createContext<ConversionContextValue | null>(null);
@@ -80,7 +80,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         clearDraftFile();
     }, []);
 
-    const updateStatus = useCallback((status: ConversionStatus, durationOverride?: number) => {
+    const updateStatus = useCallback((status: ConversionStatus, durationOverride?: number, outputSizeOverride?: number) => {
         setSession((prevSession) => {
             if (!prevSession) return null;
             const now = Date.now();
@@ -98,6 +98,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 status,
                 updatedAt: now,
                 durationSeconds,
+                outputSizeBytes: outputSizeOverride ?? prevSession.outputSizeBytes,
                 completedAt:
                     status === "done"
                         ? (prevSession.completedAt ?? now)
@@ -201,57 +202,6 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             abortControllerRef.current = null;
             setIsUploading(false);
         }
-    };
-
-    const updateStatus = (status: ConversionStatus, durationOverride?: number) => {
-        setSession((prevSession) => {
-            if (!prevSession) return null;
-            const now = Date.now();
-            const createdAt = prevSession.createdAt || prevSession.updatedAt;
-            const calculatedDuration = Math.max(1, Math.round((now - createdAt) / 1000));
-            const durationSeconds =
-                durationOverride !== undefined
-                    ? durationOverride
-                    : status === "done"
-                    ? (prevSession.durationSeconds ?? calculatedDuration)
-                    : prevSession.durationSeconds;
-
-            const updatedSession: ConversionSession = {
-                ...prevSession,
-                status,
-                updatedAt: now,
-                durationSeconds,
-                completedAt:
-                    status === "done"
-                        ? (prevSession.completedAt ?? now)
-                        : prevSession.completedAt,
-            };
-            saveConversionSession(updatedSession);
-            return updatedSession;
-        });
-    };
-
-    const reset = () => {
-        abortControllerRef.current?.abort();
-        abortControllerRef.current = null;
-        isUploadingRef.current = false;
-        setIsUploading(false);
-        setFile(null);
-        setSession(null);
-        clearConversionSession();
-        setResetKey((k) => k + 1);
-        setActiveView("upload");
-        setIsAbandonModalOpen(false);
-    };
-
-    const resetKeepFile = () => {
-        isUploadingRef.current = false;
-        setIsUploading(false);
-        setSession(null);
-        clearConversionSession();
-        setResetKey((k) => k + 1);
-        setActiveView("upload");
-        setIsAbandonModalOpen(false);
     };
 
     const requestReset = () => {

@@ -2,11 +2,12 @@ import { Card, CardContent } from "../ui/Card";
 import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
 import FileInfoCard from "./FileInfoCard";
 import { useConversion } from "@/context/ConversionContext";
+import { JobStatusResponse } from "@/lib/pollingApi";
 
 interface HeaderBarProps {
   file: File | null;
   timeElapsed: number;
-  timeRemaining: number;
+  timeRemaining: JobStatusResponse["estimatedTotalSeconds"] | null;
 }
 
 function formatFileSize(bytes: number): string {
@@ -105,7 +106,11 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
                 </p>
                 <div className="flex gap-2 items-center justify-center whitespace-nowrap">
                   <Timer className="size-4 sm:size-5 text-muted-foreground shrink-0" />
-                  <p className="text-sm sm:text-base font-medium">~{formatTime(timeRemaining)}s remaining</p>
+                  <p className="text-sm sm:text-base font-medium">
+                    {timeRemaining == null
+                      ? "Calculating..."
+                      : `~${formatTime(Math.ceil(timeRemaining))} remaining`}
+                  </p>
                 </div>
               </div>
             </div>

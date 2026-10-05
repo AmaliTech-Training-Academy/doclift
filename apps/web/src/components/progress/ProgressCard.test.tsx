@@ -8,14 +8,6 @@ const mocks = vi.hoisted(() => ({
   notFound: false,
   session: null as ConversionSession | null,
   updateStatus: vi.fn(),
-  useJobStatus: vi.fn(),
-}));
-
-vi.mock("@/app/hooks/useJobStatus", () => ({
-  useJobStatus: (jobId: string | null) => {
-    mocks.useJobStatus(jobId);
-    return { job: mocks.job, error: null, notFound: mocks.notFound };
-  },
 }));
 
 vi.mock("@/context/ConversionContext", () => ({
@@ -44,6 +36,9 @@ function makeJob(overrides: Partial<JobStatusResponse> = {}): JobStatusResponse 
     phase: "LOADING_SOURCE",
     progressPercent: 10,
     durationSeconds: null,
+    estimatedRemainingSeconds: null,
+    estimatedTotalSeconds: null,
+    currentPhaseEstimatedRemainingSeconds: null,
     output: null,
     metrics: null,
     ...overrides,
@@ -68,24 +63,12 @@ describe("ProgressCard", () => {
     mocks.notFound = false;
     mocks.session = makeSession();
     mocks.updateStatus.mockClear();
-    mocks.useJobStatus.mockClear();
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.success).mockClear();
   });
 
-  it("polls the job from the active session", () => {
-    render(<ProgressCard />);
-    expect(mocks.useJobStatus).toHaveBeenCalledWith("job-1");
-  });
-
-  it("does not poll once the session is no longer active", () => {
-    mocks.session = makeSession({ status: "done" });
-    render(<ProgressCard />);
-    expect(mocks.useJobStatus).toHaveBeenCalledWith(null);
-  });
-
   it("renders a queued state before any status arrives", () => {
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("Queued:")).toBeInTheDocument();
@@ -94,7 +77,7 @@ describe("ProgressCard", () => {
 
   it("reflects the backend phase and progress percent", () => {
     mocks.job = makeJob({ phase: "RECOVERING_STRUCTURE", progressPercent: 55 });
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(screen.getByText("55%")).toBeInTheDocument();
     expect(screen.getByText("Phase 3 of 5:")).toBeInTheDocument();
@@ -110,18 +93,23 @@ describe("ProgressCard", () => {
       phase: "COMPLETED",
       progressPercent: 100,
       durationSeconds: 12,
+      output: {
+        filename: "sample.docx",
+        sizeBytes: 48213,
+        downloadUrl: "/api/v1/jobs/job-1/download",
+      },
     });
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getByText("Phase 5 of 5:")).toBeInTheDocument();
-    expect(mocks.updateStatus).toHaveBeenCalledWith("done", 12);
+    expect(mocks.updateStatus).toHaveBeenCalledWith("done", 12, 48213);
     expect(toast.success).toHaveBeenCalledWith("Conversion complete!");
   });
 
   it("marks the session failed when the job fails", () => {
     mocks.job = makeJob({ status: "FAILED", phase: "EXTRACTING_CONTENT" });
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(mocks.updateStatus).toHaveBeenCalledWith("failed");
     expect(toast.error).toHaveBeenCalledWith("Conversion failed");
@@ -129,14 +117,14 @@ describe("ProgressCard", () => {
 
   it("marks the session failed when the job no longer exists", () => {
     mocks.notFound = true;
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(mocks.updateStatus).toHaveBeenCalledWith("failed");
   });
 
   it("renders the error state card when the session has failed", () => {
     mocks.session = makeSession({ status: "failed" });
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(
       screen.getByRole("heading", { name: /conversion couldn't be completed/i }),
@@ -144,7 +132,7 @@ describe("ProgressCard", () => {
   });
 
   it("does not render the error state card by default", () => {
-    render(<ProgressCard />);
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(
       screen.queryByRole("heading", { name: /conversion couldn't be completed/i }),

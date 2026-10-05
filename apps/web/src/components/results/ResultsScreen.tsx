@@ -24,14 +24,21 @@ export default function ResultsScreen() {
   const docxTitle = session?.fileName
     ? session.fileName.replace(/\.[^./]+$/, ".docx")
     : "Word Document.docx";
-  const durationSeconds = session?.durationSeconds ?? 20;
-  const conversionTimeText = `${durationSeconds}s conversion time`;
+  const conversionTimeText =
+    session?.durationSeconds != null
+      ? `${Math.max(1, Math.round(session.durationSeconds))}s conversion time`
+      : null;
 
-  const fileSizeText = session?.fileSize
-    ? session.fileSize < 1024 * 1024
-      ? `${(session.fileSize / 1024).toFixed(1)} KB`
-      : `${(session.fileSize / (1024 * 1024)).toFixed(1)} MB`
-    : null;
+  const outputSize = session?.outputSizeBytes;
+  const fileSizeText =
+    outputSize != null
+      ? outputSize < 1024 * 1024
+        ? `${(outputSize / 1024).toFixed(1)} KB`
+        : `${(outputSize / (1024 * 1024)).toFixed(1)} MB`
+      : null;
+  const detailsText = [fileSizeText, conversionTimeText]
+    .filter(Boolean)
+    .join(" • ");
 
   return (
     <div className="flex-1 space-y-4 p-4">
@@ -64,10 +71,11 @@ export default function ResultsScreen() {
                     ID: {session.jobId}
                   </span>
                 )}
-                <p className="text-sm sm:text-md text-muted-foreground">
-                  {fileSizeText} • {conversionTimeText}{" "}
-                  {/* ToDo: File size and number of pages of .docx will be fetched from backend */}
-                </p>
+                {detailsText && (
+                  <p className="text-sm sm:text-md text-muted-foreground">
+                    {detailsText}
+                  </p>
+                )}
               </div>
             </div>
           </div>

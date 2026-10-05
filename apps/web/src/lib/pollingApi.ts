@@ -31,6 +31,9 @@ export type JobStatusResponse = {
   phase: JobPhase | null;
   progressPercent: number | null;
   durationSeconds: number | null;
+  estimatedRemainingSeconds: number | null;
+  estimatedTotalSeconds: number | null;
+  currentPhaseEstimatedRemainingSeconds: number | null;
   output: JobOutput | null;
   metrics: JobMetrics | null;
 };

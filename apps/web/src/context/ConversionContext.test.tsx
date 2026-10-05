@@ -251,11 +251,12 @@ describe("useConversion", () => {
     });
 
     act(() => {
-      result.current.updateStatus("done", 15);
+      result.current.updateStatus("done", 15, 48213);
     });
 
     expect(result.current.session?.status).toBe("done");
     expect(result.current.session?.durationSeconds).toBe(15);
+    expect(result.current.session?.outputSizeBytes).toBe(48213);
   });
 
   it("triggers warning toast when <= 10 minutes remain before purge and resets when purge expires", async () => {

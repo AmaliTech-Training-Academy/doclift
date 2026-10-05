@@ -13,16 +13,19 @@ import JobStepper, {
 import ErrorStateCard from "./ErrorStateCard";
 
 import { useConversion } from "@/context/ConversionContext";
-import { useJobStatus } from "@/app/hooks/useJobStatus";
 import { useSmoothedProgress } from "@/app/hooks/useSmoothedProgress";
+import type { JobStatusResponse } from "@/lib/pollingApi";
 
-const ProgressCard = () => {
+interface ProgressCardProps {
+  job: JobStatusResponse | null;
+  notFound: boolean;
+}
+
+const ProgressCard = ({ job, notFound }: ProgressCardProps) => {
   const { updateStatus, session } = useConversion();
   const isActive =
     session?.status === "queued" || session?.status === "processing";
-  const { job, notFound } = useJobStatus(isActive ? session.jobId : null);
 
-  
   const updateStatusRef = useRef(updateStatus);
   useEffect(() => {
     updateStatusRef.current = updateStatus;
@@ -30,11 +33,12 @@ const ProgressCard = () => {
 
   const jobStatus = job?.status;
   const durationSeconds = job?.durationSeconds ?? undefined;
+  const outputSizeBytes = job?.output?.sizeBytes ?? undefined;
 
   useEffect(() => {
     if (!isActive) return;
     if (jobStatus === "DONE") {
-      updateStatusRef.current("done", durationSeconds);
+      updateStatusRef.current("done", durationSeconds, outputSizeBytes);
       toast.success("Conversion complete!");
     } else if (jobStatus === "FAILED") {
       updateStatusRef.current("failed");
@@ -42,7 +46,7 @@ const ProgressCard = () => {
     } else if (jobStatus === "PROCESSING" && session?.status === "queued") {
       updateStatusRef.current("processing");
     }
-  }, [isActive, jobStatus, durationSeconds, session?.status]);
+  }, [isActive, jobStatus, durationSeconds, outputSizeBytes, session?.status]);
 
   useEffect(() => {
     if (notFound && isActive) {

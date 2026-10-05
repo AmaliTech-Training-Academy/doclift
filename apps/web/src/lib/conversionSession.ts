@@ -7,9 +7,9 @@ export type ConversionSession = {
     updatedAt: number;
     createdAt?: number;
     durationSeconds?: number;
-    /** Epoch ms when the conversion finished; starts the purge countdown. */
     completedAt?: number;
     fileSize?: number;
+    outputSizeBytes?: number;
 };
 
 const STORAGE_KEY = "doclift-active-conversion";
