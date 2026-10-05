@@ -28,7 +28,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final int HEADING_MAX_LENGTH = 120;
     private static final Pattern UNORDERED_LIST_PATTERN =
             Pattern.compile(
-                    "^\\s*[•◦▪‣⁃∙·✓*\\-]\\s+.+"
+                    "^\\s*[•●◦▪‣⁃∙·✓*\\-]\\s+.+"
             );
 
     private static final Pattern ORDERED_LIST_PATTERN =

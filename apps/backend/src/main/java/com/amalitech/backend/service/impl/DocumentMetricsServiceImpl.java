@@ -22,7 +22,7 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
     private static final Pattern LIST_MARKER_PATTERN =
             Pattern.compile(
                     "^\\s*(?:"
-                            + "[•◦▪‣⁃∙·✓*\\-]"
+                            + "[•●◦▪‣⁃∙·✓*\\-]"
                             + "|"
                             + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
                             + "|"

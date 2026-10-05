@@ -63,7 +63,7 @@ public class WordWriterServiceImpl implements WordWriterService {
     private static final Pattern LIST_MARKER_PATTERN =
             Pattern.compile(
                     "^\\s*(?:"
-                            + "[•◦▪‣⁃∙·✓*\\-]"
+                            + "[•●◦▪‣⁃∙·✓*\\-]"
                             + "|"
                             + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
                             + "|"
