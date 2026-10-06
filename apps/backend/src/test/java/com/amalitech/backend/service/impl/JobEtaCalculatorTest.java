@@ -37,10 +37,14 @@ class JobEtaCalculatorTest {
     void shouldReturnNullEtaWhenProgressIsZero() {
 
         Job job = new Job();
-        job.setStartedAt(
-                Instant.parse("2026-10-03T10:00:00Z")
-        );
+
+        Instant startedAt =
+                Instant.parse("2026-10-03T10:00:00Z");
+
+        job.setStartedAt(startedAt);
         job.setProgressPercent(0);
+        job.setPhase(JobPhase.LOADING_SOURCE);
+        job.setPhaseStartedAt(startedAt);
 
         Instant now =
                 Instant.parse("2026-10-03T10:00:30Z");
@@ -80,7 +84,7 @@ class JobEtaCalculatorTest {
         );
 
         Instant now =
-                Instant.parse("2026-10-03T10:00:30Z");
+                Instant.parse("2026-10-03T10:00:25Z");
 
         Double remaining =
                 calculator.calculateEstimatedRemainingSeconds(
@@ -89,7 +93,7 @@ class JobEtaCalculatorTest {
                 );
 
         assertEquals(
-                6.0,
+                8.33,
                 remaining
         );
     }
@@ -132,7 +136,7 @@ class JobEtaCalculatorTest {
     }
 
     @Test
-    void shouldEstimateRemainingTimeForCurrentPhase() {
+    void shouldEstimateCurrentPhaseRemainingUsingHybridBaseline() {
 
         Job job = new Job();
 
@@ -151,7 +155,7 @@ class JobEtaCalculatorTest {
         );
 
         Instant now =
-                Instant.parse("2026-10-03T10:00:30Z");
+                Instant.parse("2026-10-03T10:00:25Z");
 
         Double result =
                 calculator
@@ -161,7 +165,7 @@ class JobEtaCalculatorTest {
                         );
 
         assertEquals(
-                8.0,
+                10.0,
                 result
         );
     }
@@ -280,7 +284,7 @@ class JobEtaCalculatorTest {
         );
 
         Instant now =
-                Instant.parse("2026-10-03T10:00:30Z");
+                Instant.parse("2026-10-03T10:00:25Z");
 
         Double total =
                 calculator.calculateEstimatedTotalSeconds(
@@ -289,7 +293,7 @@ class JobEtaCalculatorTest {
                 );
 
         assertEquals(
-                36.0,
+                33.33,
                 total
         );
     }
@@ -310,6 +314,45 @@ class JobEtaCalculatorTest {
         assertEquals(
                 11.0,
                 calculator.calculateDurationSeconds(job)
+        );
+    }
+
+    @Test
+    void shouldDecreaseEtaWhileRemainingInSamePhase() {
+
+        Job job = new Job();
+
+        job.setStartedAt(
+                Instant.parse("2026-10-03T10:00:00Z")
+        );
+
+        job.setProgressPercent(75);
+
+        job.setPhase(
+                JobPhase.GENERATING_DOCUMENT
+        );
+
+        job.setPhaseStartedAt(
+                Instant.parse("2026-10-03T10:00:20Z")
+        );
+
+        Double earlier =
+                calculator.calculateEstimatedRemainingSeconds(
+                        job,
+                        Instant.parse("2026-10-03T10:00:23Z")
+                );
+
+        Double later =
+                calculator.calculateEstimatedRemainingSeconds(
+                        job,
+                        Instant.parse("2026-10-03T10:00:25Z")
+                );
+
+        assertNotNull(earlier);
+        assertNotNull(later);
+
+        assertTrue(
+                later < earlier
         );
     }
 
