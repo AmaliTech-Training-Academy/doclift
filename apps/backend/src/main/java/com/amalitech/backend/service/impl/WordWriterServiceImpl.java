@@ -1,6 +1,5 @@
 package com.amalitech.backend.service.impl;
 
-import com.amalitech.backend.service.*;
 import com.amalitech.backend.service.BlockAlignment;
 import com.amalitech.backend.service.BlockType;
 import com.amalitech.backend.service.ExtractedImage;
@@ -11,6 +10,7 @@ import com.amalitech.backend.service.PdfExtractionResult;
 import com.amalitech.backend.service.StructuredBlock;
 import com.amalitech.backend.service.TableCell;
 import com.amalitech.backend.service.TextSpan;
+import com.amalitech.backend.service.ListType;
 import com.amalitech.backend.service.WordWriterService;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
@@ -453,8 +453,6 @@ public class WordWriterServiceImpl implements WordWriterService {
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
 
                 PageExtraction page = pages.get(pageIndex);
-            for (PageExtraction page :
-                    extractionResult.getPages()) {
 
                 StructuredBlock previousBlock = null;
 
@@ -479,6 +477,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 null,
                                 null,
                                 bodyFontSize,
+                                footnotesByKey,
                                 spacingBefore
                         );
 
@@ -555,10 +554,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                             block,
                             activeBulletNumId,
                             activeNumberedNumId,
-                            bodyFontSize
-                            numberedNumId,
-                            footnotesByKey
                             bodyFontSize,
+                            footnotesByKey,
                             spacingBefore
                     );
 
@@ -834,29 +831,23 @@ public class WordWriterServiceImpl implements WordWriterService {
                 .setId(footnote.getCTFtnEdn().getId());
     }
 
-private void writeBlock(
-        XWPFDocument document,
-        StructuredBlock block,
-        BigInteger bulletNumId,
-        BigInteger numberedNumId,
-        Map<String, XWPFFootnote> footnotesByKey
-) {
-
-    if (block.getType() == BlockType.TABLE) {
-        writeTable(document, block, footnotesByKey);
-        return;
-    }
     private void writeBlock(
             XWPFDocument document,
             StructuredBlock block,
             BigInteger bulletNumId,
             BigInteger numberedNumId,
             float bodyFontSize,
+                        Map<String, XWPFFootnote> footnotesByKey,
             int spacingBefore
     ) {
 
-    XWPFParagraph paragraph =
-            document.createParagraph();
+                if (block.getType() == BlockType.TABLE) {
+                        writeTable(document, block, footnotesByKey);
+                        return;
+                }
+
+                XWPFParagraph paragraph =
+                                document.createParagraph();
 
         applyParagraphSpacing(
                 paragraph,
@@ -876,32 +867,32 @@ private void writeBlock(
             paragraph.setStyle("Normal");
         }
 
-    paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
+                paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
 
-    applyAbsolutePosition(paragraph, block);
+                applyAbsolutePosition(paragraph, block);
 
-    if (block.getFootnoteKey() != null) {
-        writeFootnoteReference(paragraph, block.getFootnoteKey(), footnotesByKey);
-    }
+                if (block.getFootnoteKey() != null) {
+                        writeFootnoteReference(paragraph, block.getFootnoteKey(), footnotesByKey);
+                }
 
-    if (block.getType() == BlockType.LIST_ITEM) {
+                if (block.getType() == BlockType.LIST_ITEM) {
 
-        if (block.getListType() == ListType.ORDERED) {
-            paragraph.setNumID(numberedNumId);
-            paragraph.setNumILvl(BigInteger.ZERO);
+                        if (block.getListType() == ListType.ORDERED) {
+                                paragraph.setNumID(numberedNumId);
+                                paragraph.setNumILvl(BigInteger.ZERO);
 
-        } else if (block.getListType() == ListType.UNORDERED) {
-            paragraph.setNumID(bulletNumId);
-            paragraph.setNumILvl(BigInteger.ZERO);
+                        } else if (block.getListType() == ListType.UNORDERED) {
+                                paragraph.setNumID(bulletNumId);
+                                paragraph.setNumILvl(BigInteger.ZERO);
+                        }
+
+                        writeListRuns(paragraph, block);
+
+                        return;
+                }
+
+                writeRuns(paragraph, block);
         }
-
-        writeListRuns(paragraph, block);
-
-        return;
-    }
-
-    writeRuns(paragraph, block);
-}
 
 
     private void applyAbsolutePosition(

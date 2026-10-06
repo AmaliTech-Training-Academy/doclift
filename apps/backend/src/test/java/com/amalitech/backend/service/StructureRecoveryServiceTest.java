@@ -634,10 +634,14 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks())
                 .extracting(StructuredBlock::getText)
                 .containsExactly(
-                        "Item Price",
-                        "Laptop 1200",
-                        "Keyboard 100",
-                        "Mouse 50"
+                        "Item",
+                        "Price",
+                        "Laptop",
+                        "1200",
+                        "Keyboard",
+                        "100",
+                        "Mouse",
+                        "50"
                 );
     }
     @Test

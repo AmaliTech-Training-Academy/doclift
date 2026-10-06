@@ -126,7 +126,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return new StructuredBlock(
                 pageIndex,
                 BlockType.PARAGRAPH,
-                null,
                 text.toString(),
                 minX,
                 minY,
@@ -326,38 +325,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         blocks.add(block);
 
         paragraphLines.clear();
-    }
-
-    private List<LogicalLine> splitRowIntoCells(LogicalLine line) {
-        List<TextSpan> spans = new ArrayList<>(line.getSpans());
-        spans.sort(Comparator.comparing(TextSpan::getX));
-
-        List<LogicalLine> cells = new ArrayList<>();
-        LogicalLine current = new LogicalLine();
-        current.markAsTableRow();
-
-        TextSpan previous = null;
-
-        for (TextSpan span : spans) {
-
-            if (previous != null
-                    && (span.getX() - (previous.getX() + previous.getWidth()))
-                    > segmentGapThreshold(previous, span)) {
-
-                cells.add(current);
-                current = new LogicalLine();
-                current.markAsTableRow();
-            }
-
-            current.add(span);
-            previous = span;
-        }
-
-        if (!current.getSpans().isEmpty()) {
-            cells.add(current);
-        }
-
-        return cells;
     }
 
     private StructuredBlock toBlock(
@@ -856,6 +823,50 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 - (nearestLeft.getX() + nearestLeft.getWidth());
 
         return gap > segmentGapThreshold(nearestLeft, nearestRight);
+    }
+
+    private List<LogicalLine> splitRowIntoCells(LogicalLine line) {
+        List<TextSpan> spans =
+                new ArrayList<>(line.getSpans());
+
+        spans.sort(
+                Comparator.comparing(TextSpan::getX)
+        );
+
+        List<LogicalLine> cells =
+                new ArrayList<>();
+
+        LogicalLine current =
+                new LogicalLine();
+
+        current.markAsTableRow();
+
+        TextSpan previous = null;
+
+        for (TextSpan span : spans) {
+
+            if (previous != null
+                    && (span.getX()
+                    - (previous.getX() + previous.getWidth()))
+                    > segmentGapThreshold(previous, span)) {
+
+                cells.add(current);
+
+                current =
+                        new LogicalLine();
+
+                current.markAsTableRow();
+            }
+
+            current.add(span);
+            previous = span;
+        }
+
+        if (!current.getSpans().isEmpty()) {
+            cells.add(current);
+        }
+
+        return cells;
     }
 
     private boolean isInsideTableRegion(
