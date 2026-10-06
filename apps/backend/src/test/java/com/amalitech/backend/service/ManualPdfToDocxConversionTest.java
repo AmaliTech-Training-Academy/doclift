@@ -14,6 +14,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ManualPdfToDocxConversionTest {
 
+    private final PdfExtractionServiceImpl extractionService =
+            new PdfExtractionServiceImpl(new StructureRecoveryServiceImpl());
+
+    private final WordWriterServiceImpl wordWriterService = new WordWriterServiceImpl();
+
     @Test
     @EnabledIfSystemProperty(named = "pdf.path", matches = ".+")
     void convertGivenPdfToDocxForManualInspection() throws IOException {
@@ -26,18 +31,15 @@ class ManualPdfToDocxConversionTest {
 
         byte[] pdfBytes = Files.readAllBytes(inputPath);
 
-        PdfExtractionService extractionService =
-                new PdfExtractionServiceImpl(new StructureRecoveryServiceImpl());
-
-        WordWriterService wordWriterService =
-                new WordWriterServiceImpl();
-
-        PdfExtractionResult extractionResult =
-                extractionService.extract(pdfBytes);
+        PdfExtractionResult extractionResult = extractionService.extract(pdfBytes);
 
         System.out.println("Pages: " + extractionResult.getPages().size());
 
+        int totalImages = 0;
+
         for (PageExtraction page : extractionResult.getPages()) {
+
+            totalImages += page.getImages().size();
 
             long tableBlockCount = page.getStructuredBlocks().stream()
                     .filter(block -> block.getType() == BlockType.TABLE)
@@ -45,7 +47,8 @@ class ManualPdfToDocxConversionTest {
 
             System.out.println(
                     "Page " + page.getPageIndex()
-                            + ": " + tableBlockCount + " table(s) detected"
+                            + ": " + tableBlockCount + " table(s), "
+                            + page.getImages().size() + " image(s)"
             );
 
             for (StructuredBlock block : page.getStructuredBlocks()) {
@@ -67,9 +70,7 @@ class ManualPdfToDocxConversionTest {
 
                 for (var row : block.getTableRows()) {
                     for (var cell : row) {
-                        System.out.print(
-                                "[" + cell.text() + "] "
-                        );
+                        System.out.print("[" + cell.text() + "] ");
                     }
                     System.out.println();
                 }
@@ -78,15 +79,19 @@ class ManualPdfToDocxConversionTest {
 
         byte[] docxBytes = wordWriterService.write(extractionResult);
 
-        String outputFileName = inputPath.getFileName()
-                .toString()
-                .replaceAll("(?i)\\.pdf$", "")
-                + "-converted.docx";
+        String outPath = System.getProperty("docx.out");
 
-        Path outputPath = inputPath.resolveSibling(outputFileName);
+        Path outputPath = (outPath != null && !outPath.isBlank())
+                ? Path.of(outPath)
+                : inputPath.resolveSibling(
+                        inputPath.getFileName().toString().replaceAll("(?i)\\.pdf$", "") + "-converted.docx"
+                );
 
         Files.write(outputPath, docxBytes);
 
-        System.out.println("Wrote: " + outputPath.toAbsolutePath());
+        System.out.printf(
+                "Converted %s -> %s (pages=%d, images=%d, bytes=%d)%n",
+                inputPath, outputPath, extractionResult.getPages().size(), totalImages, docxBytes.length
+        );
     }
 }

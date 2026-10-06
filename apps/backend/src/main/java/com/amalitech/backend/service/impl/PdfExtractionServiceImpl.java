@@ -6,6 +6,7 @@ import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSBase;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -13,7 +14,6 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.springframework.stereotype.Service;
 
-import java.awt.geom.Point2D;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -25,8 +25,12 @@ import org.apache.pdfbox.contentstream.operator.state.Save;
 import org.apache.pdfbox.contentstream.operator.state.SetGraphicsStateParameters;
 import org.apache.pdfbox.contentstream.operator.state.SetMatrix;
 import org.apache.pdfbox.util.Matrix;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -34,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import javax.imageio.ImageIO;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -86,6 +91,13 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             PageExtraction pageExtraction = new PageExtraction(pageIndex);
             pageExtraction.setPageWidth(page.getCropBox().getWidth());
             pageExtraction.setPageHeight(page.getCropBox().getHeight());
+
+            PDRectangle cropBox = page.getCropBox();
+            pageExtraction.setCropX(cropBox.getLowerLeftX());
+            pageExtraction.setCropY(cropBox.getLowerLeftY());
+            pageExtraction.setCropWidth(cropBox.getWidth());
+            pageExtraction.setCropHeight(cropBox.getHeight());
+            pageExtraction.setRotation(((page.getRotation() % 360) + 360) % 360);
 
             List<TextSpan> textSpans = extractTextSpans(pageIndex, page);
             pageExtraction.getTextSpans().addAll(textSpans);
@@ -1078,6 +1090,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     private static class ImageLocationStreamEngine extends PDFStreamEngine {
 
+        private static final Logger log = LoggerFactory.getLogger(ImageLocationStreamEngine.class);
+
         private final int pageIndex;
         private final List<ExtractedImage> images;
         private final Deque<COSBase> formsInProgress = new ArrayDeque<>();
@@ -1125,31 +1139,60 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         private void recordImagePlacement(String imageName, PDImageXObject image) {
             Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
 
-            float minX = Float.MAX_VALUE;
-            float maxX = -Float.MAX_VALUE;
-            float minY = Float.MAX_VALUE;
-            float maxY = -Float.MAX_VALUE;
+            float a = ctm.getScaleX();
+            float b = ctm.getShearY();
+            float c = ctm.getShearX();
+            float d = ctm.getScaleY();
+            float e = ctm.getTranslateX();
+            float f = ctm.getTranslateY();
 
-            float[][] unitCorners = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
-            for (float[] corner : unitCorners) {
-                Point2D.Float p = ctm.transformPoint(corner[0], corner[1]);
-                minX = Math.min(minX, p.x);
-                maxX = Math.max(maxX, p.x);
-                minY = Math.min(minY, p.y);
-                maxY = Math.max(maxY, p.y);
+            double width = Math.hypot(a, b);
+            double height = Math.hypot(c, d);
+
+            if (width <= 1e-3 || height <= 1e-3) {
+                return;
+            }
+
+            double determinant = (double) a * d - (double) b * c;
+            boolean flipHorizontal = determinant < 0;
+
+            double uX = flipHorizontal ? -a : a;
+            double uY = flipHorizontal ? -b : b;
+            float rotationDegrees = (float) Math.toDegrees(Math.atan2(uY, uX));
+
+            double centerX = 0.5 * a + 0.5 * c + e;
+            double centerY = 0.5 * b + 0.5 * d + f;
+
+            byte[] data;
+            try {
+                data = encodeAsPng(image);
+            } catch (Exception e2) {
+                log.warn("Skipping image '{}' on page {}: could not decode/re-encode it",
+                        imageName, pageIndex, e2);
+                return;
             }
 
             images.add(new ExtractedImage(
                     pageIndex,
                     imageName,
-                    minX,
-                    minY,
-                    maxX - minX,
-                    maxY - minY,
+                    (float) (centerX - width / 2.0),
+                    (float) (centerY - height / 2.0),
+                    (float) width,
+                    (float) height,
                     image.getWidth(),
                     image.getHeight(),
-                    image.getSuffix()
+                    image.getSuffix(),
+                    rotationDegrees,
+                    flipHorizontal,
+                    data
             ));
+        }
+
+        private byte[] encodeAsPng(PDImageXObject image) throws IOException {
+            BufferedImage rendered = image.getImage();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(rendered, "png", out);
+            return out.toByteArray();
         }
     }
 

@@ -19,6 +19,14 @@ public class PageExtraction {
     private final List<TableRegion> candidateTableRegions = new ArrayList<>();
     private final List<StructuredBlock> structuredBlocks = new ArrayList<>();
 
+    // CropBox origin/size, in PDF points, pre-rotation (PDF user space, Y-up). Defaults to US Letter.
+    private float cropX;
+    private float cropY;
+    private float cropWidth = 612f;
+    private float cropHeight = 792f;
+
+    private int rotation;
+
     public PageExtraction(int pageIndex) {
         this.pageIndex = pageIndex;
     }
