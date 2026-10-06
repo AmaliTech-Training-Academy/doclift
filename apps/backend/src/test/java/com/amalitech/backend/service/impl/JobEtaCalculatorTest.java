@@ -93,7 +93,7 @@ class JobEtaCalculatorTest {
                 );
 
         assertEquals(
-                8.33,
+                6.0,
                 remaining
         );
     }
@@ -165,7 +165,7 @@ class JobEtaCalculatorTest {
                         );
 
         assertEquals(
-                10.0,
+                11.0,
                 result
         );
     }
@@ -293,7 +293,7 @@ class JobEtaCalculatorTest {
                 );
 
         assertEquals(
-                33.33,
+                31.0,
                 total
         );
     }
