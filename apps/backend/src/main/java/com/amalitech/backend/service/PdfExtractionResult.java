@@ -8,5 +8,6 @@ import java.util.List;
 @Getter
 public class PdfExtractionResult {
     private final List<PageExtraction> pages = new ArrayList<>();
+    private final List<Footnote> footnotes = new ArrayList<>();
 
 }

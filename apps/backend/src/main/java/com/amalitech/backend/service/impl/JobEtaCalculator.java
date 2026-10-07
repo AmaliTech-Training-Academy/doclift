@@ -14,11 +14,11 @@ public class JobEtaCalculator {
 
     private static final Map<JobPhase, Double> PHASE_WEIGHTS =
             Map.of(
-                    JobPhase.LOADING_SOURCE, 0.05,
-                    JobPhase.EXTRACTING_CONTENT, 0.35,
-                    JobPhase.RECOVERING_STRUCTURE, 0.20,
-                    JobPhase.GENERATING_DOCUMENT, 0.30,
-                    JobPhase.SAVING_OUTPUT, 0.10
+                    JobPhase.LOADING_SOURCE, 0.01,
+                    JobPhase.EXTRACTING_CONTENT, 0.63,
+                    JobPhase.RECOVERING_STRUCTURE, 0.03,
+                    JobPhase.GENERATING_DOCUMENT, 0.32,
+                    JobPhase.SAVING_OUTPUT, 0.01
             );
 
     public Double calculateDurationSeconds(
@@ -294,19 +294,115 @@ public class JobEtaCalculator {
     ) {
         if (job == null
                 || job.getStartedAt() == null
-                || job.getProgressPercent() == null) {
+                || job.getPhase() == null) {
             return null;
         }
 
-        int progress =
-                job.getProgressPercent();
-
-        if (progress <= 0) {
-            return null;
-        }
-
-        if (progress >= 100) {
+        if (job.getPhase() == JobPhase.COMPLETED) {
             return calculateDurationSeconds(job);
+        }
+
+        if (job.getPhaseStartedAt() == null) {
+            return calculateProgressBasedBaseline(
+                    job,
+                    now
+            );
+        }
+
+        double completedWeight =
+                calculateCompletedPhaseWeight(
+                        job.getPhase()
+                );
+
+        if (completedWeight <= 0.0) {
+            return calculateProgressBasedBaseline(
+                    job,
+                    now
+            );
+        }
+
+        double completedSeconds =
+                Duration.between(
+                        job.getStartedAt(),
+                        job.getPhaseStartedAt()
+                ).toMillis() / 1000.0;
+
+        if (completedSeconds <= 0.0) {
+            return calculateProgressBasedBaseline(
+                    job,
+                    now
+            );
+        }
+
+        double completedPhaseBaseline =
+                completedSeconds / completedWeight;
+
+        Double progressBaseline =
+                calculateProgressBasedBaseline(
+                        job,
+                        now
+                );
+
+        if (progressBaseline == null) {
+            return roundToTwoDecimals(
+                    completedPhaseBaseline
+            );
+        }
+
+        return roundToTwoDecimals(
+                Math.max(
+                        completedPhaseBaseline,
+                        progressBaseline
+                )
+        );
+    }
+
+    private double calculateCompletedPhaseWeight(
+            JobPhase currentPhase
+    ) {
+        return switch (currentPhase) {
+            case QUEUED,
+                 LOADING_SOURCE ->
+                    0.0;
+
+            case EXTRACTING_CONTENT ->
+                    weightOf(
+                            JobPhase.LOADING_SOURCE
+                    );
+
+            case RECOVERING_STRUCTURE ->
+                    weightOf(
+                            JobPhase.LOADING_SOURCE,
+                            JobPhase.EXTRACTING_CONTENT
+                    );
+
+            case GENERATING_DOCUMENT ->
+                    weightOf(
+                            JobPhase.LOADING_SOURCE,
+                            JobPhase.EXTRACTING_CONTENT,
+                            JobPhase.RECOVERING_STRUCTURE
+                    );
+
+            case SAVING_OUTPUT ->
+                    weightOf(
+                            JobPhase.LOADING_SOURCE,
+                            JobPhase.EXTRACTING_CONTENT,
+                            JobPhase.RECOVERING_STRUCTURE,
+                            JobPhase.GENERATING_DOCUMENT
+                    );
+
+            case COMPLETED ->
+                    1.0;
+        };
+    }
+
+    private Double calculateProgressBasedBaseline(
+            Job job,
+            Instant now
+    ) {
+        if (job.getProgressPercent() == null
+                || job.getProgressPercent() <= 0) {
+            return null;
         }
 
         double elapsedSeconds =
@@ -316,11 +412,10 @@ public class JobEtaCalculator {
                 ).toMillis() / 1000.0;
 
         double progressFraction =
-                progress / 100.0;
+                job.getProgressPercent() / 100.0;
 
         return roundToTwoDecimals(
                 elapsedSeconds / progressFraction
         );
     }
-
 }
