@@ -418,4 +418,35 @@ public class JobEtaCalculator {
                 elapsedSeconds / progressFraction
         );
     }
+
+    public int calculateProgressPercentForPhase(
+            JobPhase phase
+    ) {
+        if (phase == null || phase == JobPhase.QUEUED) {
+            return 0;
+        }
+
+        if (phase == JobPhase.COMPLETED) {
+            return 100;
+        }
+
+        double completedWeight = 0.0;
+
+        for (JobPhase currentPhase : JobPhase.values()) {
+
+            if (currentPhase == phase) {
+                break;
+            }
+
+            completedWeight +=
+                    PHASE_WEIGHTS.getOrDefault(
+                            currentPhase,
+                            0.0
+                    );
+        }
+
+        return (int) Math.round(
+                completedWeight * 100
+        );
+    }
 }

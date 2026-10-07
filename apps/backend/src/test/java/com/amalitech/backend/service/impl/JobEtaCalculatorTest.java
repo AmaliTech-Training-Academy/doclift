@@ -356,4 +356,48 @@ class JobEtaCalculatorTest {
         );
     }
 
+    @Test
+    void shouldCalculateProgressFromPhaseWeights() {
+        assertEquals(
+                0,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.LOADING_SOURCE
+                )
+        );
+
+        assertEquals(
+                1,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.EXTRACTING_CONTENT
+                )
+        );
+
+        assertEquals(
+                64,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.RECOVERING_STRUCTURE
+                )
+        );
+
+        assertEquals(
+                67,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.GENERATING_DOCUMENT
+                )
+        );
+
+        assertEquals(
+                99,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.SAVING_OUTPUT
+                )
+        );
+
+        assertEquals(
+                100,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.COMPLETED
+                )
+        );
+    }
 }

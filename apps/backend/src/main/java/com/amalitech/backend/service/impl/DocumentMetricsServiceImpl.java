@@ -135,6 +135,11 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
 
         for (PageExtraction page : extractionResult.getPages()) {
 
+            if (page.getStructuredBlocks() == null) {
+                continue;
+            }
+
+
             for (StructuredBlock block : page.getStructuredBlocks()) {
 
                 if (block.getType() != BlockType.LIST_ITEM) {
