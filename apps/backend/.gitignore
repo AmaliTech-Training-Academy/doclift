@@ -40,3 +40,6 @@ build/
 .vscode/
 
 ###
+.venv-eta/
+scripts/eta-observations.csv
+scripts/eta-phase-data.log

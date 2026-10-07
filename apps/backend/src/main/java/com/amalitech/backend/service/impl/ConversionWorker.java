@@ -1,5 +1,6 @@
 package com.amalitech.backend.service.impl;
 
+import com.amalitech.backend.model.JobPhase;
 import com.amalitech.backend.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,13 +25,17 @@ public class ConversionWorker {
     private final PdfExtractionService pdfExtractionService;
     private final StructureRecoveryService structureRecoveryService;
     private final WordWriterService wordWriterService;
+    private final DocumentMetricsService documentMetricsService;
+    private final JobMetricsService jobMetricsService;
 
     public ConversionWorker(
             JobService jobService,
             FileStorageService fileStorageService,
             PdfExtractionService pdfExtractionService,
             StructureRecoveryService structureRecoveryService,
-            WordWriterService wordWriterService
+            WordWriterService wordWriterService,
+            DocumentMetricsService documentMetricsService,
+            JobMetricsService jobMetricsService
     ) {
         this.jobService = jobService;
         this.fileStorageService = fileStorageService;
@@ -38,55 +43,94 @@ public class ConversionWorker {
         this.structureRecoveryService =
                 structureRecoveryService;
         this.wordWriterService = wordWriterService;
+        this.documentMetricsService = documentMetricsService;
+        this.jobMetricsService = jobMetricsService;
     }
 
     @Async("conversionExecutor")
     public void process(UUID jobId) {
+        log.info("Starting conversion for job {}", jobId);
 
         try {
-            log.info(
-                    "Starting conversion for job {}",
-                    jobId
-            );
-
             jobService.markProcessing(jobId);
 
-            Path sourcePath =
-                    fileStorageService
-                            .getSourcePdfPath(jobId);
+            Path sourcePath = fileStorageService.getSourcePdfPath(jobId);
+
+            jobService.updateProgress(
+                    jobId,
+                    JobPhase.EXTRACTING_CONTENT,
+                    25
+            );
 
             PdfExtractionResult extractionResult;
 
-            try (InputStream inputStream =
-                         Files.newInputStream(sourcePath)) {
-
-                extractionResult =
-                        pdfExtractionService.extract(
-                                inputStream
-                        );
+            try (InputStream inputStream = Files.newInputStream(sourcePath)) {
+                extractionResult = pdfExtractionService.extract(inputStream);
             }
 
-            for (PageExtraction page :
-                    extractionResult.getPages()) {
+            jobService.updateProgress(
+                    jobId,
+                    JobPhase.RECOVERING_STRUCTURE,
+                    55
+            );
 
-                structureRecoveryService
-                        .recoverStructure(page);
+            for (PageExtraction page : extractionResult.getPages()) {
+                structureRecoveryService.recoverStructure(page);
             }
 
-            byte[] docx =
-                    wordWriterService.write(
+            int sourceWordCount =
+                    documentMetricsService.countSourceWords(
                             extractionResult
                     );
 
+            ListCountResult sourceLists =
+                    documentMetricsService.countSourceLists(
+                            extractionResult
+                    );
+
+            jobService.updateProgress(
+                    jobId,
+                    JobPhase.GENERATING_DOCUMENT,
+                    75
+            );
+
+            byte[] docx =
+                    wordWriterService.write(extractionResult);
+
+            int outputWordCount =
+                    documentMetricsService.countOutputWords(
+                            docx
+                    );
+
+            ListCountResult outputLists =
+                    documentMetricsService.countOutputLists(
+                            docx
+                    );
+
+            jobService.updateProgress(
+                    jobId,
+                    JobPhase.SAVING_OUTPUT,
+                    90
+            );
+
             Path outputPath =
-                    fileStorageService
-                            .storeOutputDocx(
-                                    jobId,
-                                    docx
-                            );
+                    fileStorageService.storeOutputDocx(
+                            jobId,
+                            docx
+                    );
 
             long sizeBytes =
                     Files.size(outputPath);
+
+            jobMetricsService.saveMetrics(
+                    jobId,
+                    sourceWordCount,
+                    outputWordCount,
+                    sourceLists.ordered(),
+                    sourceLists.unordered(),
+                    outputLists.ordered(),
+                    outputLists.unordered()
+            );
 
             jobService.markCompleted(
                     jobId,
@@ -99,21 +143,20 @@ public class ConversionWorker {
                     jobId
             );
 
-        } catch (Exception exception) {
-
+        } catch (Exception e) {
             log.error(
                     "Conversion failed for job {}",
                     jobId,
-                    exception
+                    e
             );
 
             try {
                 jobService.markFailed(jobId);
-            } catch (Exception statusException) {
+            } catch (Exception statusUpdateException) {
                 log.error(
-                        "Failed to mark job {} as FAILED",
+                        "Failed to update status for job {}",
                         jobId,
-                        statusException
+                        statusUpdateException
                 );
             }
         }

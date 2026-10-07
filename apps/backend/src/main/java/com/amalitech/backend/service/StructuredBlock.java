@@ -12,6 +12,8 @@ public class StructuredBlock {
 
     private BlockType type;
 
+    private ListType listType;
+
     private String text;
 
     private float x;
@@ -28,6 +30,21 @@ public class StructuredBlock {
     private List<TextSpan> spans;
 
     private List<List<TableCell>> tableRows;
+
+    public StructuredBlock(
+            int pageIndex,
+            BlockType type,
+            ListType listType,
+            String text,
+            float x,
+            float y,
+            float width,
+            float height,
+            List<TextSpan> spans
+    ) {
+        this(pageIndex, type, text, x, y, width, height, spans, null);
+        this.listType = listType;
+    }
 
     @Setter
     private List<Float> columnWidths;

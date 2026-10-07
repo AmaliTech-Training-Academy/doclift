@@ -2,6 +2,7 @@ package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.service.BlockAlignment;
 import com.amalitech.backend.service.BlockType;
+import com.amalitech.backend.service.ListType;
 import com.amalitech.backend.service.PageExtraction;
 import com.amalitech.backend.service.StructureRecoveryService;
 import com.amalitech.backend.service.StructuredBlock;
@@ -25,9 +26,19 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float MAX_FIRST_LINE_INDENT = 48f;
     private static final float HEADING_FONT_RATIO = 1.25f;
     private static final int HEADING_MAX_LENGTH = 120;
-    private static final Pattern LIST_PATTERN = Pattern.compile(
-            "^\\s*(?:[•◦▪‣⁃∙*-]|(?:\\d+|[a-z]|[ivx]+|[IVX]{2,})[.)]|[A-Z]\\))\\s+.+"
-    );
+    private static final Pattern UNORDERED_LIST_PATTERN =
+            Pattern.compile(
+                    "^\\s*[•●◦▪‣⁃∙·✓*\\-]\\s+.+"
+            );
+
+    private static final Pattern ORDERED_LIST_PATTERN =
+            Pattern.compile(
+                    "^\\s*(?:"
+                            + "(?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]"
+                            + "|"
+                            + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
+                            + ")\\s+.+"
+            );
     private static final float MIN_SEGMENT_GAP = 8f;
     private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;
     private static final int MIN_MULTI_COLUMN_ROWS = 3;
@@ -190,6 +201,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                     pageIndex,
                                     cell,
                                     BlockType.PARAGRAPH,
+                                    null,
                                     BlockAlignment.LEFT
                             )
                     );
@@ -212,14 +224,20 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                 pageIndex,
                                 line,
                                 BlockType.HEADING,
-                                detectSingleLineAlignment(line, pageWidth)
+                                null,
+                                detectSingleLineAlignment(
+                                        line,
+                                        pageWidth
+                                )
                         )
                 );
 
                 continue;
             }
 
-            if (isListItem(line)) {
+            ListType listType = detectListType(line);
+
+            if (listType != null) {
                 flushParagraph(
                         blocks,
                         paragraphLines,
@@ -233,6 +251,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                                 pageIndex,
                                 line,
                                 BlockType.LIST_ITEM,
+                                listType,
                                 BlockAlignment.LEFT
                         )
                 );
@@ -308,47 +327,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         paragraphLines.clear();
     }
 
-    private List<LogicalLine> splitRowIntoCells(LogicalLine line) {
-        List<TextSpan> spans = new ArrayList<>(line.getSpans());
-        spans.sort(Comparator.comparing(TextSpan::getX));
-
-        List<LogicalLine> cells = new ArrayList<>();
-        LogicalLine current = new LogicalLine();
-        current.markAsTableRow();
-
-        TextSpan previous = null;
-
-        for (TextSpan span : spans) {
-
-            if (previous != null
-                    && (span.getX() - (previous.getX() + previous.getWidth()))
-                    > segmentGapThreshold(previous, span)) {
-
-                cells.add(current);
-                current = new LogicalLine();
-                current.markAsTableRow();
-            }
-
-            current.add(span);
-            previous = span;
-        }
-
-        if (!current.getSpans().isEmpty()) {
-            cells.add(current);
-        }
-
-        return cells;
-    }
-
     private StructuredBlock toBlock(
             int pageIndex,
             LogicalLine line,
             BlockType type,
+            ListType listType,
             BlockAlignment alignment
     ) {
         StructuredBlock block = new StructuredBlock(
                 pageIndex,
                 type,
+                listType,
                 line.getText(),
                 line.getX(),
                 line.getY(),
@@ -836,6 +825,50 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return gap > segmentGapThreshold(nearestLeft, nearestRight);
     }
 
+    private List<LogicalLine> splitRowIntoCells(LogicalLine line) {
+        List<TextSpan> spans =
+                new ArrayList<>(line.getSpans());
+
+        spans.sort(
+                Comparator.comparing(TextSpan::getX)
+        );
+
+        List<LogicalLine> cells =
+                new ArrayList<>();
+
+        LogicalLine current =
+                new LogicalLine();
+
+        current.markAsTableRow();
+
+        TextSpan previous = null;
+
+        for (TextSpan span : spans) {
+
+            if (previous != null
+                    && (span.getX()
+                    - (previous.getX() + previous.getWidth()))
+                    > segmentGapThreshold(previous, span)) {
+
+                cells.add(current);
+
+                current =
+                        new LogicalLine();
+
+                current.markAsTableRow();
+            }
+
+            current.add(span);
+            previous = span;
+        }
+
+        if (!current.getSpans().isEmpty()) {
+            cells.add(current);
+        }
+
+        return cells;
+    }
+
     private boolean isInsideTableRegion(
             TextSpan span,
             List<TableRegion> tableRegions
@@ -1163,14 +1196,22 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return closest;
     }
 
-    private boolean isListItem(LogicalLine line) {
+    private ListType detectListType(LogicalLine line) {
         String text = line.getText();
 
-        if (text.isBlank()) {
-            return false;
+        if (text == null || text.isBlank()) {
+            return null;
         }
 
-        return LIST_PATTERN.matcher(text).matches();
+        if (UNORDERED_LIST_PATTERN.matcher(text).matches()) {
+            return ListType.UNORDERED;
+        }
+
+        if (ORDERED_LIST_PATTERN.matcher(text).matches()) {
+            return ListType.ORDERED;
+        }
+
+        return null;
     }
 
     private boolean isHeading(
@@ -1191,8 +1232,31 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return false;
         }
 
-        return line.getMinFontSize()
-                >= bodyFontSize * HEADING_FONT_RATIO;
+        float fontRatio =
+                line.getMinFontSize()
+                        / bodyFontSize;
+
+        boolean clearlyLarger =
+                fontRatio >= HEADING_FONT_RATIO;
+
+        boolean slightlyLarger =
+                fontRatio >= 1.10f;
+
+        boolean mostlyBold =
+                line.isMostlyBold();
+
+        boolean labelLike =
+                text.endsWith(":");
+
+        if (clearlyLarger) {
+            return true;
+        }
+
+        if (mostlyBold && slightlyLarger) {
+            return true;
+        }
+
+        return mostlyBold && labelLike;
     }
 
     private record HorizontalGap(float left, float right) {
@@ -1229,6 +1293,37 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     .filter(size -> size > 0f)
                     .min(Float::compare)
                     .orElse(0f);
+        }
+
+        boolean isMostlyBold() {
+            if (spans.isEmpty()) {
+                return false;
+            }
+
+            int meaningfulSpans = 0;
+            int boldSpans = 0;
+
+            for (TextSpan span : spans) {
+
+                if (span.getText() == null
+                        || span.getText().isBlank()) {
+                    continue;
+                }
+
+                meaningfulSpans++;
+
+                if (span.isBold()) {
+                    boldSpans++;
+                }
+            }
+
+            if (meaningfulSpans == 0) {
+                return false;
+            }
+
+            return boldSpans >= Math.ceil(
+                    meaningfulSpans * 0.6
+            );
         }
 
         void sortLeftToRight() {
