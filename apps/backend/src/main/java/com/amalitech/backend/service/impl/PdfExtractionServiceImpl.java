@@ -1096,6 +1096,12 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         private final List<ExtractedImage> images;
         private final Deque<COSBase> formsInProgress = new ArrayDeque<>();
 
+        private record EncodedImage(
+                byte[] data,
+                String mimeType
+        ) {
+        }
+
         ImageLocationStreamEngine(int pageIndex, List<ExtractedImage> images) {
             this.pageIndex = pageIndex;
             this.images = images;
@@ -1163,12 +1169,17 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             double centerX = 0.5 * a + 0.5 * c + e;
             double centerY = 0.5 * b + 0.5 * d + f;
 
-            byte[] data;
+            EncodedImage encodedImage;
+
             try {
-                data = encodeAsPng(image);
+                encodedImage = encodeImage(image);
             } catch (Exception e2) {
-                log.warn("Skipping image '{}' on page {}: could not decode/re-encode it",
-                        imageName, pageIndex, e2);
+                log.warn(
+                        "Skipping image '{}' on page {}: could not decode/re-encode it",
+                        imageName,
+                        pageIndex,
+                        e2
+                );
                 return;
             }
 
@@ -1181,18 +1192,46 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     (float) height,
                     image.getWidth(),
                     image.getHeight(),
-                    image.getSuffix(),
+                    encodedImage.mimeType(),
                     rotationDegrees,
                     flipHorizontal,
-                    data
+                    encodedImage.data()
             ));
         }
 
-        private byte[] encodeAsPng(PDImageXObject image) throws IOException {
+        private EncodedImage encodeImage(
+                PDImageXObject image
+        ) throws IOException {
+
             BufferedImage rendered = image.getImage();
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            ImageIO.write(rendered, "png", out);
-            return out.toByteArray();
+
+            ByteArrayOutputStream out =
+                    new ByteArrayOutputStream();
+
+            if (rendered.getColorModel().hasAlpha()) {
+
+                ImageIO.write(
+                        rendered,
+                        "png",
+                        out
+                );
+
+                return new EncodedImage(
+                        out.toByteArray(),
+                        "image/png"
+                );
+            }
+
+            ImageIO.write(
+                    rendered,
+                    "jpg",
+                    out
+            );
+
+            return new EncodedImage(
+                    out.toByteArray(),
+                    "image/jpeg"
+            );
         }
     }
 

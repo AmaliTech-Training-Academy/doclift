@@ -19,7 +19,7 @@ class ConversionWorkerTest {
     private JobService jobService;
     private FileStorageService fileStorageService;
     private PdfExtractionService pdfExtractionService;
-    private StructureRecoveryService structureRecoveryService;
+
     private WordWriterService wordWriterService;
     private ConversionWorker conversionWorker;
     private DocumentMetricsService documentMetricsService;
@@ -44,9 +44,6 @@ class ConversionWorkerTest {
         pdfExtractionService =
                 mock(PdfExtractionService.class);
 
-        structureRecoveryService =
-                mock(StructureRecoveryService.class);
-
         wordWriterService =
                 mock(WordWriterService.class);
 
@@ -61,7 +58,6 @@ class ConversionWorkerTest {
                         jobService,
                         fileStorageService,
                         pdfExtractionService,
-                        structureRecoveryService,
                         wordWriterService,
                         documentMetricsService,
                         jobMetricsService
@@ -177,8 +173,6 @@ class ConversionWorkerTest {
                 55
         );
 
-        verify(structureRecoveryService)
-                .recoverStructure(page);
 
         verify(documentMetricsService)
                 .countSourceWords(extractionResult);
@@ -279,7 +273,6 @@ class ConversionWorkerTest {
                 .markFailed(JOB_ID);
 
         verifyNoInteractions(
-                structureRecoveryService,
                 wordWriterService,
                 documentMetricsService,
                 jobMetricsService

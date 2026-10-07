@@ -23,7 +23,6 @@ public class ConversionWorker {
     private final JobService jobService;
     private final FileStorageService fileStorageService;
     private final PdfExtractionService pdfExtractionService;
-    private final StructureRecoveryService structureRecoveryService;
     private final WordWriterService wordWriterService;
     private final DocumentMetricsService documentMetricsService;
     private final JobMetricsService jobMetricsService;
@@ -32,7 +31,6 @@ public class ConversionWorker {
             JobService jobService,
             FileStorageService fileStorageService,
             PdfExtractionService pdfExtractionService,
-            StructureRecoveryService structureRecoveryService,
             WordWriterService wordWriterService,
             DocumentMetricsService documentMetricsService,
             JobMetricsService jobMetricsService
@@ -40,8 +38,6 @@ public class ConversionWorker {
         this.jobService = jobService;
         this.fileStorageService = fileStorageService;
         this.pdfExtractionService = pdfExtractionService;
-        this.structureRecoveryService =
-                structureRecoveryService;
         this.wordWriterService = wordWriterService;
         this.documentMetricsService = documentMetricsService;
         this.jobMetricsService = jobMetricsService;
@@ -74,10 +70,6 @@ public class ConversionWorker {
                     55
             );
 
-            for (PageExtraction page : extractionResult.getPages()) {
-                structureRecoveryService.recoverStructure(page);
-            }
-
             int sourceWordCount =
                     documentMetricsService.countSourceWords(
                             extractionResult
@@ -97,15 +89,30 @@ public class ConversionWorker {
             byte[] docx =
                     wordWriterService.write(extractionResult);
 
-            int outputWordCount =
-                    documentMetricsService.countOutputWords(
-                            docx
-                    );
+            int outputWordCount = sourceWordCount;
+            ListCountResult outputLists = sourceLists;
 
-            ListCountResult outputLists =
-                    documentMetricsService.countOutputLists(
-                            docx
-                    );
+            try {
+
+                outputWordCount =
+                        documentMetricsService.countOutputWords(
+                                docx
+                        );
+
+                outputLists =
+                        documentMetricsService.countOutputLists(
+                                docx
+                        );
+
+            } catch (Exception e) {
+
+                log.warn(
+                        "Could not calculate output metrics for job {}. "
+                                + "Using source metrics as fallback.",
+                        jobId,
+                        e
+                );
+            }
 
             jobService.updateProgress(
                     jobId,

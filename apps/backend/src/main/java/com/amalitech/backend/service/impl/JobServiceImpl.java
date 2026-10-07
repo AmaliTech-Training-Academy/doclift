@@ -7,12 +7,9 @@ import com.amalitech.backend.model.JobPhase;
 import com.amalitech.backend.model.JobStatus;
 import com.amalitech.backend.repository.JobRepository;
 import com.amalitech.backend.service.JobService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,9 +17,6 @@ import java.util.UUID;
 public class JobServiceImpl implements JobService {
 
     private final JobRepository jobRepository;
-
-    private static final Logger log =
-            LoggerFactory.getLogger(JobServiceImpl.class);
 
     public JobServiceImpl(JobRepository jobRepository) {
         this.jobRepository = jobRepository;
@@ -48,12 +42,6 @@ public class JobServiceImpl implements JobService {
             job.setStartedAt(now);
         }
 
-        logPhaseTransition(
-                job,
-                JobPhase.LOADING_SOURCE,
-                10,
-                now
-        );
 
         job.setPhase(JobPhase.LOADING_SOURCE);
         job.setProgressPercent(10);
@@ -72,13 +60,6 @@ public class JobServiceImpl implements JobService {
         Job job = getJobOrThrow(jobId);
 
         Instant now = Instant.now();
-
-        logPhaseTransition(
-                job,
-                JobPhase.COMPLETED,
-                100,
-                now
-        );
 
         JobFile file =
                 new JobFile(
@@ -124,13 +105,6 @@ public class JobServiceImpl implements JobService {
 
         Instant now = Instant.now();
 
-        logPhaseTransition(
-                job,
-                phase,
-                progressPercent,
-                now
-        );
-
         job.setPhase(phase);
         job.setProgressPercent(progressPercent);
         job.setPhaseStartedAt(now);
@@ -149,46 +123,5 @@ public class JobServiceImpl implements JobService {
     private Job getJobOrThrow(UUID jobId) {
         return jobRepository.findById(jobId)
                 .orElseThrow(JobNotFoundException::new);
-    }
-
-    private void logPhaseTransition(
-            Job job,
-            JobPhase nextPhase,
-            Integer nextProgress,
-            Instant transitionTime
-    ) {
-        Long phaseDurationMs = null;
-        Long totalElapsedMs = null;
-
-        if (job.getPhaseStartedAt() != null) {
-            phaseDurationMs =
-                    Duration.between(
-                            job.getPhaseStartedAt(),
-                            transitionTime
-                    ).toMillis();
-        }
-
-        if (job.getStartedAt() != null) {
-            totalElapsedMs =
-                    Duration.between(
-                            job.getStartedAt(),
-                            transitionTime
-                    ).toMillis();
-        }
-
-        log.info(
-                "ETA_TELEMETRY jobId={} pageCount={} fromPhase={} toPhase={} "
-                        + "fromProgress={} toProgress={} phaseDurationMs={} "
-                        + "totalElapsedMs={} transitionAt={}",
-                job.getId(),
-                job.getPageCount(),
-                job.getPhase(),
-                nextPhase,
-                job.getProgressPercent(),
-                nextProgress,
-                phaseDurationMs,
-                totalElapsedMs,
-                transitionTime
-        );
     }
 }

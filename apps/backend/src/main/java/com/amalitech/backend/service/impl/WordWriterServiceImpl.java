@@ -677,10 +677,25 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         try {
+            int pictureType =
+                    switch (image.getMimeType()) {
+                        case "image/jpeg" ->
+                                Document.PICTURE_TYPE_JPEG;
+
+                        case "image/png" ->
+                                Document.PICTURE_TYPE_PNG;
+
+                        default ->
+                                throw new IllegalArgumentException(
+                                        "Unsupported image type: "
+                                                + image.getMimeType()
+                                );
+                    };
+
             String relationId =
                     carrier.getDocument().addPictureData(
                             image.getData(),
-                            Document.PICTURE_TYPE_PNG
+                            pictureType
                     );
 
             XWPFRun run = carrier.createRun();
