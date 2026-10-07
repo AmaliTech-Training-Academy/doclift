@@ -101,6 +101,13 @@ public class WordWriterServiceImpl implements WordWriterService {
                     Math.round(span.getFontSize())
             );
         }
+        if (span.getColorHex() != null
+                && !span.getColorHex().isBlank()) {
+
+            run.setColor(
+                    span.getColorHex()
+            );
+        }
     }
 
 

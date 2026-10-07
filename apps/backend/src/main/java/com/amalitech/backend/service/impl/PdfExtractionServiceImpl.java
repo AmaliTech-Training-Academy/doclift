@@ -7,6 +7,7 @@ import org.apache.pdfbox.cos.COSBase;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -14,8 +15,21 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingColor;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingColorN;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingColorSpace;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceCMYKColor;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceGrayColor;
+import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceRGBColor;
+
+import org.apache.pdfbox.contentstream.operator.color.SetStrokingColor;
+import org.apache.pdfbox.contentstream.operator.color.SetStrokingColorN;
+import org.apache.pdfbox.contentstream.operator.color.SetStrokingColorSpace;
+import org.apache.pdfbox.contentstream.operator.color.SetStrokingDeviceCMYKColor;
+import org.apache.pdfbox.contentstream.operator.color.SetStrokingDeviceGrayColor;
+import org.apache.pdfbox.contentstream.operator.color.SetStrokingDeviceRGBColor;
+
+import java.util.*;
 
 import org.apache.pdfbox.contentstream.PDFStreamEngine;
 import org.apache.pdfbox.contentstream.operator.Operator;
@@ -34,12 +48,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
 import javax.imageio.ImageIO;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 @Service
@@ -202,7 +211,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             return;
         }
 
-        StructuredBlock last = blocks.get(blocks.size() - 1);
+        StructuredBlock last = blocks.getLast();
 
         if (last.getType() != BlockType.PARAGRAPH) {
             return;
@@ -214,7 +223,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             return;
         }
 
-        blocks.remove(blocks.size() - 1);
+        blocks.removeLast();
 
         Map<String, String> keysByMarker = new LinkedHashMap<>();
 
@@ -714,7 +723,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         return sameFont && sameSize;
     }
-
     private String getFontName(TextPosition position) {
         if (position.getFont() == null
                 || position.getFont().getName() == null) {
@@ -729,7 +737,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             int pageIndex,
             List<TextPosition> positions,
             TextPosition previousPositionBeforeRun,
-            boolean forceWordSeparatorBefore
+            boolean forceWordSeparatorBefore,
+            Map<TextPosition, String> textColors
     ) {
 
         if (positions == null || positions.isEmpty()) {
@@ -830,11 +839,62 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
                         // TODO: Implement underline detection and recovery
                         false,
-                        wordSeparatorBefore
+                        wordSeparatorBefore,
+                        textColors.get(first)
                 )
         );
 
         return true;
+    }
+
+    private String toColorHex(
+            PDColor color
+    ) {
+
+        if (color == null
+                || color.getColorSpace() == null) {
+            return null;
+        }
+
+        try {
+            float[] rgb =
+                    color.getColorSpace()
+                            .toRGB(
+                                    color.getComponents()
+                            );
+
+            if (rgb == null || rgb.length < 3) {
+                return null;
+            }
+
+            int red =
+                    Math.round(
+                            Math.clamp(rgb[0], 0f, 1f)
+                                    * 255f
+                    );
+
+            int green =
+                    Math.round(
+                            Math.clamp(rgb[1], 0f, 1f)
+                                    * 255f
+                    );
+
+            int blue =
+                    Math.round(
+                            Math.clamp(rgb[2], 0f, 1f)
+                                    * 255f
+                    );
+
+            return String.format(
+                    "%02X%02X%02X",
+                    red,
+                    green,
+                    blue
+            );
+
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private boolean looksLikeTwoColumnTable(
@@ -964,9 +1024,48 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
             private TextPosition lastTextPosition;
             private boolean pendingWhitespaceSeparator;
+            private final Map<TextPosition, String> textColors =
+                    new IdentityHashMap<>();
 
             {
-                this.output = new StringWriter();
+                {
+                    this.output = new StringWriter();
+
+                    addOperator(new SetStrokingColorSpace(this));
+                    addOperator(new SetNonStrokingColorSpace(this));
+
+                    addOperator(new SetStrokingDeviceCMYKColor(this));
+                    addOperator(new SetNonStrokingDeviceCMYKColor(this));
+
+                    addOperator(new SetStrokingDeviceRGBColor(this));
+                    addOperator(new SetNonStrokingDeviceRGBColor(this));
+
+                    addOperator(new SetStrokingDeviceGrayColor(this));
+                    addOperator(new SetNonStrokingDeviceGrayColor(this));
+
+                    addOperator(new SetStrokingColor(this));
+                    addOperator(new SetStrokingColorN(this));
+
+                    addOperator(new SetNonStrokingColor(this));
+                    addOperator(new SetNonStrokingColorN(this));
+                }
+            }
+
+
+            @Override
+            protected void processTextPosition(
+                    TextPosition text
+            ) {
+
+                textColors.put(
+                        text,
+                        toColorHex(
+                                getGraphicsState()
+                                        .getNonStrokingColor()
+                        )
+                );
+
+                super.processTextPosition(text);
             }
 
             @Override
@@ -1019,7 +1118,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                                         pageIndex,
                                         currentRun,
                                         previousPositionBeforeRun,
-                                        pendingWhitespaceSeparator
+                                        pendingWhitespaceSeparator,
+                                        textColors
                                 );
 
                         if (whitespaceOnly) {
@@ -1051,7 +1151,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                                     pageIndex,
                                     currentRun,
                                     previousPositionBeforeRun,
-                                    pendingWhitespaceSeparator
+                                    pendingWhitespaceSeparator,
+                                    textColors
                             );
 
                     if (whitespaceOnly) {
