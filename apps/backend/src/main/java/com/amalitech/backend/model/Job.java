@@ -48,6 +48,9 @@ public class Job {
     @Column(name = "phase_started_at")
     private Instant phaseStartedAt;
 
+    @Column(name = "files_deleted_at")
+    private Instant filesDeletedAt;
+
     @OneToOne(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
     private JobFile file;
 

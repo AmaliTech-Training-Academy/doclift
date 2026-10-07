@@ -103,6 +103,7 @@ public class JobServiceImpl implements JobService {
     public Job markFailed(UUID jobId) {
         Job job = getJobOrThrow(jobId);
         job.setStatus(JobStatus.FAILED);
+        job.setCompletedAt(Instant.now());
         return job;
     }
 

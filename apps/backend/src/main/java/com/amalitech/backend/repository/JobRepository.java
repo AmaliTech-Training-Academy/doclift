@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,4 +29,9 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 """)
     Optional<Job> findByIdWithFile(@Param("id") UUID id);
     List<Job> findByStatusOrderByCreatedAtAsc(JobStatus status);
+
+    List<Job> findByStatusInAndCompletedAtBeforeAndFilesDeletedAtIsNull(
+            List<JobStatus> statuses,
+            Instant threshold
+    );
 }
