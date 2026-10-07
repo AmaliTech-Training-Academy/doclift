@@ -8,7 +8,7 @@ import {
 } from "@/lib/pollingApi";
 
 const FINAL_STATUSES: JobStatusResponse["status"][] = ["DONE", "FAILED"];
-export const POLL_INTERVAL_MS = 1500;
+export const POLL_INTERVAL_MS = 5000;
 
 export type UseJobStatusResult = {
   job: JobStatusResponse | null;
