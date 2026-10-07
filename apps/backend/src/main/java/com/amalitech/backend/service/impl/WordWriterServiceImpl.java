@@ -26,6 +26,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGrid;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGridCol;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
@@ -1312,6 +1314,7 @@ public class WordWriterServiceImpl implements WordWriterService {
         List<Float> rowHeights = block.getRowHeights();
 
         applyTableGrid(table, columnWidths, columnCount);
+        configureFixedTableLayout(table, columnWidths);
 
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
 
@@ -1346,6 +1349,35 @@ public class WordWriterServiceImpl implements WordWriterService {
             }
         }
     }
+
+        private void configureFixedTableLayout(
+                        XWPFTable table,
+                        List<Float> columnWidths
+        ) {
+                if (columnWidths == null || columnWidths.isEmpty()) {
+                        return;
+                }
+
+                float tableWidth = columnWidths.stream()
+                                .filter(width -> width != null && width > 0f)
+                                .reduce(0f, Float::sum);
+
+                if (tableWidth <= 0f) {
+                        return;
+                }
+
+                table.setWidthType(TableWidthType.DXA);
+                table.setWidth(toTwips(tableWidth).toString());
+
+                CTTblPr tableProperties = table.getCTTbl().getTblPr();
+                if (tableProperties == null) {
+                    tableProperties = table.getCTTbl().addNewTblPr();
+                }
+                var layout = tableProperties.isSetTblLayout()
+                                ? tableProperties.getTblLayout()
+                                : tableProperties.addNewTblLayout();
+                layout.setType(STTblLayoutType.FIXED);
+        }
 
         private float pageContentWidth(
                         PageMargins pageMargins,

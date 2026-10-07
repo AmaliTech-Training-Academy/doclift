@@ -1419,6 +1419,12 @@ class WordWriterServiceTest {
                         assertThat(firstWidth).isLessThan(4000);
                         assertThat(secondWidth).isGreaterThan(firstWidth);
                         assertThat(firstWidth + secondWidth).isLessThanOrEqualTo(10520);
+                        assertThat(document.getTables().getFirst().getCTTbl().getTblPr()
+                                        .getTblLayout().getType().toString())
+                                        .isEqualTo("fixed");
+                        assertThat(document.getTables().getFirst().getCTTbl().getTblPr()
+                                        .getTblW().getW().toString())
+                                        .isEqualTo(String.valueOf(firstWidth + secondWidth));
                 }
         }
 
