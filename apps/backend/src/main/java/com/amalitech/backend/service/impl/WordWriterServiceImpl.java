@@ -672,6 +672,9 @@ public class WordWriterServiceImpl implements WordWriterService {
         ImagePositionMapper.Placement placement =
                 ImagePositionMapper.map(image, page);
 
+        boolean backgroundImage =
+                isBackgroundImage(page, image);
+
         if (placement.extentXEmu() <= 0 || placement.extentYEmu() <= 0) {
             return;
         }
@@ -709,7 +712,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                     relationId,
                     pictureName,
                     shapeId,
-                    placement
+                    placement,
+                    backgroundImage
             );
 
             CTDrawing parsedDrawing = CTDrawing.Factory.parse(drawingXml);
@@ -736,7 +740,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             String relationId,
             String name,
             int shapeId,
-            ImagePositionMapper.Placement placement
+            ImagePositionMapper.Placement placement,
+            boolean backgroundImage
     ) {
         return """
                 <w:drawing xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -745,7 +750,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                              xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
                              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
                              distT="0" distB="0" distL="0" distR="0" simplePos="0"
-                             relativeHeight="%1$d" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">
+                             relativeHeight="%1$d" behindDoc="%10$s" locked="0" layoutInCell="1" allowOverlap="1">
                     <wp:simplePos x="0" y="0"/>
                     <wp:positionH relativeFrom="page"><wp:posOffset>%2$d</wp:posOffset></wp:positionH>
                     <wp:positionV relativeFrom="page"><wp:posOffset>%3$d</wp:posOffset></wp:positionV>
@@ -788,7 +793,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                 escapeXml(name),
                 relationId,
                 placement.rotation60000ths(),
-                placement.flipHorizontal() ? "1" : "0"
+                placement.flipHorizontal() ? "1" : "0",
+                backgroundImage ? "1" : "0"
         );
     }
 
@@ -1428,5 +1434,27 @@ public class WordWriterServiceImpl implements WordWriterService {
                 spacingTwips,
                 720
         );
+    }
+
+    private boolean isBackgroundImage(
+            PageExtraction page,
+            ExtractedImage image
+    ) {
+        if (page == null || image == null) {
+            return false;
+        }
+
+        if (page.getCropWidth() <= 0 || page.getCropHeight() <= 0) {
+            return false;
+        }
+
+        float widthRatio =
+                image.getWidth() / page.getCropWidth();
+
+        float heightRatio =
+                image.getHeight() / page.getCropHeight();
+
+        return widthRatio >= 0.80f
+                && heightRatio >= 0.80f;
     }
 }
