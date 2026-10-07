@@ -155,4 +155,29 @@ class FileCleanupServiceImplTest {
         assertEquals(NOW, succeedingJob.getFilesDeletedAt());
         verify(jobRepository).save(succeedingJob);
     }
+
+    @Test
+    void shouldContinueCleanupWhenOneJobsSaveFails() {
+        UUID failingJobId = UUID.randomUUID();
+        UUID succeedingJobId = UUID.randomUUID();
+
+        Job failingJob = doneJob(failingJobId, "/data/" + failingJobId + "/output.docx");
+        Job succeedingJob = doneJob(succeedingJobId, "/data/" + succeedingJobId + "/output.docx");
+
+        when(fileStorageService.resolveSourcePdfPath(failingJobId))
+                .thenReturn(Path.of("/data/" + failingJobId + "/source.pdf"));
+        when(fileStorageService.resolveSourcePdfPath(succeedingJobId))
+                .thenReturn(Path.of("/data/" + succeedingJobId + "/source.pdf"));
+
+        doThrow(new RuntimeException("optimistic lock failure"))
+                .when(jobRepository).save(failingJob);
+
+        when(jobRepository.findByStatusInAndCompletedAtBeforeAndFilesDeletedAtIsNull(any(), any()))
+                .thenReturn(List.of(failingJob, succeedingJob));
+
+        fileCleanupService.cleanupExpiredFiles(NOW);
+
+        verify(jobRepository).save(succeedingJob);
+        assertEquals(NOW, succeedingJob.getFilesDeletedAt());
+    }
 }

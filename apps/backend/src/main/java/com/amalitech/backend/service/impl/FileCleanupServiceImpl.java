@@ -67,7 +67,7 @@ public class FileCleanupServiceImpl implements FileCleanupService {
         int cleaned = 0;
 
         for (Job job : eligibleJobs) {
-            if (cleanupJob(job, now)) {
+            if (cleanupJobSafely(job, now)) {
                 cleaned++;
             }
         }
@@ -78,6 +78,19 @@ public class FileCleanupServiceImpl implements FileCleanupService {
                 eligibleJobs.size() - cleaned,
                 eligibleJobs.size()
         );
+    }
+
+    private boolean cleanupJobSafely(Job job, Instant now) {
+        try {
+            return cleanupJob(job, now);
+        } catch (RuntimeException e) {
+            log.warn(
+                    "FILE_CLEANUP_JOB_FAILED jobId={}",
+                    job.getId(),
+                    e
+            );
+            return false;
+        }
     }
 
     private boolean cleanupJob(Job job, Instant now) {
