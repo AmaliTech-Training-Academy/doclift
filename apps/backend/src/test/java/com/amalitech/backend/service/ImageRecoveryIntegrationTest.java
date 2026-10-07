@@ -158,7 +158,7 @@ class ImageRecoveryIntegrationTest {
     }
 
     @Test
-    void insertsSectionBreakBetweenMultiPagePdfPages() throws Exception {
+    void insertsPageBreakBetweenMultiPagePdfPages() throws Exception {
         byte[] pdfBytes = buildTwoPagePdfEachWithAnImage();
 
         byte[] docx = convertToDocx(pdfBytes);
@@ -166,10 +166,10 @@ class ImageRecoveryIntegrationTest {
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
             assertThat(countAnchors(document)).isEqualTo(2);
 
-            boolean hasSectionBreak = document.getParagraphs().stream()
-                    .anyMatch(p -> p.getCTP().isSetPPr() && p.getCTP().getPPr().isSetSectPr());
+                boolean hasPageBreak = document.getDocument().xmlText()
+                    .contains("w:type=\"page\"");
 
-            assertThat(hasSectionBreak).isTrue();
+                assertThat(hasPageBreak).isTrue();
         }
     }
 

@@ -11,8 +11,13 @@ import org.junit.jupiter.api.Test;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.List;
+
+import java.awt.image.BufferedImage;
+
+import javax.imageio.ImageIO;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -1143,6 +1148,49 @@ class WordWriterServiceTest {
 
 
     @Test
+    void shouldNotAddPdfGapBetweenConsecutiveListItems() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+
+        StructuredBlock first = new StructuredBlock(
+                0,
+                BlockType.LIST_ITEM,
+                ListType.UNORDERED,
+                "- First item",
+                40,
+                100,
+                100,
+                12,
+                List.of()
+        );
+        StructuredBlock second = new StructuredBlock(
+                0,
+                BlockType.LIST_ITEM,
+                ListType.UNORDERED,
+                "- Second item",
+                40,
+                150,
+                110,
+                12,
+                List.of()
+        );
+
+        page.getStructuredBlocks().add(first);
+        page.getStructuredBlocks().add(second);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getParagraphs()).hasSize(2);
+            assertThat(document.getParagraphs().get(1).getSpacingBefore())
+                    .isZero();
+        }
+    }
+
+    @Test
     void shouldCreateValidDocxDocument() throws Exception {
 
         PdfExtractionResult extractionResult =
@@ -1159,7 +1207,7 @@ class WordWriterServiceTest {
                         100,
                         100,
                         12,
-                        "Helvetica",
+                        "ABCDEF+Helvetica",
                         12,
                         false,
                         false,
@@ -1201,11 +1249,58 @@ class WordWriterServiceTest {
             assertThat(document.getParagraphs())
                     .hasSize(1);
 
-            assertThat(
-                    document.getParagraphs()
-                            .getFirst()
-                            .getText()
-            ).isEqualTo("Hello Word");
+            XWPFParagraph paragraph = document.getParagraphs().getFirst();
+
+            assertThat(paragraph.getText()).isEqualTo("Hello Word");
+            assertThat(paragraph.getCTP().xmlText()).doesNotContain("framePr");
+            assertThat(paragraph.getRuns().getFirst().getFontFamily())
+                    .isEqualTo("Arial");
+        }
+    }
+
+    @Test
+    void shouldPreserveFractionalFontSizeAndExplicitParagraphSpacing() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        TextSpan span = new TextSpan(
+                0,
+                "Fractional text",
+                20,
+                20,
+                100,
+                12,
+                "Helvetica",
+                12.5f,
+                false,
+                false,
+                false,
+                false
+        );
+        StructuredBlock block = new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                null,
+                "Fractional text",
+                20,
+                20,
+                100,
+                12,
+                List.of(span)
+        );
+        page.getStructuredBlocks().add(block);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            XWPFParagraph paragraph = document.getParagraphs().getFirst();
+
+            assertThat(paragraph.getRuns().getFirst().getFontSizeAsDouble())
+                    .isEqualTo(12.5);
+            assertThat(paragraph.getSpacingAfter()).isZero();
+            assertThat(paragraph.getSpacingBetween()).isEqualTo(1.0);
         }
     }
 
@@ -1284,6 +1379,371 @@ class WordWriterServiceTest {
             }
         }
     }
+
+        @Test
+        void shouldScaleWideTableColumnsProportionallyToPageContentWidth() throws Exception {
+
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                PageExtraction page = new PageExtraction(0);
+                page.setCropWidth(612);
+                page.setCropHeight(792);
+
+                StructuredBlock tableBlock = new StructuredBlock(
+                                0,
+                                BlockType.TABLE,
+                                "wide table",
+                                50,
+                                100,
+                                600,
+                                40,
+                                List.of(),
+                                List.of(List.of(
+                                                tableCell(0, 0, "Left"),
+                                                tableCell(0, 1, "Right")
+                                ))
+                );
+                tableBlock.setColumnWidths(List.of(200f, 400f));
+
+                page.getStructuredBlocks().add(tableBlock);
+                extractionResult.getPages().add(page);
+
+                byte[] docx = wordWriterService.write(extractionResult);
+
+                try (XWPFDocument document = new XWPFDocument(
+                                new ByteArrayInputStream(docx))) {
+                        var gridColumns = document.getTables().getFirst().getCTTbl()
+                                        .getTblGrid().getGridColList();
+                        int firstWidth = Integer.parseInt(gridColumns.get(0).getW().toString());
+                        int secondWidth = Integer.parseInt(gridColumns.get(1).getW().toString());
+
+                        assertThat(firstWidth).isLessThan(4000);
+                        assertThat(secondWidth).isGreaterThan(firstWidth);
+                        assertThat(firstWidth + secondWidth).isLessThanOrEqualTo(10520);
+                }
+        }
+
+        @Test
+        void shouldKeepRecoveredTablesInDocumentFlow() throws Exception {
+
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                PageExtraction page = new PageExtraction(0);
+                StructuredBlock tableBlock = new StructuredBlock(
+                                0,
+                                BlockType.TABLE,
+                                "table",
+                                80,
+                                240,
+                                200,
+                                30,
+                                List.of(),
+                                List.of(List.of(tableCell(0, 0, "Flow table")))
+                );
+
+                page.getStructuredBlocks().add(tableBlock);
+                extractionResult.getPages().add(page);
+
+                byte[] docx = wordWriterService.write(extractionResult);
+
+                try (XWPFDocument document = new XWPFDocument(
+                                new ByteArrayInputStream(docx))) {
+                        assertThat(document.getTables()).hasSize(1);
+                        assertThat(document.getTables().getFirst().getCTTbl()
+                                        .getTblPr().xmlText())
+                                        .doesNotContain("tblpPr");
+                            assertThat(document.getTables().getFirst().getCTTbl().xmlText())
+                                    .doesNotContain("tblGrid");
+                }
+        }
+
+        @Test
+        void shouldDeriveStableSectionMarginsFromPageContentBounds() throws Exception {
+
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                PageExtraction page = new PageExtraction(0);
+                page.setCropWidth(612);
+                page.setCropHeight(792);
+                page.getStructuredBlocks().add(new StructuredBlock(
+                                0,
+                                BlockType.PARAGRAPH,
+                                "Content",
+                                50,
+                                60,
+                                400,
+                                20,
+                                List.of()
+                ));
+                extractionResult.getPages().add(page);
+
+                byte[] docx = wordWriterService.write(extractionResult);
+
+                try (XWPFDocument document = new XWPFDocument(
+                                new ByteArrayInputStream(docx))) {
+                        var margins = document.getDocument().getBody().getSectPr().getPgMar();
+
+            assertThat(margins.getLeft().toString()).isEqualTo("1000");
+            assertThat(margins.getTop().toString()).isEqualTo("360");
+            assertThat(margins.getRight().toString()).isEqualTo("2880");
+            assertThat(margins.getBottom().toString()).isEqualTo("360");
+                }
+        }
+
+    @Test
+    void shouldUsePageBreaksForSourcePagesWithStableGeometry() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+            PageExtraction page = new PageExtraction(pageIndex);
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Page " + pageIndex,
+                    20,
+                    20,
+                    100,
+                    14,
+                    List.of()
+            ));
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            String xml = document.getDocument().xmlText();
+            assertThat(xml).contains("w:type=\"page\"");
+            assertThat(document.getParagraphs())
+                    .filteredOn(p -> p.getCTP().isSetPPr()
+                            && p.getCTP().getPPr().isSetSectPr())
+                    .isEmpty();
+        }
+    }
+
+    @Test
+    void shouldPreserveFormattingForTableCellSpans() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+
+        TextSpan span = new TextSpan(
+                0,
+                "Styled cell",
+                10,
+                10,
+                60,
+                12,
+                "Helvetica",
+                14,
+                true,
+                false,
+                false,
+                false,
+                "336699"
+        );
+
+        TableCell cell = new TableCell(
+                0,
+                0,
+                1,
+                1,
+                "Styled cell",
+                List.of(span),
+                null
+        );
+
+        StructuredBlock tableBlock = new StructuredBlock(
+                0,
+                BlockType.TABLE,
+                "table",
+                50,
+                50,
+                300,
+                30,
+                List.of(),
+                List.of(List.of(cell))
+        );
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            XWPFRun run = document.getTables()
+                    .getFirst()
+                    .getRow(0)
+                    .getCell(0)
+                    .getParagraphs()
+                    .getFirst()
+                    .getRuns()
+                    .getFirst();
+
+            assertThat(run.getFontFamily()).isEqualTo("Arial");
+            assertThat(run.getFontSize()).isEqualTo(14);
+            assertThat(run.isBold()).isTrue();
+            assertThat(run.getColor()).isEqualTo("336699");
+        }
+    }
+
+    @Test
+    void shouldPlaceContentCoveredBackgroundImageBehindText() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        page.setCropWidth(600);
+        page.setCropHeight(800);
+        page.getStructuredBlocks().add(new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                "Overlay text",
+                120,
+                220,
+                300,
+                30,
+                List.of()
+        ));
+
+        ByteArrayOutputStream imageBytes = new ByteArrayOutputStream();
+        ImageIO.write(
+                new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB),
+                "png",
+                imageBytes
+        );
+        page.getImages().add(new ExtractedImage(
+                0,
+                "background.png",
+                40,
+                40,
+                520,
+                720,
+                10,
+                10,
+                "image/png",
+                0,
+                false,
+                imageBytes.toByteArray()
+        ));
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getDocument().xmlText())
+                    .contains("behindDoc=\"1\"");
+        }
+    }
+
+    @Test
+    void shouldPromoteRepeatedPageEdgesToHeadersAndFooters() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+            PageExtraction page = new PageExtraction(pageIndex);
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Repeated report header",
+                    40,
+                    30,
+                    220,
+                    14,
+                    List.of()
+            ));
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Body page " + pageIndex,
+                    40,
+                    200,
+                    180,
+                    14,
+                    List.of()
+            ));
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Repeated report footer",
+                    40,
+                    740,
+                    220,
+                    14,
+                    List.of()
+            ));
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getHeaderList()).isNotEmpty();
+            assertThat(document.getFooterList()).isNotEmpty();
+            assertThat(document.getHeaderList().getFirst().getText())
+                    .contains("Repeated report header");
+            assertThat(document.getFooterList().getFirst().getText())
+                    .contains("Repeated report footer");
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .doesNotContain("Repeated report header", "Repeated report footer");
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains("Body page 0", "Body page 1");
+        }
+    }
+
+        @Test
+        void shouldWriteRepeatedNumericFooterAsDynamicPageField() throws Exception {
+
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+                for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+                        PageExtraction page = new PageExtraction(pageIndex);
+                        page.setCropWidth(600);
+                        page.setCropHeight(800);
+                        page.getStructuredBlocks().add(new StructuredBlock(
+                                        pageIndex,
+                                        BlockType.PARAGRAPH,
+                                        "Body",
+                                        40,
+                                        200,
+                                        100,
+                                        14,
+                                        List.of()
+                        ));
+                        page.getStructuredBlocks().add(new StructuredBlock(
+                                        pageIndex,
+                                        BlockType.PARAGRAPH,
+                                        Integer.toString(pageIndex + 1),
+                                        290,
+                                        740,
+                                        20,
+                                        14,
+                                        List.of()
+                        ));
+                        extractionResult.getPages().add(page);
+                }
+
+                byte[] docx = wordWriterService.write(extractionResult);
+
+                try (XWPFDocument document = new XWPFDocument(
+                                new ByteArrayInputStream(docx))) {
+                        assertThat(document.getFooterList()).isNotEmpty();
+                            assertThat(document.getFooterList().getFirst().getParagraphs()
+                                    .getFirst().getCTP().xmlText())
+                                    .contains("PAGE", "fldCharType=\"begin\"");
+                        assertThat(document.getParagraphs())
+                                        .extracting(XWPFParagraph::getText)
+                                        .doesNotContain("1", "2");
+                }
+        }
 
     @Test
     void shouldWriteHorizontallyMergedHeaderCellWithGridSpan() throws Exception {
