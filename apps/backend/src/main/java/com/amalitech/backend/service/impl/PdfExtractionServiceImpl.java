@@ -108,11 +108,22 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             pageExtraction.setCropHeight(cropBox.getHeight());
             pageExtraction.setRotation(((page.getRotation() % 360) + 360) % 360);
 
-            List<TextSpan> textSpans = extractTextSpans(pageIndex, page);
-            pageExtraction.getTextSpans().addAll(textSpans);
+            List<TextSpan> textSpans =
+                    extractTextSpans(pageIndex, page);
 
-            pageExtraction.getImages().addAll(extractImages(pageIndex, page));
-            pageExtraction.getCandidateTableRegions().addAll(detectCandidateTableRegions(pageIndex, textSpans));
+            pageExtraction.getTextSpans()
+                    .addAll(textSpans);
+
+            pageExtraction.getImages().addAll(
+                    extractImages(pageIndex, page)
+            );
+
+            pageExtraction.getCandidateTableRegions().addAll(
+                    detectCandidateTableRegions(
+                            pageIndex,
+                            textSpans
+                    )
+            );
 
             List<DetectedTable> borderedTables =
                     detectBorderedTables(pageIndex, page, textSpans, pageExtraction);
@@ -723,6 +734,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         return sameFont && sameSize;
     }
+
     private String getFontName(TextPosition position) {
         if (position.getFont() == null
                 || position.getFont().getName() == null) {
@@ -1028,27 +1040,25 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     new IdentityHashMap<>();
 
             {
-                {
-                    this.output = new StringWriter();
+                this.output = new StringWriter();
 
-                    addOperator(new SetStrokingColorSpace(this));
-                    addOperator(new SetNonStrokingColorSpace(this));
+                addOperator(new SetStrokingColorSpace(this));
+                addOperator(new SetNonStrokingColorSpace(this));
 
-                    addOperator(new SetStrokingDeviceCMYKColor(this));
-                    addOperator(new SetNonStrokingDeviceCMYKColor(this));
+                addOperator(new SetStrokingDeviceCMYKColor(this));
+                addOperator(new SetNonStrokingDeviceCMYKColor(this));
 
-                    addOperator(new SetStrokingDeviceRGBColor(this));
-                    addOperator(new SetNonStrokingDeviceRGBColor(this));
+                addOperator(new SetStrokingDeviceRGBColor(this));
+                addOperator(new SetNonStrokingDeviceRGBColor(this));
 
-                    addOperator(new SetStrokingDeviceGrayColor(this));
-                    addOperator(new SetNonStrokingDeviceGrayColor(this));
+                addOperator(new SetStrokingDeviceGrayColor(this));
+                addOperator(new SetNonStrokingDeviceGrayColor(this));
 
-                    addOperator(new SetStrokingColor(this));
-                    addOperator(new SetStrokingColorN(this));
+                addOperator(new SetStrokingColor(this));
+                addOperator(new SetStrokingColorN(this));
 
-                    addOperator(new SetNonStrokingColor(this));
-                    addOperator(new SetNonStrokingColorN(this));
-                }
+                addOperator(new SetNonStrokingColor(this));
+                addOperator(new SetNonStrokingColorN(this));
             }
 
 
@@ -1165,15 +1175,16 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                 lastTextPosition =
                         textPositions.getLast();
             }
-        @Override
-        protected void writeLineSeparator()
-        throws IOException {
 
-            lastTextPosition = null;
-            pendingWhitespaceSeparator = false;
+            @Override
+            protected void writeLineSeparator()
+                    throws IOException {
 
-            super.writeLineSeparator();
-        }
+                lastTextPosition = null;
+                pendingWhitespaceSeparator = false;
+
+                super.writeLineSeparator();
+            }
         };
 
         stripper.setSortByPosition(true);
@@ -1182,12 +1193,12 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         return spans;
     }
 
-
     private List<ExtractedImage> extractImages(int pageIndex, PDPage page) throws IOException {
         List<ExtractedImage> images = new ArrayList<>();
         new ImageLocationStreamEngine(pageIndex, images).processPage(page);
         return images;
     }
+
 
     private static class ImageLocationStreamEngine extends PDFStreamEngine {
 
