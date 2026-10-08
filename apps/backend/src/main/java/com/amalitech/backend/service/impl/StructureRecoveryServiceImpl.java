@@ -1253,11 +1253,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return true;
         }
 
-        if (mostlyBold && slightlyLarger) {
-            return true;
-        }
-
-        return mostlyBold && labelLike;
+        return mostlyBold && slightlyLarger;
     }
 
     private record HorizontalGap(float left, float right) {

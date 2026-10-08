@@ -6,10 +6,24 @@ export type ConversionSession = {
     status: ConversionStatus;
     updatedAt: number;
     createdAt?: number;
+    startedAt?: string | null;
     durationSeconds?: number;
     completedAt?: number;
     fileSize?: number;
-    outputSizeBytes?: number;
+    pageCount?: number | null;
+    output?: {
+        filename: string;
+        sizeBytes: number | null;
+        downloadUrl: string;
+    } | null;
+    metrics?: {
+        sourceWordCount: number | null;
+        outputWordCount: number | null;
+        orderedListsDetected?: number | null;
+        unorderedListsDetected?: number | null;
+        orderedListsReconstructed?: number | null;
+        unorderedListsReconstructed?: number | null;
+    } | null;
 };
 
 const STORAGE_KEY = "doclift-active-conversion";

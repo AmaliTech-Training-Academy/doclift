@@ -106,4 +106,84 @@ describe("ResultsScreen", () => {
     expect(screen.getByTestId("reset-key")).toHaveTextContent("1");
     expect(screen.getByTestId("active-view")).toHaveTextContent("upload");
   });
+
+  it("renders dynamic output metadata, page count, and metrics when present", async () => {
+    saveConversionSession({
+      jobId: "job-dynamic-456",
+      fileName: "financials.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+      pageCount: 8,
+      durationSeconds: 12,
+      output: {
+        filename: "financials_final.docx",
+        sizeBytes: 25600,
+        downloadUrl: "/api/v1/jobs/job-dynamic-456/download",
+      },
+      metrics: {
+        sourceWordCount: 5000,
+        outputWordCount: 4950,
+      },
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(await screen.findByText("financials_final.docx")).toBeInTheDocument();
+    expect(screen.getByText(/8 pages • 25.0 KB • 12s conversion time/i)).toBeInTheDocument();
+    expect(screen.getByText("4,950 Words")).toBeInTheDocument();
+    expect(screen.getByText("99%")).toBeInTheDocument();
+  });
+
+  it("formats text yield to one decimal place when not a whole number", async () => {
+    saveConversionSession({
+      jobId: "job-dynamic-789",
+      fileName: "annual_report.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+      metrics: {
+        sourceWordCount: 1000,
+        outputWordCount: 985,
+      },
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(await screen.findByText("98.5%")).toBeInTheDocument();
+  });
+
+  it("renders dynamic list reconstruction metrics when list metrics are present", async () => {
+    saveConversionSession({
+      jobId: "job-dynamic-lists-101",
+      fileName: "manual.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+      metrics: {
+        sourceWordCount: 2000,
+        outputWordCount: 1980,
+        orderedListsDetected: 3,
+        unorderedListsDetected: 5,
+        orderedListsReconstructed: 3,
+        unorderedListsReconstructed: 4,
+      },
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(await screen.findByText("7/8 Lists Reconstructed")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Reconstructed 7 of 8 list structures detected in the source PDF/i)
+    ).toBeInTheDocument();
+  });
 });

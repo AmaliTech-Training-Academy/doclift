@@ -59,7 +59,7 @@ export const checklistData: ChecklistItem[] = [
         description:
             "Converted floating bullet Unicode characters into auto-incrementing numbered & bulleted lists.",
         icon: ListOrdered,
-        badge: "w:numPr Injected",
+        badge: "0 Lists",
     },
     {
         id: 5,

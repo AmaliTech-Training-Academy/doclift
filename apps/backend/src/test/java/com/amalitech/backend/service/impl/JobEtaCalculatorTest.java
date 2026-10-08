@@ -2,6 +2,7 @@ package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.model.JobPhase;
+import com.amalitech.backend.model.JobStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -299,6 +300,62 @@ class JobEtaCalculatorTest {
     }
 
     @Test
+    void shouldReturnNullEtaForFailedJob() {
+
+        Job job = new Job();
+
+        job.setStatus(JobStatus.FAILED);
+
+        job.setStartedAt(
+                Instant.parse("2026-10-03T10:00:00Z")
+        );
+
+        job.setCompletedAt(
+                Instant.parse("2026-10-03T10:00:30Z")
+        );
+
+        job.setProgressPercent(67);
+
+        job.setPhase(
+                JobPhase.GENERATING_DOCUMENT
+        );
+
+        job.setPhaseStartedAt(
+                Instant.parse("2026-10-03T10:00:20Z")
+        );
+
+        Instant now =
+                Instant.parse("2026-10-03T10:05:00Z");
+
+        assertNull(
+                calculator.calculateEstimatedTotalSeconds(
+                        job,
+                        now
+                )
+        );
+
+        assertNull(
+                calculator.calculateEstimatedRemainingSeconds(
+                        job,
+                        now
+                )
+        );
+
+        assertNull(
+                calculator
+                        .calculateCurrentPhaseEstimatedRemainingSeconds(
+                                job,
+                                now
+                        )
+        );
+
+        assertEquals(
+                30.0,
+                calculator.calculateDurationSeconds(job)
+        );
+    }
+
+    @Test
     void shouldCalculateDurationForCompletedJob() {
 
         Job job = new Job();
@@ -356,4 +413,48 @@ class JobEtaCalculatorTest {
         );
     }
 
+    @Test
+    void shouldCalculateProgressFromPhaseWeights() {
+        assertEquals(
+                0,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.LOADING_SOURCE
+                )
+        );
+
+        assertEquals(
+                1,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.EXTRACTING_CONTENT
+                )
+        );
+
+        assertEquals(
+                64,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.RECOVERING_STRUCTURE
+                )
+        );
+
+        assertEquals(
+                67,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.GENERATING_DOCUMENT
+                )
+        );
+
+        assertEquals(
+                99,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.SAVING_OUTPUT
+                )
+        );
+
+        assertEquals(
+                100,
+                calculator.calculateProgressPercentForPhase(
+                        JobPhase.COMPLETED
+                )
+        );
+    }
 }
