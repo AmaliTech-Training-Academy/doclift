@@ -3291,4 +3291,186 @@ class WordWriterServiceTest {
                     );
         }
     }
+
+    @Test
+    void shouldNotPromoteSequentialChapterHeadingsToRunningHeader()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0;
+             pageIndex < 3;
+             pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.HEADING,
+                            "Chapter " + (pageIndex + 1),
+                            40,
+                            40,
+                            120,
+                            18,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            "Body page " + (pageIndex + 1),
+                            40,
+                            180,
+                            300,
+                            40,
+                            List.of()
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> bodyParagraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(bodyParagraphs)
+                    .contains(
+                            "Chapter 1",
+                            "Chapter 2",
+                            "Chapter 3"
+                    );
+
+            assertThat(document.getHeaderList())
+                    .allSatisfy(header ->
+                            assertThat(header.getText())
+                                    .doesNotContain(
+                                            "Chapter 1",
+                                            "Chapter 2",
+                                            "Chapter 3"
+                                    )
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotPromoteLongRepeatedBodyParagraphToRunningHeader()
+            throws Exception {
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy, "
+                        + "employing a large share of the workforce and supplying food "
+                        + "to both rural and urban markets. Smallholder farmers often "
+                        + "struggle to reach buyers quickly, which leads to spoilage "
+                        + "and price swings. Digital marketplaces aim to shorten that "
+                        + "distance by connecting growers directly with customers.";
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0;
+             pageIndex < 3;
+             pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.HEADING,
+                            "Chapter " + (pageIndex + 1),
+                            40,
+                            40,
+                            120,
+                            18,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            repeatedBody,
+                            40,
+                            90,
+                            500,
+                            100,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            "Unique body page "
+                                    + (pageIndex + 1),
+                            40,
+                            240,
+                            300,
+                            40,
+                            List.of()
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> bodyParagraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(
+                    bodyParagraphs.stream()
+                            .filter(repeatedBody::equals)
+                            .count()
+            )
+                    .isEqualTo(3);
+
+            assertThat(document.getHeaderList())
+                    .allSatisfy(header ->
+                            assertThat(header.getText())
+                                    .doesNotContain(
+                                            repeatedBody
+                                    )
+                    );
+        }
+    }
 }

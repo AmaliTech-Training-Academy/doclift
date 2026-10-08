@@ -60,6 +60,11 @@ public class WordWriterServiceImpl implements WordWriterService {
     private static final float DEFAULT_PAGE_HEIGHT_POINTS = 792f;
     private static final float DEFAULT_MARGIN_POINTS = 36f;
     private static final float MAX_FLOW_VERTICAL_MARGIN_POINTS = 18f;
+    private static final float MAX_RUNNING_BLOCK_HEIGHT_RATIO =
+            0.08f;
+
+    private static final int MAX_RUNNING_TEXT_LENGTH =
+            240;
 
     private static final Pattern NUMBERED_PATTERN =
             Pattern.compile(
@@ -140,6 +145,33 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
+    private boolean isPlausibleRunningBlock(
+            PageExtraction page,
+            StructuredBlock block
+    ) {
+        if (page == null
+                || block == null) {
+            return false;
+        }
+
+        String text =
+                normalizedBlockText(block);
+
+        if (text.isBlank()
+                || text.length()
+                > MAX_RUNNING_TEXT_LENGTH) {
+            return false;
+        }
+
+        float pageHeight =
+                page.getCropHeight() > 0f
+                        ? page.getCropHeight()
+                        : DEFAULT_PAGE_HEIGHT_POINTS;
+
+        return block.getHeight()
+                <= pageHeight
+                * MAX_RUNNING_BLOCK_HEIGHT_RATIO;
+    }
 
     private boolean hasLaterNonBlankListContent(
             List<TextSpan> spans,
@@ -924,32 +956,66 @@ public class WordWriterServiceImpl implements WordWriterService {
             List<PageExtraction> pages,
             boolean header
     ) {
-        Map<String, Set<Integer>> pageIndexesByText = new HashMap<>();
+        Map<String, Set<Integer>>
+                pageIndexesByText =
+                new HashMap<>();
 
         for (PageExtraction page : pages) {
-            float pageHeight = page.getCropHeight() > 0
-                    ? page.getCropHeight()
-                    : DEFAULT_PAGE_HEIGHT_POINTS;
 
-            for (StructuredBlock block : page.getStructuredBlocks()) {
-                boolean inBand = header
-                        ? block.getY() <= pageHeight * 0.18f
-                        : block.getY() + block.getHeight()
-                        >= pageHeight * 0.82f;
+            float pageHeight =
+                    page.getCropHeight() > 0
+                            ? page.getCropHeight()
+                            : DEFAULT_PAGE_HEIGHT_POINTS;
+
+            for (StructuredBlock block :
+                    page.getStructuredBlocks()) {
+
+                boolean inBand =
+                        header
+                                ? block.getY()
+                                <= pageHeight * 0.18f
+                                : block.getY()
+                                + block.getHeight()
+                                >= pageHeight * 0.82f;
+
+                if (!inBand
+                        || !isPlausibleRunningBlock(
+                        page,
+                        block
+                )) {
+                    continue;
+                }
 
                 String text =
-                        normalizedRunningText(block);
-                if (inBand && !text.isBlank()
-                        && !(isPageNumberText(text) && !header)) {
+                        normalizedRunningText(
+                                block,
+                                header
+                        );
+
+                if (!text.isBlank()
+                        && !(isPageNumberText(text)
+                        && !header)) {
+
                     pageIndexesByText
-                            .computeIfAbsent(text, ignored -> new HashSet<>())
-                            .add(page.getPageIndex());
+                            .computeIfAbsent(
+                                    text,
+                                    ignored ->
+                                            new HashSet<>()
+                            )
+                            .add(
+                                    page.getPageIndex()
+                            );
                 }
             }
         }
 
-        Set<String> repeated = new HashSet<>();
-        for (Map.Entry<String, Set<Integer>> entry : pageIndexesByText.entrySet()) {
+        Set<String> repeated =
+                new HashSet<>();
+
+        for (Map.Entry<String, Set<Integer>>
+                entry :
+                pageIndexesByText.entrySet()) {
+
             if (entry.getValue().size() >= 2) {
                 repeated.add(entry.getKey());
             }
@@ -1013,8 +1079,18 @@ public class WordWriterServiceImpl implements WordWriterService {
                 continue;
             }
 
+            if (!isPlausibleRunningBlock(
+                    page,
+                    block
+            )) {
+                continue;
+            }
+
             String text =
-                    normalizedRunningText(block);
+                    normalizedRunningText(
+                            block,
+                            header
+                    );
 
             if (repeatedBlocks.contains(text)) {
                 return block;
@@ -1039,10 +1115,15 @@ public class WordWriterServiceImpl implements WordWriterService {
     }
 
     private String normalizedRunningText(
-            StructuredBlock block
+            StructuredBlock block,
+            boolean header
     ) {
         String text =
                 normalizedBlockText(block);
+
+        if (header) {
+            return text;
+        }
 
         return text
                 .replaceFirst("\\s+\\d{1,4}$", "")
@@ -1052,23 +1133,38 @@ public class WordWriterServiceImpl implements WordWriterService {
     private boolean containsEquivalentRunningText(
             Set<String> repeatedBlocks,
             String text,
-            String runningText
+            String runningText,
+            boolean header
     ) {
         if (repeatedBlocks.contains(text)
-                || repeatedBlocks.contains(runningText)) {
+                || repeatedBlocks.contains(
+                runningText
+        )) {
             return true;
         }
 
-        for (String repeated : repeatedBlocks) {
+        for (String repeated :
+                repeatedBlocks) {
 
             String normalizedRepeated =
                     repeated
                             .replace('\u00A0', ' ')
                             .replaceAll("\\s+", " ")
-                            .replaceFirst("\\s+\\d{1,4}$", "")
                             .strip();
 
-            if (normalizedRepeated.equals(runningText)) {
+            if (!header) {
+                normalizedRepeated =
+                        normalizedRepeated
+                                .replaceFirst(
+                                        "\\s+\\d{1,4}$",
+                                        ""
+                                )
+                                .strip();
+            }
+
+            if (normalizedRepeated.equals(
+                    runningText
+            )) {
                 return true;
             }
         }
@@ -1090,8 +1186,17 @@ public class WordWriterServiceImpl implements WordWriterService {
         String text =
                 normalizedBlockText(block);
 
-        String runningText =
-                normalizedRunningText(block);
+        String headerRunningText =
+                normalizedRunningText(
+                        block,
+                        true
+                );
+
+        String footerRunningText =
+                normalizedRunningText(
+                        block,
+                        false
+                );
 
         if (text.isBlank()) {
             return false;
@@ -1120,20 +1225,30 @@ public class WordWriterServiceImpl implements WordWriterService {
         boolean inFooterBand =
                 blockBottom >= pageHeight * 0.82f;
 
-        if (inHeaderBand
+        boolean plausibleRunningBlock =
+                isPlausibleRunningBlock(
+                        page,
+                        block
+                );
+
+        if (plausibleRunningBlock
+                && inHeaderBand
                 && containsEquivalentRunningText(
                 repeatedHeaders,
                 text,
-                runningText
+                headerRunningText,
+                true
         )) {
             return true;
         }
 
-        return inFooterBand
+        return plausibleRunningBlock
+                && inFooterBand
                 && containsEquivalentRunningText(
                 repeatedFooters,
                 text,
-                runningText
+                footerRunningText,
+                false
         );
     }
 
