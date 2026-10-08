@@ -33,8 +33,11 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STNumberFormat;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STSectionMark;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHdrFtr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STFldCharType;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabJc;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabTlc;
 
 import java.math.BigInteger;
 import java.util.regex.Pattern;
@@ -73,6 +76,9 @@ public class WordWriterServiceImpl implements WordWriterService {
                             + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
                             + ")\\s*"
             );
+
+        private static final Pattern INDEX_ENTRY_PATTERN =
+                        Pattern.compile("^(.+?)(?:\\.{2,}|…{2,}|\\s{3,})(\\d{1,3})$");
 
         private static final Pattern FONT_SUBSET_PREFIX =
                         Pattern.compile("^[A-Z]{6}\\+");
@@ -506,8 +512,21 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 StructuredBlock previousBlock = null;
 
-                for (StructuredBlock block :
-                        page.getStructuredBlocks()) {
+                List<StructuredBlock> pageBlocks = page.getStructuredBlocks();
+                for (int blockIndex = 0; blockIndex < pageBlocks.size(); blockIndex++) {
+
+                        StructuredBlock block = pageBlocks.get(blockIndex);
+                        if (isIndexLevelMarker(block)
+                                        && blockIndex + 1 < pageBlocks.size()) {
+                                while (blockIndex + 1 < pageBlocks.size()
+                                                && isAdjacentIndexEntry(block, pageBlocks.get(blockIndex + 1))
+                                                && parseIndexEntry(block) == null) {
+                                        block = mergeIndexLevelMarker(
+                                                        block,
+                                                        pageBlocks.get(++blockIndex)
+                                        );
+                                }
+                        }
 
                                         String blockText = normalizedBlockText(block);
                                         if (repeatedHeaders.contains(blockText)
@@ -624,6 +643,9 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 if (!page.getImages().isEmpty()) {
                     XWPFParagraph carrier = document.createParagraph();
+                                        carrier.setSpacingBefore(0);
+                                        carrier.setSpacingAfter(0);
+                                        carrier.setSpacingBetween(0.0, LineSpacingRule.EXACT);
 
                     for (ExtractedImage image : page.getImages()) {
                         insertFloatingImage(carrier, page, image, shapeId++);
@@ -644,16 +666,22 @@ public class WordWriterServiceImpl implements WordWriterService {
                 } else {
                                         PageExtraction nextPage = pages.get(pageIndex + 1);
 
-                                        if (hasSamePageGeometry(page, nextPage)) {
+                                        if (hasSamePageGeometry(page, nextPage)
+                                                        && !requiresExplicitPageBoundary(
+                                                        page,
+                                                        repeatedHeaders,
+                                                        repeatedFooters,
+                                                        repeatedPageNumbers
+                                        )) {
                                                 insertPageBreak(document);
                                         } else {
                                                 insertSectionBreak(
                                                                 document,
-                                                        page,
-                                                        findRepeatedBlock(page, repeatedHeaders, true),
-                                                        findRepeatedBlock(page, repeatedFooters, false),
-                                                        repeatedPageNumbers,
-                                                        pageMargins
+                                                                page,
+                                                                findRepeatedBlock(page, repeatedHeaders, true),
+                                                                findRepeatedBlock(page, repeatedFooters, false),
+                                                                repeatedPageNumbers,
+                                                                pageMargins
                                                 );
                                         }
                 }
@@ -711,6 +739,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                         : paragraph.getCTP().addNewPPr();
 
         CTSectPr sectPr = pPr.addNewSectPr();
+                sectPr.addNewType().setVal(STSectionMark.NEXT_PAGE);
                 setPageSize(
                         document,
                         sectPr,
@@ -800,7 +829,11 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         private void insertPageBreak(XWPFDocument document) {
                 XWPFParagraph paragraph = document.createParagraph();
-                paragraph.createRun().addBreak(BreakType.PAGE);
+                paragraph.setSpacingBefore(0);
+                paragraph.setSpacingAfter(0);
+                XWPFRun breakRun = paragraph.createRun();
+                breakRun.setFontSize(1);
+                breakRun.addBreak(BreakType.PAGE);
         }
 
         private boolean hasSamePageGeometry(
@@ -812,6 +845,35 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 && nearlyEqual(first.getCropWidth(), second.getCropWidth())
                                 && nearlyEqual(first.getCropHeight(), second.getCropHeight())
                                 && first.getRotation() == second.getRotation();
+        }
+
+        private boolean requiresExplicitPageBoundary(
+                        PageExtraction page,
+                        Set<String> repeatedHeaders,
+                        Set<String> repeatedFooters,
+                        boolean repeatedPageNumbers
+        ) {
+                if (!page.getImages().isEmpty()) {
+                        return true;
+                }
+
+                for (StructuredBlock block : page.getStructuredBlocks()) {
+                        String text = normalizedBlockText(block);
+                        if (repeatedHeaders.contains(text)
+                                        || repeatedFooters.contains(text)
+                                        || (repeatedPageNumbers && isPageNumberBlock(page, block))) {
+                                continue;
+                        }
+
+                        float pageHeight = page.getCropHeight() > 0
+                                        ? page.getCropHeight()
+                                        : DEFAULT_PAGE_HEIGHT_POINTS;
+                        if (block.getY() + block.getHeight() < pageHeight * 0.85f) {
+                                return false;
+                        }
+                }
+
+                return true;
         }
 
         private boolean nearlyEqual(float first, float second) {
@@ -1226,10 +1288,16 @@ public class WordWriterServiceImpl implements WordWriterService {
                 XWPFParagraph paragraph =
                                 document.createParagraph();
 
+        IndexEntry indexEntry = parseIndexEntry(block);
+
         applyParagraphSpacing(
                 paragraph,
-                spacingBefore
+                indexEntry == null ? spacingBefore : 0
         );
+
+        if (indexEntry != null) {
+            configureIndexEntryTab(paragraph, availableWidth);
+        }
 
         if (block.getType() == BlockType.HEADING) {
 
@@ -1266,8 +1334,92 @@ public class WordWriterServiceImpl implements WordWriterService {
                         return;
                 }
 
+                if (indexEntry != null) {
+                        XWPFRun run = paragraph.createRun();
+                        run.setText(indexEntry.title() + "\t" + indexEntry.pageNumber());
+                        if (block.getSpans() != null && !block.getSpans().isEmpty()) {
+                                applyFormatting(run, block.getSpans().getFirst());
+                        }
+                        return;
+                }
+
                 writeRuns(paragraph, block);
         }
+
+        private IndexEntry parseIndexEntry(StructuredBlock block) {
+                if (block.getType() != BlockType.PARAGRAPH || block.getText() == null) {
+                        return null;
+                }
+
+                var matcher = INDEX_ENTRY_PATTERN.matcher(block.getText().strip());
+                return matcher.matches()
+                                ? new IndexEntry(matcher.group(1).strip(), matcher.group(2))
+                                : null;
+        }
+
+        private boolean isIndexLevelMarker(StructuredBlock block) {
+                return block.getType() == BlockType.PARAGRAPH
+                                && block.getText() != null
+                                && block.getText().strip().matches("\\d+(?:\\.\\d+)*");
+        }
+
+        private boolean isAdjacentIndexEntry(
+                        StructuredBlock marker,
+                        StructuredBlock entry
+        ) {
+                return entry.getType() == BlockType.PARAGRAPH
+                                && entry.getText() != null
+                                && entry.getPageIndex() == marker.getPageIndex()
+                                && entry.getY() >= marker.getY()
+                                && entry.getY() - marker.getY() <= Math.max(48f, marker.getHeight() * 3f);
+        }
+
+        private StructuredBlock mergeIndexLevelMarker(
+                        StructuredBlock marker,
+                        StructuredBlock entry
+        ) {
+                StructuredBlock merged = new StructuredBlock(
+                                marker.getPageIndex(),
+                                BlockType.PARAGRAPH,
+                                marker.getText().strip() + " " + entry.getText().strip(),
+                                marker.getX(),
+                                marker.getY(),
+                                Math.max(
+                                                marker.getWidth(),
+                                                entry.getX() + entry.getWidth() - marker.getX()
+                                ),
+                                Math.max(
+                                                marker.getHeight(),
+                                                entry.getY() + entry.getHeight() - marker.getY()
+                                ),
+                                entry.getSpans()
+                );
+                merged.setAlignment(entry.getAlignment());
+                return merged;
+        }
+
+        private void configureIndexEntryTab(
+                        XWPFParagraph paragraph,
+                        float availableWidth
+        ) {
+                CTPPr pPr = paragraph.getCTP().isSetPPr()
+                                ? paragraph.getCTP().getPPr()
+                                : paragraph.getCTP().addNewPPr();
+                var spacing = pPr.isSetSpacing() ? pPr.getSpacing() : pPr.addNewSpacing();
+                spacing.setBefore(BigInteger.ZERO);
+                spacing.setAfter(BigInteger.ZERO);
+                spacing.setLine(BigInteger.valueOf(240));
+                spacing.setLineRule(
+                                org.openxmlformats.schemas.wordprocessingml.x2006.main.STLineSpacingRule.AUTO
+                );
+                var tabs = pPr.isSetTabs() ? pPr.getTabs() : pPr.addNewTabs();
+                var tab = tabs.addNewTab();
+                tab.setVal(STTabJc.RIGHT);
+                tab.setLeader(STTabTlc.DOT);
+                tab.setPos(toTwips(Math.max(1f, availableWidth)));
+        }
+
+        private record IndexEntry(String title, String pageNumber) {}
 
 
     private ParagraphAlignment toParagraphAlignment(BlockAlignment alignment) {
@@ -1570,6 +1722,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                         ? tableCell.getParagraphArray(0)
                         : tableCell.addParagraph();
 
+
         if (footnoteKey != null) {
             writeFootnoteReference(cellParagraph, footnoteKey, footnotesByKey);
         }
@@ -1590,6 +1743,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                         applyFormatting(run, span);
                 }
     }
+
 
     private void setGridSpan(
             XWPFTableCell tableCell,

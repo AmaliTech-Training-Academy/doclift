@@ -1528,6 +1528,193 @@ class WordWriterServiceTest {
         }
     }
 
+        @Test
+        void shouldPreserveEmptySourcePageBoundary() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                extractionResult.getPages().add(new PageExtraction(0));
+                extractionResult.getPages().add(new PageExtraction(1));
+                extractionResult.getPages().get(1).getStructuredBlocks().add(
+                                paragraphBlock(1, "After empty page", 20, 20)
+                );
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                        assertThat(pageBreakCount(document)).isEqualTo(1);
+                }
+        }
+
+        @Test
+        void shouldPreserveFooterOnlySourcePageBoundary() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                for (int pageIndex = 0; pageIndex < 3; pageIndex++) {
+                        PageExtraction page = new PageExtraction(pageIndex);
+                        page.getStructuredBlocks().add(new StructuredBlock(
+                                        pageIndex,
+                                        BlockType.PARAGRAPH,
+                                        "Source footer",
+                                        20,
+                                        760,
+                                        100,
+                                        12,
+                                        List.of()
+                        ));
+                        extractionResult.getPages().add(page);
+                }
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                        assertThat(pageBreakCount(document)).isEqualTo(2);
+                        assertThat(document.getFooterList()).isNotEmpty();
+                        assertThat(document.getFooterList().getFirst().getText())
+                                        .contains("Source footer");
+                }
+        }
+
+        @Test
+        void shouldPreserveImageOnlySourcePageBoundary() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                PageExtraction imagePage = new PageExtraction(0);
+                ByteArrayOutputStream imageBytes = new ByteArrayOutputStream();
+                ImageIO.write(
+                                new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB),
+                                "png",
+                                imageBytes
+                );
+                imagePage.getImages().add(new ExtractedImage(
+                                0,
+                                "image-only.png",
+                                20,
+                                20,
+                                100,
+                                100,
+                                10,
+                                10,
+                                "image/png",
+                                0,
+                                false,
+                                imageBytes.toByteArray()
+                ));
+                extractionResult.getPages().add(imagePage);
+                extractionResult.getPages().add(new PageExtraction(1));
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                        assertThat(pageBreakCount(document)).isEqualTo(1);
+                        assertThat(document.getDocument().xmlText()).contains("image-only.png");
+                }
+        }
+
+        @Test
+        void shouldPreserveThreeSourcePagesAsThreeWordPages() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                for (int pageIndex = 0; pageIndex < 3; pageIndex++) {
+                        extractionResult.getPages().add(new PageExtraction(pageIndex));
+                }
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                        assertThat(pageBreakCount(document)).isEqualTo(2);
+                }
+        }
+
+            @Test
+            void shouldWriteCompactIndexEntriesWithDottedRightTabLeaders() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                PageExtraction page = new PageExtraction(0);
+                page.getStructuredBlocks().add(paragraphBlock(
+                        0,
+                        "Table of Contents..............................7",
+                        20,
+                        40
+                ));
+                page.getStructuredBlocks().add(paragraphBlock(
+                        0,
+                        "1.1 Nested heading............................12",
+                        40,
+                        58
+                ));
+                page.getStructuredBlocks().add(paragraphBlock(
+                        0,
+                        "A deliberately long wrapped list entry that keeps its page number aligned"
+                                + " ..............................................................24",
+                        40,
+                        76
+                ));
+                extractionResult.getPages().add(page);
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                    assertThat(document.getParagraphs()).hasSize(3);
+                    assertThat(document.getDocument().xmlText())
+                            .contains("w:val=\"right\"")
+                            .contains("w:leader=\"dot\"")
+                            .contains("Table of Contents\t7")
+                            .contains("1.1 Nested heading\t12");
+                    assertThat(document.getParagraphs())
+                            .allSatisfy(paragraph -> {
+                                assertThat(paragraph.getSpacingBefore()).isZero();
+                                assertThat(paragraph.getSpacingAfter()).isZero();
+                            });
+                }
+            }
+
+        @Test
+        void shouldMergeSplitIndexLevelMarkerIntoOneEntryParagraph() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                PageExtraction page = new PageExtraction(0);
+                page.getStructuredBlocks().add(paragraphBlock(0, "1.4.1", 20, 40));
+                page.getStructuredBlocks().add(paragraphBlock(
+                                0,
+                                "IEEE Standard P241, Gray Book........................10",
+                                44,
+                                45
+                ));
+                extractionResult.getPages().add(page);
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                        assertThat(document.getParagraphs()).hasSize(1);
+                        assertThat(document.getParagraphs().getFirst().getText())
+                                        .isEqualTo("1.4.1 IEEE Standard P241, Gray Book\t10");
+                }
+        }
+
+        @Test
+        void shouldNotAddExtraFlowHeightForPageBreakCarrier() throws Exception {
+                PdfExtractionResult extractionResult = new PdfExtractionResult();
+                extractionResult.getPages().add(new PageExtraction(0));
+                extractionResult.getPages().add(new PageExtraction(1));
+
+                try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+                        XWPFParagraph carrier = document.getParagraphs().getFirst();
+                        assertThat(carrier.getCTP().xmlText()).doesNotContain("w:spacing");
+                        assertThat(carrier.getCTP().xmlText()).contains("w:val=\"nextPage\"");
+                }
+        }
+
+        private StructuredBlock paragraphBlock(
+                        int pageIndex,
+                        String text,
+                        float x,
+                        float y
+        ) {
+                return new StructuredBlock(
+                                pageIndex,
+                                BlockType.PARAGRAPH,
+                                text,
+                                x,
+                                y,
+                                200,
+                                14,
+                                List.of()
+                );
+        }
+
+        private XWPFDocument readDocument(byte[] bytes) throws Exception {
+                return new XWPFDocument(new ByteArrayInputStream(bytes));
+        }
+
+        private long pageBreakCount(XWPFDocument document) {
+                return document.getParagraphs().stream()
+                        .filter(paragraph -> paragraph.getCTP().xmlText().contains("w:type=\"page\"")
+                                || paragraph.getCTP().xmlText().contains("w:val=\"nextPage\""))
+                                .count();
+        }
+
     @Test
     void shouldPreserveFormattingForTableCellSpans() throws Exception {
 

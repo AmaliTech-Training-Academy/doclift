@@ -20,6 +20,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -166,10 +167,25 @@ class ImageRecoveryIntegrationTest {
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
             assertThat(countAnchors(document)).isEqualTo(2);
 
-                boolean hasPageBreak = document.getDocument().xmlText()
-                    .contains("w:type=\"page\"");
+            List<org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr> sections =
+                document.getParagraphs().stream()
+                    .filter(p -> p.getCTP().isSetPPr()
+                        && p.getCTP().getPPr().isSetSectPr())
+                    .map(p -> p.getCTP().getPPr().getSectPr())
+                    .toList();
 
-                assertThat(hasPageBreak).isTrue();
+            assertThat(sections)
+                .as("one source-page boundary between the two image pages")
+                .hasSize(1);
+            assertThat(sections.getFirst().getType().getVal().toString())
+                .isEqualTo("nextPage");
+
+                    assertThat(sections.getFirst().getPgSz().getW()).isEqualTo(BigInteger.valueOf(11906));
+                    assertThat(sections.getFirst().getPgSz().getH()).isEqualTo(BigInteger.valueOf(16838));
+                assertThat(document.getDocument().getBody().getSectPr().getPgSz().getW())
+                        .isEqualTo(BigInteger.valueOf(11906));
+                assertThat(document.getDocument().getBody().getSectPr().getPgSz().getH())
+                        .isEqualTo(BigInteger.valueOf(16838));
         }
     }
 
