@@ -268,7 +268,8 @@ describe("useConversion", () => {
     expect(result.current.session?.outputSizeBytes).toBe(48213);
   });
 
-  it("shows a success toast when polling reports conversion completion", () => {
+  it("shows success and auto-purge warning toasts on completion", () => {
+    vi.useFakeTimers();
     renderHook(() => useConversion(), { wrapper });
 
     expect(pollingOnComplete).toBeDefined();
@@ -297,52 +298,52 @@ describe("useConversion", () => {
         description: expect.stringContaining("ready for download"),
       }),
     );
-  });
-
-  it("triggers warning toast when <= 10 minutes remain before purge and resets when purge expires", async () => {
-    vi.useFakeTimers();
-    const now = Date.now();
-    vi.setSystemTime(now);
-
-    const { result } = renderHook(() => useConversion(), { wrapper });
-
-    // Set session to done at (now - 21 minutes), so only 9 minutes remain out of 30 minutes
-    const twentyOneMinutesAgo = now - 21 * 60 * 1000;
 
     act(() => {
-      result.current.setSession({
-        jobId: "session-123",
-        fileName: "file.pdf",
-        status: "done",
-        createdAt: twentyOneMinutesAgo,
-        completedAt: twentyOneMinutesAgo,
-        updatedAt: twentyOneMinutesAgo,
-      });
-      result.current.setActiveView("result");
-    });
-
-    // Advance timers so usePurgeCountdown runs
-    act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(5000);
     });
 
     expect(toast.warning).toHaveBeenCalledWith(
       "Auto-Purge Warning",
       expect.objectContaining({
         description: expect.stringContaining("30 minutes"),
-      })
+      }),
     );
 
-    // Advance by another 9 minutes so time reaches 0 (purge expires)
+    vi.useRealTimers();
+  });
+
+  it("resets state when 30-minute purge expires", async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    const { result } = renderHook(() => useConversion(), { wrapper });
+
+    const thirtyMinutesAgo = now - 30 * 60 * 1000;
+
     act(() => {
-      vi.advanceTimersByTime(9 * 60 * 1000);
+      result.current.setSession({
+        jobId: "session-123",
+        fileName: "file.pdf",
+        status: "done",
+        createdAt: thirtyMinutesAgo,
+        completedAt: thirtyMinutesAgo,
+        updatedAt: thirtyMinutesAgo,
+      });
+      result.current.setActiveView("result");
+    });
+
+    // Advance timers so usePurgeCountdown runs and hits 0
+    act(() => {
+      vi.advanceTimersByTime(1000);
     });
 
     expect(toast.error).toHaveBeenCalledWith(
       "File Purged",
       expect.objectContaining({
         description: expect.stringContaining("no longer available"),
-      })
+      }),
     );
 
     // After 2 seconds, it should automatically reset and move to upload screen
