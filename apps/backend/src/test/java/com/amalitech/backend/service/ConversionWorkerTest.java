@@ -1,6 +1,8 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.model.JobPhase;
 import com.amalitech.backend.service.impl.ConversionWorker;
+import com.amalitech.backend.service.impl.JobEtaCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,8 +22,10 @@ class ConversionWorkerTest {
     private PdfExtractionService pdfExtractionService;
     private StructureRecoveryService structureRecoveryService;
     private WordWriterService wordWriterService;
-
     private ConversionWorker conversionWorker;
+    private DocumentMetricsService documentMetricsService;
+    private JobMetricsService jobMetricsService;
+    private JobEtaCalculator jobEtaCalculator;
 
     @TempDir
     Path tempDir;
@@ -48,13 +52,41 @@ class ConversionWorkerTest {
         wordWriterService =
                 mock(WordWriterService.class);
 
+        documentMetricsService =
+                mock(DocumentMetricsService.class);
+
+        jobMetricsService =
+                mock(JobMetricsService.class);
+
+        jobEtaCalculator =
+                mock(JobEtaCalculator.class);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.EXTRACTING_CONTENT
+        )).thenReturn(1);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.RECOVERING_STRUCTURE
+        )).thenReturn(64);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.GENERATING_DOCUMENT
+        )).thenReturn(67);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.SAVING_OUTPUT
+        )).thenReturn(99);
+
         conversionWorker =
                 new ConversionWorker(
                         jobService,
                         fileStorageService,
                         pdfExtractionService,
                         structureRecoveryService,
-                        wordWriterService
+                        wordWriterService,
+                        documentMetricsService,
+                        jobMetricsService,
+                        jobEtaCalculator
                 );
     }
 
@@ -104,6 +136,11 @@ class ConversionWorkerTest {
                 .thenReturn(
                         List.of(page)
                 );
+        when(documentMetricsService.countSourceWords(extractionResult))
+                .thenReturn(120);
+
+        when(documentMetricsService.countOutputWords(docxContent))
+                .thenReturn(118);
 
         when(
                 wordWriterService.write(
@@ -111,6 +148,27 @@ class ConversionWorkerTest {
                 )
         )
                 .thenReturn(docxContent);
+        when(
+                documentMetricsService.countSourceLists(
+                        extractionResult
+                )
+        ).thenReturn(
+                new ListCountResult(
+                        1,
+                        1
+                )
+        );
+
+        when(
+                documentMetricsService.countOutputLists(
+                        docxContent
+                )
+        ).thenReturn(
+                new ListCountResult(
+                        1,
+                        1
+                )
+        );
 
         when(
                 fileStorageService
@@ -126,21 +184,66 @@ class ConversionWorkerTest {
         verify(jobService)
                 .markProcessing(JOB_ID);
 
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.EXTRACTING_CONTENT,
+                1
+        );
+
         verify(pdfExtractionService)
-                .extract(
-                        any(InputStream.class)
-                );
+                .extract(any(InputStream.class));
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.RECOVERING_STRUCTURE,
+                64
+        );
 
         verify(structureRecoveryService)
                 .recoverStructure(page);
 
+        verify(documentMetricsService)
+                .countSourceWords(extractionResult);
+
+        verify(documentMetricsService)
+                .countSourceLists(extractionResult);
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.GENERATING_DOCUMENT,
+                67
+        );
+
         verify(wordWriterService)
                 .write(extractionResult);
+
+        verify(documentMetricsService)
+                .countOutputWords(docxContent);
+
+        verify(documentMetricsService)
+                .countOutputLists(docxContent);
+
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.SAVING_OUTPUT,
+                99
+        );
 
         verify(fileStorageService)
                 .storeOutputDocx(
                         eq(JOB_ID),
                         same(docxContent)
+                );
+
+        verify(jobMetricsService)
+                .saveMetrics(
+                        JOB_ID,
+                        120,
+                        118,
+                        1,
+                        1,
+                        1,
+                        1
                 );
 
         verify(jobService)
@@ -188,12 +291,20 @@ class ConversionWorkerTest {
         verify(jobService)
                 .markProcessing(JOB_ID);
 
+        verify(jobService).updateProgress(
+                JOB_ID,
+                JobPhase.EXTRACTING_CONTENT,
+                1
+        );
+
         verify(jobService)
                 .markFailed(JOB_ID);
 
         verifyNoInteractions(
                 structureRecoveryService,
-                wordWriterService
+                wordWriterService,
+                documentMetricsService,
+                jobMetricsService
         );
 
         verify(

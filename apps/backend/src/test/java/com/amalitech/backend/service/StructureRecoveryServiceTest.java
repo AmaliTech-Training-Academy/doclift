@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class StructureRecoveryServiceTest {
 
@@ -16,6 +17,10 @@ class StructureRecoveryServiceTest {
     void setUp() {
         structureRecoveryService = new StructureRecoveryServiceImpl();
     }
+
+    // =========================================================
+    // SINGLE-COLUMN READING ORDER
+    // =========================================================
 
     @Test
     void shouldOrderSingleColumnTopToBottom() {
@@ -36,6 +41,10 @@ class StructureRecoveryServiceTest {
                 );
     }
 
+    // =========================================================
+    // SAME-LINE GROUPING
+    // =========================================================
+
     @Test
     void shouldGroupSpansOnSameLineLeftToRight() {
         PageExtraction page = new PageExtraction(0);
@@ -52,6 +61,10 @@ class StructureRecoveryServiceTest {
         assertThat(page.getStructuredBlocks().getFirst().getText())
                 .isEqualTo("Hello world");
     }
+
+    // =========================================================
+    // DIFFERENT LINES
+    // =========================================================
 
     @Test
     void shouldKeepVerticallySeparatedSpansOnDifferentLines() {
@@ -72,6 +85,10 @@ class StructureRecoveryServiceTest {
                 );
     }
 
+    // =========================================================
+    // EMPTY PAGE
+    // =========================================================
+
     @Test
     void shouldReturnNoBlocksForEmptyPage() {
         PageExtraction page = new PageExtraction(0);
@@ -80,6 +97,10 @@ class StructureRecoveryServiceTest {
 
         assertThat(page.getStructuredBlocks()).isEmpty();
     }
+
+    // =========================================================
+    // TEST DATA
+    // =========================================================
 
     private TextSpan span(
             String text,
@@ -123,6 +144,10 @@ class StructureRecoveryServiceTest {
         );
     }
 
+    // =========================================================
+// TWO-COLUMN READING ORDER
+// =========================================================
+
     @Test
     void shouldOrderTwoColumnLayoutColumnByColumn() {
         PageExtraction page = new PageExtraction(0);
@@ -147,6 +172,10 @@ class StructureRecoveryServiceTest {
                         "Right one Right two Right three"
                 );
     }
+
+    // =========================================================
+// SPANNING HEADING + TWO-COLUMN READING ORDER
+// =========================================================
 
     @Test
     void shouldPlaceSpanningHeadingBeforeColumns() {
@@ -436,6 +465,55 @@ class StructureRecoveryServiceTest {
                 );
     }
 
+    @Test
+    void shouldDetectLargeFontHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Main Title",
+                        50,
+                        50,
+                        200,
+                        20,
+                        "Helvetica-Bold",
+                        18,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        10,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.HEADING,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
     @Test
     void shouldPreserveMultiSpanRowCrossingColumnBoundary() {
         PageExtraction page = new PageExtraction(0);
@@ -756,6 +834,256 @@ class StructureRecoveryServiceTest {
     }
 
     @Test
+    void shouldNotDetectBodySizedBoldColonLabelAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Name:",
+                        50,
+                        50,
+                        200,
+                        12,
+                        "Helvetica-Bold",
+                        12,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.PARAGRAPH,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldDetectLargerBoldColonLabelAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Important Information:",
+                        50,
+                        50,
+                        220,
+                        14,
+                        "Helvetica-Bold",
+                        14,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.HEADING,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldNotDetectNormalBodyTextAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "This is a normal sentence.",
+                        50,
+                        50,
+                        250,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "More normal body text.",
+                        50,
+                        80,
+                        250,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.PARAGRAPH,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldNotMisclassifyNormalListItemAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "1. First item",
+                        50,
+                        50,
+                        150,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.LIST_ITEM,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldPreferBoldColonHeadingOverListPattern() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "vii. Uppercase Roman numerals:",
+                        50,
+                        50,
+                        220,
+                        14,
+                        "Helvetica-Bold",
+                        14,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.HEADING,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
     void shouldDetectCenteredSingleLineAlignment() {
         PageExtraction page = new PageExtraction(0);
         page.setPageWidth(612f);
@@ -880,5 +1208,148 @@ class StructureRecoveryServiceTest {
                 false,
                 false
         );
+    }
+    @Test
+    void shouldClassifyParenthesizedDecimalAsOrderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("(1) First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.ORDERED);
+    }
+
+    @Test
+    void shouldClassifyParenthesizedRomanAsOrderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("(i) First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.ORDERED);
+    }
+
+    @Test
+    void shouldClassifyParenthesizedUppercaseLetterAsOrderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("(A) First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.ORDERED);
+    }
+
+    @Test
+    void shouldClassifyCheckmarkAsUnorderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("✓ First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.UNORDERED);
+    }
+
+    @Test
+    void shouldClassifyMiddleDotAsUnorderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("· First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isEqualTo(ListType.UNORDERED);
+    }
+
+    @Test
+    void shouldNotClassifyPlainOAsUnorderedList() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                span("o First item", 50, 100)
+        );
+
+        structureRecoveryService
+                .recoverStructure(page);
+
+        StructuredBlock block =
+                page.getStructuredBlocks()
+                        .getFirst();
+
+        assertThat(block.getType())
+                .isNotEqualTo(BlockType.LIST_ITEM);
+
+        assertThat(block.getListType())
+                .isNull();
     }
 }
