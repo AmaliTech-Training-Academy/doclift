@@ -1,6 +1,7 @@
 package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.exception.JobFailedException;
+import com.amalitech.backend.exception.JobFileExpiredException;
 import com.amalitech.backend.exception.JobNotReadyException;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.model.JobFile;
@@ -42,6 +43,10 @@ public class JobDownloadService {
             throw new IllegalStateException(
                     "Completed job has no output file."
             );
+        }
+
+        if (job.getFilesDeletedAt() != null) {
+            throw new JobFileExpiredException();
         }
 
         Path outputPath =
