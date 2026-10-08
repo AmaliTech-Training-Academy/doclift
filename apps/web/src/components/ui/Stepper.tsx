@@ -5,7 +5,6 @@ import {
   Check,
   Loader2,
   AlertCircle,
-  FileText,
   X,
 } from "lucide-react";
 
@@ -38,15 +37,6 @@ export interface Step {
   tags?: StepTag[];
   progress?: StepProgress;
 }
-
-export {
-  StepperDemo,
-  useSimulatedPipeline,
-  PIPELINE,
-  type StepperDemoHandle,
-  type PipelineProgress,
-  type StepperDemoProps,
-} from "./StepperDemo";
 
 interface StepIconProps {
   status: StepStatus;
@@ -251,44 +241,10 @@ function ActiveStepCard({ step }: { step: Step }) {
 }
 
 export interface StepperProps {
-  steps?: Step[];
+  steps: Step[];
 }
-const DEFAULT_STEPS: Step[] = [
-  {
-    title: "Document Ingestion & Verification",
-    description: "Text stream validated, 14 pages parsed into forensic AST",
-    status: "complete",
-    meta: "1.2s",
-    tags: [{ label: "PDF/A-2b" }, { label: "Entropy score: 0.994" }],
-  },
-  {
-    title: "Structure & Table Recovery",
-    description:
-      "Reconstructing 4 complex financial tables & cell alignments without text boxes.",
-    status: "loading",
-    runningNote: "Running cell matrix solver",
-    progress: {
-      label: 'Table 2 of 4: "Statement of Comprehensive Income"',
-      percent: 88,
-      note: "cells bounded",
-      stats: ["Merged header spans: 3", "Decimal point alignment: Active"],
-    },
-  },
-  {
-    title: "Word (.docx) Model Synthesis",
-    description:
-      "Mapping native Word styles (Heading 1-3, Body, Table Grid definitions)",
-    status: "pending",
-    icon: FileText,
-    meta: "Queued",
-  },
-];
 
-export default function Stepper({
-  steps: stepsProp,
-}: StepperProps) {
-  const steps = stepsProp ?? DEFAULT_STEPS;
-
+export default function Stepper({ steps }: StepperProps) {
   return (
     <ol className="w-full max-w-xl">
       {steps.map((step, i) => {

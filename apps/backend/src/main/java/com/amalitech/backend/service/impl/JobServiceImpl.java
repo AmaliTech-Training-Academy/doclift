@@ -44,7 +44,7 @@ public class JobServiceImpl implements JobService {
 
 
         job.setPhase(JobPhase.LOADING_SOURCE);
-        job.setProgressPercent(10);
+        job.setProgressPercent(0);
         job.setPhaseStartedAt(now);
 
         return job;
@@ -83,7 +83,12 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public Job markFailed(UUID jobId) {
         Job job = getJobOrThrow(jobId);
+
+        Instant now = Instant.now();
+
         job.setStatus(JobStatus.FAILED);
+        job.setCompletedAt(now);
+
         return job;
     }
 

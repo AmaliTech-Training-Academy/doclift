@@ -185,7 +185,6 @@ public class WordWriterServiceImpl implements WordWriterService {
             String levelText,
             BigInteger start
     ) {
-
         XWPFNumbering numbering =
                 document.getNumbering();
 

@@ -2,6 +2,7 @@ package com.amalitech.backend.service;
 
 import com.amalitech.backend.model.JobPhase;
 import com.amalitech.backend.service.impl.ConversionWorker;
+import com.amalitech.backend.service.impl.JobEtaCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,6 +25,7 @@ class ConversionWorkerTest {
     private ConversionWorker conversionWorker;
     private DocumentMetricsService documentMetricsService;
     private JobMetricsService jobMetricsService;
+    private JobEtaCalculator jobEtaCalculator;
 
     @TempDir
     Path tempDir;
@@ -53,6 +55,25 @@ class ConversionWorkerTest {
         jobMetricsService =
                 mock(JobMetricsService.class);
 
+        jobEtaCalculator =
+                mock(JobEtaCalculator.class);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.EXTRACTING_CONTENT
+        )).thenReturn(1);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.RECOVERING_STRUCTURE
+        )).thenReturn(64);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.GENERATING_DOCUMENT
+        )).thenReturn(67);
+
+        when(jobEtaCalculator.calculateProgressPercentForPhase(
+                JobPhase.SAVING_OUTPUT
+        )).thenReturn(99);
+
         conversionWorker =
                 new ConversionWorker(
                         jobService,
@@ -60,7 +81,8 @@ class ConversionWorkerTest {
                         pdfExtractionService,
                         wordWriterService,
                         documentMetricsService,
-                        jobMetricsService
+                        jobMetricsService,
+                        jobEtaCalculator
                 );
     }
 
@@ -161,7 +183,7 @@ class ConversionWorkerTest {
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.EXTRACTING_CONTENT,
-                25
+                1
         );
 
         verify(pdfExtractionService)
@@ -170,7 +192,7 @@ class ConversionWorkerTest {
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.RECOVERING_STRUCTURE,
-                55
+                64
         );
 
 
@@ -183,7 +205,7 @@ class ConversionWorkerTest {
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.GENERATING_DOCUMENT,
-                75
+                67
         );
 
         verify(wordWriterService)
@@ -198,7 +220,7 @@ class ConversionWorkerTest {
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.SAVING_OUTPUT,
-                90
+                99
         );
 
         verify(fileStorageService)
@@ -266,7 +288,7 @@ class ConversionWorkerTest {
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.EXTRACTING_CONTENT,
-                25
+                1
         );
 
         verify(jobService)

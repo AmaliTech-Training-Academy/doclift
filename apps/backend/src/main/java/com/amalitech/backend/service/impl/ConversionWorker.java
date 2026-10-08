@@ -26,6 +26,7 @@ public class ConversionWorker {
     private final WordWriterService wordWriterService;
     private final DocumentMetricsService documentMetricsService;
     private final JobMetricsService jobMetricsService;
+    private final JobEtaCalculator jobEtaCalculator;
 
     public ConversionWorker(
             JobService jobService,
@@ -33,7 +34,8 @@ public class ConversionWorker {
             PdfExtractionService pdfExtractionService,
             WordWriterService wordWriterService,
             DocumentMetricsService documentMetricsService,
-            JobMetricsService jobMetricsService
+            JobMetricsService jobMetricsService,
+            JobEtaCalculator jobEtaCalculator
     ) {
         this.jobService = jobService;
         this.fileStorageService = fileStorageService;
@@ -41,6 +43,7 @@ public class ConversionWorker {
         this.wordWriterService = wordWriterService;
         this.documentMetricsService = documentMetricsService;
         this.jobMetricsService = jobMetricsService;
+        this.jobEtaCalculator = jobEtaCalculator;
     }
 
     @Async("conversionExecutor")
@@ -55,7 +58,9 @@ public class ConversionWorker {
             jobService.updateProgress(
                     jobId,
                     JobPhase.EXTRACTING_CONTENT,
-                    25
+                    jobEtaCalculator.calculateProgressPercentForPhase(
+                            JobPhase.EXTRACTING_CONTENT
+                    )
             );
 
             PdfExtractionResult extractionResult;
@@ -67,7 +72,9 @@ public class ConversionWorker {
             jobService.updateProgress(
                     jobId,
                     JobPhase.RECOVERING_STRUCTURE,
-                    55
+                    jobEtaCalculator.calculateProgressPercentForPhase(
+                            JobPhase.RECOVERING_STRUCTURE
+                    )
             );
 
             int sourceWordCount =
@@ -83,7 +90,9 @@ public class ConversionWorker {
             jobService.updateProgress(
                     jobId,
                     JobPhase.GENERATING_DOCUMENT,
-                    75
+                    jobEtaCalculator.calculateProgressPercentForPhase(
+                            JobPhase.GENERATING_DOCUMENT
+                    )
             );
 
             byte[] docx =
@@ -117,9 +126,10 @@ public class ConversionWorker {
             jobService.updateProgress(
                     jobId,
                     JobPhase.SAVING_OUTPUT,
-                    90
+                    jobEtaCalculator.calculateProgressPercentForPhase(
+                            JobPhase.SAVING_OUTPUT
+                    )
             );
-
             Path outputPath =
                     fileStorageService.storeOutputDocx(
                             jobId,
