@@ -5,7 +5,7 @@ import { ConversionSession, ConversionStatus, saveConversionSession, clearConver
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile } from "@/lib/uploadApi";
 import { useJobPolling } from "@/lib/useJobPolling";
-import { usePurgeCountdown, PURGE_TTL_SECONDS } from "@/lib/usePurgeCountdown";
+import { usePurgeCountdown } from "@/lib/usePurgeCountdown";
 import { JobStatusResponse } from "@/lib/jobApi";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
 import { toast } from "sonner";
@@ -250,7 +250,6 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     useJobPolling({
         jobId: session?.jobId,
         enabled: isConverting,
-        intervalMs: 5000,
         onComplete: (data) => {
             updateStatus("done", undefined, data);
             setActiveView("result");
@@ -263,18 +262,12 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 clearTimeout(initialPurgeToastTimerRef.current);
             }
             initialPurgeToastTimerRef.current = setTimeout(() => {
-                if (typeof toast?.info === "function") {
-                    const purgeMinutes = Math.ceil(PURGE_TTL_SECONDS / 60);
-                    const purgeText =
-                        PURGE_TTL_SECONDS < 60
-                            ? `${PURGE_TTL_SECONDS} seconds`
-                            : `${purgeMinutes} minutes`;
-
-                    toast.info("Auto-Purge Notice", {
-                        description: `Your file will only be available for download for ${purgeText}.`,
+                if (typeof toast?.warning === "function") {
+                    toast.warning("Auto-Purge Warning", {
+                        description: "Your file will be purged in 30 minutes. Please download your Word document soon.",
                     });
                 }
-            }, 5000);
+            }, 3000);
         },
         onFailed: (err) => {
             updateStatus("failed");
@@ -286,19 +279,8 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (purgeTimeRemaining === null || session?.status !== "done") {
-            hasWarned30MinRef.current = false;
             hasExpiredRef.current = false;
             return;
-        }
-
-        // 30-minute warning toast
-        if (purgeTimeRemaining <= 30 * 60 && purgeTimeRemaining > 0 && !hasWarned30MinRef.current) {
-            hasWarned30MinRef.current = true;
-            if (typeof toast?.warning === "function") {
-                toast.warning("Auto-Purge Warning", {
-                    description: "Your file will be purged in 30 minutes. Please download your Word document soon.",
-                });
-            }
         }
 
         // Purge expired toast and automatic reset after 2 seconds

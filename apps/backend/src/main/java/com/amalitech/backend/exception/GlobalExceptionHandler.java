@@ -132,4 +132,16 @@ public class GlobalExceptionHandler {
                         ex.getMessage()
                 ));
     }
+
+    @ExceptionHandler(JobFileExpiredException.class)
+    public ResponseEntity<ApiErrorResponse> handleJobFileExpired(
+            JobFileExpiredException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.GONE)
+                .body(new ApiErrorResponse(
+                        "FILE_EXPIRED",
+                        ex.getMessage()
+                ));
+    }
 }

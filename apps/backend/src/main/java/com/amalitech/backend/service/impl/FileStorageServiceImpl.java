@@ -65,10 +65,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     @Override
     public Path getSourcePdfPath(UUID jobId) {
 
-        Path sourcePath =
-                uploadRoot
-                        .resolve(jobId.toString())
-                        .resolve("source.pdf");
+        Path sourcePath = resolveSourcePdfPath(jobId);
 
         if (!Files.exists(sourcePath)) {
             throw new IllegalStateException(
@@ -80,15 +77,21 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
+    public Path resolveSourcePdfPath(UUID jobId) {
+        return resolveJobDirectory(jobId).resolve("source.pdf");
+    }
+
+    private Path resolveJobDirectory(UUID jobId) {
+        return uploadRoot.resolve(jobId.toString());
+    }
+
+    @Override
     public Path storeOutputDocx(
             UUID jobId,
             byte[] content
     ) {
 
-        Path jobDirectory =
-                uploadRoot.resolve(
-                        jobId.toString()
-                );
+        Path jobDirectory = resolveJobDirectory(jobId);
 
         Path outputPath =
                 jobDirectory.resolve(
@@ -117,7 +120,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Override
     public Path moveToJobDirectory(Path temporaryFile, UUID jobId) {
-        Path jobDirectory = uploadRoot.resolve(jobId.toString());
+        Path jobDirectory = resolveJobDirectory(jobId);
         Path targetPath = jobDirectory.resolve("source.pdf");
 
         try {

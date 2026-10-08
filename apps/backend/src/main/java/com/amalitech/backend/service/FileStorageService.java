@@ -22,4 +22,6 @@ public interface FileStorageService {
     );
 
     void deleteIfExists(Path path);
+
+    Path resolveSourcePdfPath(UUID jobId);
 }
