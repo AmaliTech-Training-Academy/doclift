@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export const PURGE_TTL_SECONDS = 60 * 30;
+export const PURGE_TTL_SECONDS = 30 * 60;
 
 export function usePurgeCountdown(
   completedAt?: number,

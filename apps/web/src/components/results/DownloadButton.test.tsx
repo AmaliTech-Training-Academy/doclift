@@ -86,7 +86,9 @@ describe("DownloadButton", () => {
     await user.click(screen.getByRole("button", { name: /download/i }));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Download failed. Please try again.");
+      expect(toast.error).toHaveBeenCalledWith("Download failed", {
+        description: "Downloading your file was unsuccessful. Try again.",
+      });
     });
     expect(consoleSpy).toHaveBeenCalledWith("Download failed:", error);
     expect(screen.getByRole("button", { name: /^download$/i })).toBeEnabled();

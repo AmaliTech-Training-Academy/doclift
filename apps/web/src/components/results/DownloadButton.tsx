@@ -19,7 +19,9 @@ export default function DownloadButton({ jobId }: { jobId: string }) {
     } catch (error) {
       console.error("Download failed:", error);
       setStatus("error");
-      toast.error("Download failed. Please try again.");
+      toast.error("Download failed", {
+        description: "Downloading your file was unsuccessful. Try again.",
+      });
     }
   }
 
