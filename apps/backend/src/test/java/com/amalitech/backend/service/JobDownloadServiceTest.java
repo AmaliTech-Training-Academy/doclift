@@ -1,6 +1,7 @@
 package com.amalitech.backend.service;
 
 import com.amalitech.backend.exception.JobFailedException;
+import com.amalitech.backend.exception.JobFileExpiredException;
 import com.amalitech.backend.exception.JobNotReadyException;
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.model.JobFile;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -197,6 +199,54 @@ class JobDownloadServiceTest {
         assertEquals(
                 "Converted output file is missing.",
                 exception.getMessage()
+        );
+    }
+
+    @Test
+    void shouldRejectJobWhoseFilesWereCleanedUp()
+            throws Exception {
+
+        Path outputPath =
+                tempDir.resolve(
+                        "output.docx"
+                );
+
+        Files.write(
+                outputPath,
+                "docx-content".getBytes()
+        );
+
+        Job job =
+                new Job();
+
+        job.setStatus(
+                JobStatus.DONE
+        );
+
+        job.setSourceFilename(
+                "sample.pdf"
+        );
+
+        JobFile jobFile =
+                new JobFile(
+                        job,
+                        outputPath.toString(),
+                        123L
+                );
+
+        job.setFile(
+                jobFile
+        );
+
+        job.setFilesDeletedAt(
+                Instant.now()
+        );
+
+        assertThrows(
+                JobFileExpiredException.class,
+                () ->
+                        jobDownloadService
+                                .prepareDownload(job)
         );
     }
 }

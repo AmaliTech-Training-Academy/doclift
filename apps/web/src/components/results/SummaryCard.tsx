@@ -27,7 +27,7 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
     ? (remaining / PURGE_TTL_SECONDS) * 100
     : item.progress;
   const purgeText = !hasCountdown
-    ? "Auto-purges in 60m"
+    ? "Auto-purges in 30m"
     : remaining > 0
       ? `Auto-purges in ${Math.ceil(remaining / 60)}m`
       : "Purged";
