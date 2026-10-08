@@ -20,7 +20,7 @@ export interface UseJobPollingOptions {
 export function useJobPolling({
   jobId,
   enabled = true,
-  intervalMs = 500,
+  intervalMs = 5000,
   maxConsecutiveErrors = 5,
   onStatusChange,
   onComplete,

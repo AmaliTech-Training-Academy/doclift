@@ -1,40 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { forwardRef, useImperativeHandle, useEffect } from "react";
-import type { PipelineProgress } from "../ui/Stepper";
-import { useConversion } from "../../context/ConversionContext";
+import { render, screen } from "@testing-library/react";
+import type { JobStatusResponse } from "@/lib/pollingApi";
 import type { ConversionSession } from "@/lib/conversionSession";
 
-const stepperMocks = vi.hoisted(() => ({
-  onProgress: undefined as ((state: PipelineProgress) => void) | undefined,
-  fail: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  job: null as JobStatusResponse | null,
+  notFound: false,
+  session: null as ConversionSession | null,
+  updateStatus: vi.fn(),
 }));
 
-vi.mock("../ui/Stepper", () => ({
-  StepperDemo: forwardRef(function MockStepper(
-    props: { onProgress?: (state: PipelineProgress) => void },
-    ref,
-  ) {
-    stepperMocks.onProgress = props.onProgress;
-    useImperativeHandle(ref, () => ({
-      fail: stepperMocks.fail,
-      failed: stepperMocks.fail,
-      complete: () => {},
-    }));
-    return null;
-  }),
-  VerticalStepperDemo: forwardRef(function MockStepper(
-    props: { onProgress?: (state: PipelineProgress) => void },
-    ref,
-  ) {
-    stepperMocks.onProgress = props.onProgress;
-    useImperativeHandle(ref, () => ({
-      fail: stepperMocks.fail,
-      failed: stepperMocks.fail,
-      complete: () => {},
-    }));
-    return null;
+vi.mock("@/context/ConversionContext", () => ({
+  useConversion: () => ({
+    session: mocks.session,
+    updateStatus: mocks.updateStatus,
   }),
 }));
 
@@ -44,156 +23,116 @@ vi.mock("sonner", () => ({
 
 import ProgressCard from "./ProgressCard";
 import { toast } from "sonner";
-import { ConversionProvider } from "@/context/ConversionContext";
 
-function renderWithProvider() {
-  return render(
-    <ConversionProvider>
-      <ProgressCard />
-    </ConversionProvider>,
-  );
-}
-
-function emitProgress(overrides: Partial<PipelineProgress> = {}) {
-  const state: PipelineProgress = {
-    activeIndex: 0,
-    totalSteps: 5,
-    currentStepPercent: 0,
-    overallPercent: 0,
-    done: false,
+function makeJob(overrides: Partial<JobStatusResponse> = {}): JobStatusResponse {
+  return {
+    jobId: "job-1",
+    status: "PROCESSING",
+    sourceFilename: "sample.pdf",
+    pageCount: 3,
+    createdAt: null,
+    startedAt: null,
+    completedAt: null,
+    phase: "LOADING_SOURCE",
+    progressPercent: 10,
+    durationSeconds: null,
+    estimatedRemainingSeconds: null,
+    estimatedTotalSeconds: null,
+    currentPhaseEstimatedRemainingSeconds: null,
+    output: null,
+    metrics: null,
     ...overrides,
   };
-  act(() => stepperMocks.onProgress?.(state));
+}
+
+function makeSession(
+  overrides: Partial<ConversionSession> = {},
+): ConversionSession {
+  return {
+    jobId: "job-1",
+    fileName: "sample.pdf",
+    status: "processing",
+    updatedAt: 0,
+    ...overrides,
+  };
 }
 
 describe("ProgressCard", () => {
   beforeEach(() => {
-    stepperMocks.fail.mockClear();
+    mocks.job = null;
+    mocks.notFound = false;
+    mocks.session = makeSession();
+    mocks.updateStatus.mockClear();
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.success).mockClear();
   });
 
-  it("renders the initial state at 0% on phase 1", () => {
-    renderWithProvider();
+  it("renders a queued state before any status arrives", () => {
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(screen.getByText("0%")).toBeInTheDocument();
-    expect(screen.getByText("Phase 1 of 5:")).toBeInTheDocument();
-    expect(
-      screen.getByText("Initializing document processing..."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Queued:")).toBeInTheDocument();
+    expect(screen.getByText("Waiting in queue...")).toBeInTheDocument();
   });
 
-  it("reflects progress reported by the stepper", () => {
-    renderWithProvider();
+  it("reflects the backend phase and progress percent", () => {
+    mocks.job = makeJob({ phase: "RECOVERING_STRUCTURE", progressPercent: 55 });
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
-    emitProgress({ activeIndex: 2, overallPercent: 45 });
-
-    expect(screen.getByText("45%")).toBeInTheDocument();
+    expect(screen.getByText("55%")).toBeInTheDocument();
     expect(screen.getByText("Phase 3 of 5:")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Reconstructing tabular data structures and nested headers...",
-      ),
+      screen.getByText("Reconstructing tables, headings, lists and paragraphs..."),
     ).toBeInTheDocument();
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
   });
 
-  it("shows the final phase description and a check icon once the last phase is reached", () => {
-    renderWithProvider();
-
-    emitProgress({ activeIndex: 4, overallPercent: 95 });
-
-    expect(screen.getByText("Phase 5 of 5:")).toBeInTheDocument();
-    expect(
-      screen.getByText("Finalizing the document reconstruction process..."),
-    ).toBeInTheDocument();
-  });
-
-  it("triggers failure when the simulate failure button is clicked", async () => {
-    const user = userEvent.setup();
-    renderWithProvider();
-
-    const failureButton = screen.getByRole("button", { name: /simulate failure/i });
-    await user.click(failureButton);
-
-    expect(stepperMocks.fail).toHaveBeenCalledTimes(1);
-    expect(toast.error).toHaveBeenCalledWith("Conversion failed", {
-      description: "DocLift could not convert your document.",
+  it("marks the session done with the backend duration when the job finishes", () => {
+    mocks.job = makeJob({
+      status: "DONE",
+      phase: "COMPLETED",
+      progressPercent: 100,
+      durationSeconds: 12,
+      output: {
+        filename: "sample.docx",
+        sizeBytes: 48213,
+        downloadUrl: "/api/v1/jobs/job-1/download",
+      },
     });
-    expect(
-      screen.getByRole("button", { name: "Simulated failure" }),
-    ).toBeDisabled();
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
+
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByText("Phase 5 of 5:")).toBeInTheDocument();
+    expect(mocks.updateStatus).toHaveBeenCalledWith("done", 12, 48213);
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
-  it("ignores repeated failure button clicks", async () => {
-    const user = userEvent.setup();
-    renderWithProvider();
+  it("marks the session failed when the job fails", () => {
+    mocks.job = makeJob({ status: "FAILED", phase: "EXTRACTING_CONTENT" });
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
-    const failureButton = screen.getByRole("button", { name: /simulate failure/i });
-    await user.click(failureButton);
-    // Button is now disabled, so a second click is a no-op through the DOM,
-    // but we also guard in the handler itself.
-    expect(stepperMocks.fail).toHaveBeenCalledTimes(1);
-    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(mocks.updateStatus).toHaveBeenCalledWith("failed");
+    expect(toast.error).toHaveBeenCalledWith("Conversion failed");
   });
 
-  it("disables the button and shows completion copy once the pipeline is done", () => {
-    renderWithProvider();
+  it("marks the session failed when the job no longer exists", () => {
+    mocks.notFound = true;
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
-    emitProgress({ activeIndex: 5, overallPercent: 100, done: true });
-
-    expect(
-      screen.getByRole("button", { name: "Conversion Completed" }),
-    ).toBeDisabled();
+    expect(mocks.updateStatus).toHaveBeenCalledWith("failed");
   });
 
-  it("renders the error state card and updates session status to failed when the pipeline reports an error", async () => {
-    function StatusProbe({
-      onSession,
-    }: {
-      onSession: (session: ConversionSession | null) => void;
-    }) {
-      const { session, startConversion } = useConversion();
-
-      useEffect(() => {
-        if (!session) {
-          startConversion(
-            new File(["test"], "sample.pdf", { type: "application/pdf" }),
-          );
-        }
-      }, [session, startConversion]);
-
-      useEffect(() => {
-        onSession(session);
-      }, [session, onSession]);
-
-      return <ProgressCard />;
-    }
-
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 201,
-      json: async () => ({ jobId: 999 }),
-    } as unknown as Response);
-
-    const tracker = { session: null as ConversionSession | null };
-    render(
-      <ConversionProvider>
-        <StatusProbe onSession={(s) => (tracker.session = s)} />
-      </ConversionProvider>,
-    );
-
-    await waitFor(() => expect(tracker.session).not.toBeNull());
-
-    emitProgress({ error: "Something went wrong" });
+  it("renders the error state card when the session has failed", () => {
+    mocks.session = makeSession({ status: "failed" });
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(
       screen.getByRole("heading", { name: /conversion couldn't be completed/i }),
     ).toBeInTheDocument();
-    expect(tracker.session?.status).toBe("failed");
   });
 
   it("does not render the error state card by default", () => {
-    renderWithProvider();
+    render(<ProgressCard job={mocks.job} notFound={mocks.notFound} />);
 
     expect(
       screen.queryByRole("heading", { name: /conversion couldn't be completed/i }),

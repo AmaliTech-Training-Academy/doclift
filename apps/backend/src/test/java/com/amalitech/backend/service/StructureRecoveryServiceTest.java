@@ -834,7 +834,7 @@ class StructureRecoveryServiceTest {
     }
 
     @Test
-    void shouldDetectBoldColonLabelAsHeading() {
+    void shouldNotDetectBodySizedBoldColonLabelAsHeading() {
 
         PageExtraction page =
                 new PageExtraction(0);
@@ -842,13 +842,63 @@ class StructureRecoveryServiceTest {
         page.getTextSpans().add(
                 new TextSpan(
                         0,
-                        "Lowercase Roman numerals:",
+                        "Name:",
                         50,
                         50,
                         200,
                         12,
                         "Helvetica-Bold",
                         12,
+                        true,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Normal body text",
+                        50,
+                        100,
+                        200,
+                        12,
+                        "Helvetica",
+                        12,
+                        false,
+                        false,
+                        false,
+                        false
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertEquals(
+                BlockType.PARAGRAPH,
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getType()
+        );
+    }
+
+    @Test
+    void shouldDetectLargerBoldColonLabelAsHeading() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getTextSpans().add(
+                new TextSpan(
+                        0,
+                        "Important Information:",
+                        50,
+                        50,
+                        220,
+                        14,
+                        "Helvetica-Bold",
+                        14,
                         true,
                         false,
                         false,
@@ -996,9 +1046,9 @@ class StructureRecoveryServiceTest {
                         50,
                         50,
                         220,
-                        12,
+                        14,
                         "Helvetica-Bold",
-                        12,
+                        14,
                         true,
                         false,
                         false,

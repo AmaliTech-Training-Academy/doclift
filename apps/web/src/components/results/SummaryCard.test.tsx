@@ -93,7 +93,7 @@ describe("SummaryCard", () => {
         const item: SummaryCardItem = {
             id: 5,
             title: "Secure Session Lifespan",
-            description: "Cache purges after 60 minutes.",
+            description: "Cache purges after 30 minutes.",
             icon: ShieldCheck,
             badge: "00:00",
             variant: "session",
@@ -102,14 +102,14 @@ describe("SummaryCard", () => {
 
         const { container } = render(<SummaryCard item={item} completedAt={completedAt} />);
 
-        expect(screen.getAllByText("45:00")).toHaveLength(2);
-        expect(screen.getByText("Auto-purges in 45m")).toBeInTheDocument();
-        expect(container.querySelector('div[style*="width: 75%"]')).toBeInTheDocument();
+        expect(screen.getAllByText("15:00")).toHaveLength(2);
+        expect(screen.getByText("Auto-purges in 15m")).toBeInTheDocument();
+        expect(container.querySelector('div[style*="width: 50%"]')).toBeInTheDocument();
 
         act(() => {
             vi.advanceTimersByTime(1000);
         });
-        expect(screen.getAllByText("44:59")).toHaveLength(2);
+        expect(screen.getAllByText("14:59")).toHaveLength(2);
 
         act(() => {
             vi.advanceTimersByTime(45 * 60 * 1000);

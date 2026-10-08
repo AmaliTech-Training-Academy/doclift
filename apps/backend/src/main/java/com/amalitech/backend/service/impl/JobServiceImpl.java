@@ -48,15 +48,8 @@ public class JobServiceImpl implements JobService {
             job.setStartedAt(now);
         }
 
-        logPhaseTransition(
-                job,
-                JobPhase.LOADING_SOURCE,
-                10,
-                now
-        );
-
         job.setPhase(JobPhase.LOADING_SOURCE);
-        job.setProgressPercent(10);
+        job.setProgressPercent(0);
         job.setPhaseStartedAt(now);
 
         return job;
@@ -102,6 +95,9 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public Job markFailed(UUID jobId) {
         Job job = getJobOrThrow(jobId);
+
+        Instant now = Instant.now();
+
         job.setStatus(JobStatus.FAILED);
         job.setCompletedAt(Instant.now());
         return job;

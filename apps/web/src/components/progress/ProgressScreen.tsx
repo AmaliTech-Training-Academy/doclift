@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import ProgressCard from "./ProgressCard";
 import HeaderBar from "./HeaderBar";
 import { useConversion } from "@/context/ConversionContext";
+import { useJobStatus } from "@/app/hooks/useJobStatus";
 
 const ProgressScreen = () => {
   const { file, session, setActiveView } = useConversion();
+  const isActive =
+    session?.status === "queued" || session?.status === "processing";
+  const { job, notFound } = useJobStatus(isActive ? session.jobId : null);
 
   const [timeElapsed, setTimeElapsed] = useState(() => {
     if (session?.createdAt) {
@@ -22,7 +26,8 @@ const ProgressScreen = () => {
     }
   }, [session?.status]);
 
-  const timeRemaining = 0;
+  const timeRemaining =
+    session?.status === "done" ? 0 : (job?.estimatedRemainingSeconds ?? null);
 
   useEffect(() => {
     if (session?.status === "done") {
@@ -44,7 +49,7 @@ const ProgressScreen = () => {
           timeRemaining={timeRemaining}
         />
       )}
-      <ProgressCard />
+      <ProgressCard job={job} notFound={notFound} />
     </div>
   );
 };
