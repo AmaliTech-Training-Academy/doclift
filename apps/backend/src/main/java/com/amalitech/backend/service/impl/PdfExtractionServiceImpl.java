@@ -187,8 +187,28 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             PageExtraction pageExtraction,
             List<DetectedTable> tables
     ) {
-        for (DetectedTable table : tables) {
-            mergeDetectedTable(pageExtraction, table);
+        if (tables == null || tables.isEmpty()) {
+            return;
+        }
+
+        List<StructuredBlock> tableBlocks =
+                tables.stream()
+                        .map(this::toTableBlock)
+                        .sorted(
+                                Comparator
+                                        .comparing(StructuredBlock::getY)
+                                        .thenComparing(StructuredBlock::getX)
+                        )
+                        .toList();
+
+        List<StructuredBlock> mergedBlocks =
+                mergeHorizontalTableFragments(tableBlocks);
+
+        for (StructuredBlock tableBlock : mergedBlocks) {
+            mergeDetectedTableBlock(
+                    pageExtraction,
+                    tableBlock
+            );
         }
     }
 
@@ -352,9 +372,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
             return;
         }
 
-        TextSpan candidate = spans.get(0);
+        TextSpan candidate = spans.getFirst();
 
-        if (!looksLikeFootnoteMarker(candidate, maxMarkerFontSize)) {
+        if (looksLikeFootnoteMarker(candidate, maxMarkerFontSize)) {
             return;
         }
 
@@ -365,15 +385,15 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
 
         block.setFootnoteKey(key);
-        spans.remove(0);
+        spans.removeFirst();
     }
 
     private boolean looksLikeFootnoteMarker(
             TextSpan span,
             float maxMarkerFontSize
     ) {
-        return span.getFontSize() > 0f
-                && span.getFontSize() < maxMarkerFontSize;
+        return !(span.getFontSize() > 0f)
+                || !(span.getFontSize() < maxMarkerFontSize);
     }
 
     private void applyFootnoteReferenceToTable(
@@ -395,7 +415,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                 if (cell.rowSpan() < 1
                         || cell.spans() == null
                         || cell.spans().isEmpty()
-                        || !looksLikeFootnoteMarker(cell.spans().getFirst(), maxMarkerFontSize)) {
+                        || looksLikeFootnoteMarker(cell.spans().getFirst(), maxMarkerFontSize)) {
                     continue;
                 }
 
@@ -429,21 +449,671 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
     }
 
-    private void mergeDetectedTable(
-            PageExtraction pageExtraction,
-            DetectedTable table
+    private List<StructuredBlock> mergeHorizontalTableFragments(
+            List<StructuredBlock> tables
     ) {
-        List<StructuredBlock> blocks = pageExtraction.getStructuredBlocks();
-        List<StructuredBlock> remaining = new ArrayList<>();
+        if (tables.size() < 2) {
+            return tables;
+        }
 
-        int insertIndex = -1;
+        List<StructuredBlock> result =
+                new ArrayList<>();
+
+        boolean[] consumed =
+                new boolean[tables.size()];
+
+        for (int i = 0; i < tables.size(); i++) {
+
+            if (consumed[i]) {
+                continue;
+            }
+
+            StructuredBlock current =
+                    tables.get(i);
+
+            for (int j = i + 1; j < tables.size(); j++) {
+
+                if (consumed[j]) {
+                    continue;
+                }
+
+                StructuredBlock candidate =
+                        tables.get(j);
+
+                if (!areHorizontalTableFragments(
+                        current,
+                        candidate
+                )) {
+                    continue;
+                }
+
+                current =
+                        mergeHorizontalTableBlocks(
+                                current,
+                                candidate
+                        );
+
+                consumed[j] = true;
+            }
+
+            result.add(current);
+        }
+
+        return result;
+    }
+
+    private boolean areHorizontalTableFragments(
+            StructuredBlock first,
+            StructuredBlock second
+    ) {
+        if (first.getPageIndex()
+                != second.getPageIndex()) {
+            return false;
+        }
+
+        StructuredBlock left =
+                first.getX() <= second.getX()
+                        ? first
+                        : second;
+
+        StructuredBlock right =
+                left == first
+                        ? second
+                        : first;
+
+        float overlapTop =
+                Math.max(
+                        left.getY(),
+                        right.getY()
+                );
+
+        float overlapBottom =
+                Math.min(
+                        left.getY() + left.getHeight(),
+                        right.getY() + right.getHeight()
+                );
+
+        float verticalOverlap =
+                Math.max(
+                        0f,
+                        overlapBottom - overlapTop
+                );
+
+        float smallerHeight =
+                Math.min(
+                        left.getHeight(),
+                        right.getHeight()
+                );
+
+        if (smallerHeight <= 0f) {
+            return false;
+        }
+
+        float overlapRatio =
+                verticalOverlap / smallerHeight;
+
+        if (overlapRatio < 0.80f) {
+            return false;
+        }
+
+        float horizontalGap =
+                right.getX()
+                        - (
+                        left.getX()
+                                + left.getWidth()
+                );
+
+        if (horizontalGap < -4f
+                || horizontalGap > 16f) {
+            return false;
+        }
+
+        List<List<TableCell>> leftRows =
+                left.getTableRows();
+
+        List<List<TableCell>> rightRows =
+                right.getTableRows();
+
+        return leftRows != null
+                && rightRows != null
+                && !leftRows.isEmpty()
+                && !rightRows.isEmpty();
+    }
+
+    private StructuredBlock mergeHorizontalTableBlocks(
+            StructuredBlock first,
+            StructuredBlock second
+    ) {
+        StructuredBlock left =
+                first.getX() <= second.getX()
+                        ? first
+                        : second;
+
+        StructuredBlock right =
+                left == first
+                        ? second
+                        : first;
+
+        List<List<TableCell>> mergedRows =
+                mergeTableRowsByY(
+                        left.getTableRows(),
+                        right.getTableRows()
+                );
+
+        List<Float> mergedColumnWidths =
+                new ArrayList<>();
+
+        if (left.getColumnWidths() != null) {
+            mergedColumnWidths.addAll(
+                    left.getColumnWidths()
+            );
+        }
+
+        if (right.getColumnWidths() != null) {
+            mergedColumnWidths.addAll(
+                    right.getColumnWidths()
+            );
+        }
+
+        float minX =
+                Math.min(
+                        left.getX(),
+                        right.getX()
+                );
+
+        float minY =
+                Math.min(
+                        left.getY(),
+                        right.getY()
+                );
+
+        float maxX =
+                Math.max(
+                        left.getX() + left.getWidth(),
+                        right.getX() + right.getWidth()
+                );
+
+        float maxY =
+                Math.max(
+                        left.getY() + left.getHeight(),
+                        right.getY() + right.getHeight()
+                );
+
+        StructuredBlock merged =
+                new StructuredBlock(
+                        left.getPageIndex(),
+                        BlockType.TABLE,
+                        buildTableText(mergedRows),
+                        minX,
+                        minY,
+                        maxX - minX,
+                        maxY - minY,
+                        List.of(),
+                        mergedRows
+                );
+
+        merged.setColumnWidths(
+                mergedColumnWidths
+        );
+
+        merged.setRowHeights(
+                mergeRowHeightsByY(
+                        left,
+                        right,
+                        mergedRows.size()
+                )
+        );
+
+        return merged;
+    }
+
+    private List<List<TableCell>> mergeTableRowsByY(
+            List<List<TableCell>> leftRows,
+            List<List<TableCell>> rightRows
+    ) {
+        List<RowBand> allBands =
+                new ArrayList<>();
+
+        for (int i = 0; i < leftRows.size(); i++) {
+            allBands.add(
+                    new RowBand(
+                            rowY(leftRows.get(i)),
+                            i,
+                            true
+                    )
+            );
+        }
+
+        for (int i = 0; i < rightRows.size(); i++) {
+            allBands.add(
+                    new RowBand(
+                            rowY(rightRows.get(i)),
+                            i,
+                            false
+                    )
+            );
+        }
+
+        allBands.sort(
+                Comparator.comparing(RowBand::y)
+        );
+
+        List<RowGroup> groups =
+                new ArrayList<>();
+
+        for (RowBand band : allBands) {
+
+            if (groups.isEmpty()
+                    || Math.abs(
+                    groups.getLast().y()
+                            - band.y()
+            ) > 4f) {
+
+                groups.add(
+                        new RowGroup(
+                                band.y(),
+                                band.left()
+                                        ? band.rowIndex()
+                                        : null,
+                                band.left()
+                                        ? null
+                                        : band.rowIndex()
+                        )
+                );
+
+                continue;
+            }
+
+            RowGroup last =
+                    groups.removeLast();
+
+            groups.add(
+                    band.left()
+                            ? new RowGroup(
+                            last.y(),
+                            band.rowIndex(),
+                            last.rightRow()
+                    )
+                            : new RowGroup(
+                            last.y(),
+                            last.leftRow(),
+                            band.rowIndex()
+                    )
+            );
+        }
+
+        Map<Integer, Integer> leftRowMap =
+                new HashMap<>();
+
+        Map<Integer, Integer> rightRowMap =
+                new HashMap<>();
+
+        for (int mergedRow = 0;
+             mergedRow < groups.size();
+             mergedRow++) {
+
+            RowGroup group =
+                    groups.get(mergedRow);
+
+            if (group.leftRow() != null) {
+                leftRowMap.put(
+                        group.leftRow(),
+                        mergedRow
+                );
+            }
+
+            if (group.rightRow() != null) {
+                rightRowMap.put(
+                        group.rightRow(),
+                        mergedRow
+                );
+            }
+        }
+
+        int leftColumnCount =
+                leftRows.getFirst().size();
+
+        int rightColumnCount =
+                rightRows.getFirst().size();
+
+        List<List<TableCell>> merged =
+                new ArrayList<>();
+
+        for (int mergedRow = 0;
+             mergedRow < groups.size();
+             mergedRow++) {
+
+            RowGroup group =
+                    groups.get(mergedRow);
+
+            List<TableCell> row =
+                    new ArrayList<>();
+
+            if (group.leftRow() != null) {
+
+                row.addAll(
+                        remapRow(
+                                leftRows,
+                                group.leftRow(),
+                                mergedRow,
+                                0,
+                                leftRowMap
+                        )
+                );
+
+            } else {
+
+                row.addAll(
+                        blankCells(
+                                mergedRow,
+                                leftColumnCount,
+                                0
+                        )
+                );
+            }
+
+            if (group.rightRow() != null) {
+
+                row.addAll(
+                        remapRow(
+                                rightRows,
+                                group.rightRow(),
+                                mergedRow,
+                                leftColumnCount,
+                                rightRowMap
+                        )
+                );
+
+            } else {
+
+                row.addAll(
+                        blankCells(
+                                mergedRow,
+                                rightColumnCount,
+                                leftColumnCount
+                        )
+                );
+            }
+
+            merged.add(row);
+        }
+
+        return merged;
+    }
+
+    private float rowY(
+            List<TableCell> row
+    ) {
+        return row.stream()
+                .filter(cell ->
+                        cell.spans() != null
+                                && !cell.spans().isEmpty()
+                )
+                .flatMap(cell ->
+                        cell.spans().stream()
+                )
+                .map(TextSpan::getY)
+                .min(Float::compare)
+                .orElse(Float.MAX_VALUE);
+    }
+
+    private List<TableCell> remapRow(
+            List<List<TableCell>> sourceRows,
+            int sourceRowIndex,
+            int targetRowIndex,
+            int columnOffset,
+            Map<Integer, Integer> rowMap
+    ) {
+        List<TableCell> sourceRow =
+                sourceRows.get(sourceRowIndex);
+
+        List<TableCell> result =
+                new ArrayList<>();
+
+        for (int sourceColumn = 0;
+             sourceColumn < sourceRow.size();
+             sourceColumn++) {
+
+            TableCell cell =
+                    sourceRow.get(sourceColumn);
+
+            /*
+             * Anchor cell.
+             *
+             * Preserve its actual row/column span, but expand the row span
+             * when the horizontal merge inserted unmatched rows inside the
+             * original vertical span.
+             */
+            if (cell.rowSpan() >= 1) {
+
+                int mappedRowSpan =
+                        mapRowSpan(
+                                sourceRowIndex,
+                                cell.rowSpan(),
+                                rowMap
+                        );
+
+                result.add(
+                        new TableCell(
+                                targetRowIndex,
+                                columnOffset + sourceColumn,
+                                mappedRowSpan,
+                                Math.max(
+                                        1,
+                                        cell.columnSpan()
+                                ),
+                                cell.text(),
+                                cell.spans(),
+                                cell.footnoteKey()
+                        )
+                );
+
+                continue;
+            }
+
+            /*
+             * Continuation cell.
+             *
+             * rowSpan < 1 means this cell points back to its anchor via
+             * cell.row() / cell.column(). Those coordinates must also be
+             * translated into the merged table.
+             */
+
+            Integer mappedAnchorRow =
+                    rowMap.get(cell.row());
+
+            if (mappedAnchorRow == null) {
+                /*
+                 * Defensive fallback. This should not normally happen,
+                 * because every source row should occur in the merged map.
+                 */
+                result.add(
+                        new TableCell(
+                                targetRowIndex,
+                                columnOffset + sourceColumn,
+                                1,
+                                1,
+                                cell.text(),
+                                cell.spans(),
+                                cell.footnoteKey()
+                        )
+                );
+
+                continue;
+            }
+
+            result.add(
+                    new TableCell(
+                            mappedAnchorRow,
+                            columnOffset + cell.column(),
+                            cell.rowSpan(),
+                            cell.columnSpan(),
+                            cell.text(),
+                            cell.spans(),
+                            cell.footnoteKey()
+                    )
+            );
+        }
+
+        return result;
+    }
+
+    private List<TableCell> blankCells(
+            int row,
+            int count,
+            int columnOffset
+    ) {
+        List<TableCell> cells =
+                new ArrayList<>();
+
+        for (int i = 0; i < count; i++) {
+            cells.add(
+                    new TableCell(
+                            row,
+                            columnOffset + i,
+                            1,
+                            1,
+                            "",
+                            List.of(),
+                            null
+                    )
+            );
+        }
+
+        return cells;
+    }
+
+    private int mapRowSpan(
+            int sourceAnchorRow,
+            int originalRowSpan,
+            Map<Integer, Integer> rowMap
+    ) {
+        if (originalRowSpan <= 1) {
+            return 1;
+        }
+
+        Integer mappedStart =
+                rowMap.get(sourceAnchorRow);
+
+        if (mappedStart == null) {
+            return originalRowSpan;
+        }
+
+        int sourceLastRow =
+                sourceAnchorRow
+                        + originalRowSpan
+                        - 1;
+
+        Integer mappedEnd =
+                rowMap.get(sourceLastRow);
+
+        if (mappedEnd == null) {
+
+            /*
+             * Find the furthest mapped source row that still falls inside
+             * this original vertical span.
+             */
+            mappedEnd = mappedStart;
+
+            for (int row = sourceAnchorRow + 1;
+                 row <= sourceLastRow;
+                 row++) {
+
+                Integer candidate =
+                        rowMap.get(row);
+
+                if (candidate != null) {
+                    mappedEnd =
+                            Math.max(
+                                    mappedEnd,
+                                    candidate
+                            );
+                }
+            }
+        }
+
+        return Math.max(
+                1,
+                mappedEnd - mappedStart + 1
+        );
+    }
+
+    private String buildTableText(
+            List<List<TableCell>> rows
+    ) {
+        StringBuilder text =
+                new StringBuilder();
+
+        for (List<TableCell> row : rows) {
+
+            if (!text.isEmpty()) {
+                text.append('\n');
+            }
+
+            for (int i = 0; i < row.size(); i++) {
+
+                if (i > 0) {
+                    text.append(" | ");
+                }
+
+                String cellText =
+                        row.get(i).text();
+
+                if (cellText != null) {
+                    text.append(cellText);
+                }
+            }
+        }
+
+        return text.toString();
+    }
+
+    private List<Float> mergeRowHeightsByY(
+            StructuredBlock left,
+            StructuredBlock right,
+            int mergedRowCount
+    ) {
+        return null;
+    }
+
+    private record RowBand(
+            float y,
+            int rowIndex,
+            boolean left
+    ) {
+    }
+    private record RowGroup(
+            float y,
+            Integer leftRow,
+            Integer rightRow
+    ) {
+    }
+
+    private void mergeDetectedTableBlock(
+            PageExtraction pageExtraction,
+            StructuredBlock tableBlock
+    ) {
+        List<StructuredBlock> blocks =
+                pageExtraction.getStructuredBlocks();
+
+        List<StructuredBlock> remaining =
+                new ArrayList<>();
+
+        int insertIndex =
+                -1;
 
         for (StructuredBlock block : blocks) {
 
-            if (blockOverlapsTable(block, table)) {
+            if (blockOverlapsTableBlock(
+                    block,
+                    tableBlock
+            )) {
+
                 if (insertIndex == -1) {
-                    insertIndex = remaining.size();
+                    insertIndex =
+                            remaining.size();
                 }
+
                 continue;
             }
 
@@ -451,16 +1121,71 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         }
 
         if (insertIndex == -1) {
-            insertIndex = findInsertionIndexByPosition(remaining, table);
+            insertIndex =
+                    findInsertionIndexByPosition(
+                            remaining,
+                            tableBlock
+                    );
         }
 
         remaining.add(
-                Math.min(insertIndex, remaining.size()),
-                toTableBlock(table)
+                Math.min(
+                        insertIndex,
+                        remaining.size()
+                ),
+                tableBlock
         );
 
         blocks.clear();
         blocks.addAll(remaining);
+    }
+
+    private boolean blockOverlapsTableBlock(
+            StructuredBlock block,
+            StructuredBlock table
+    ) {
+        float centerX =
+                block.getX()
+                        + block.getWidth() / 2f;
+
+        float centerY =
+                block.getY()
+                        + block.getHeight() / 2f;
+
+        return centerX
+                >= table.getX()
+                - TABLE_BLOCK_MERGE_MARGIN
+
+                && centerX
+                <= table.getX()
+                + table.getWidth()
+                + TABLE_BLOCK_MERGE_MARGIN
+
+                && centerY
+                >= table.getY()
+                - TABLE_BLOCK_MERGE_MARGIN
+
+                && centerY
+                <= table.getY()
+                + table.getHeight()
+                + TABLE_BLOCK_MERGE_MARGIN;
+    }
+
+    private int findInsertionIndexByPosition(
+            List<StructuredBlock> remaining,
+            StructuredBlock table
+    ) {
+        for (int i = 0;
+             i < remaining.size();
+             i++) {
+
+            if (remaining.get(i).getY()
+                    > table.getY()) {
+                return i;
+            }
+        }
+
+        return remaining.size();
     }
 
     private int findInsertionIndexByPosition(
@@ -760,8 +1485,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
         boolean wordSeparatorBefore =
                 forceWordSeparatorBefore
                         || (
-                        previousPositionBeforeRun != null
-                                && needsWordSeparator(
+                        needsWordSeparator(
                                 previousPositionBeforeRun,
                                 positions.getFirst()
                         )
@@ -1148,28 +1872,25 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     }
                 }
 
-                if (!currentRun.isEmpty()) {
+                boolean whitespaceOnly =
+                        isWhitespaceOnlyRun(
+                                currentRun
+                        );
 
-                    boolean whitespaceOnly =
-                            isWhitespaceOnlyRun(
-                                    currentRun
-                            );
+                boolean added =
+                        addTextSpanFromRun(
+                                spans,
+                                pageIndex,
+                                currentRun,
+                                previousPositionBeforeRun,
+                                pendingWhitespaceSeparator,
+                                textColors
+                        );
 
-                    boolean added =
-                            addTextSpanFromRun(
-                                    spans,
-                                    pageIndex,
-                                    currentRun,
-                                    previousPositionBeforeRun,
-                                    pendingWhitespaceSeparator,
-                                    textColors
-                            );
-
-                    if (whitespaceOnly) {
-                        pendingWhitespaceSeparator = true;
-                    } else if (added) {
-                        pendingWhitespaceSeparator = false;
-                    }
+                if (whitespaceOnly) {
+                    pendingWhitespaceSeparator = true;
+                } else if (added) {
+                    pendingWhitespaceSeparator = false;
                 }
 
                 lastTextPosition =
