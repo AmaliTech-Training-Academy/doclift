@@ -1618,41 +1618,106 @@ class WordWriterServiceTest {
 
     @Test
     void shouldWriteCompactIndexEntriesWithDottedRightTabLeaders() throws Exception {
-        PdfExtractionResult extractionResult = new PdfExtractionResult();
-        PageExtraction page = new PageExtraction(0);
-        page.getStructuredBlocks().add(paragraphBlock(
-                0,
-                "Table of Contents..............................7",
-                20,
-                40
-        ));
-        page.getStructuredBlocks().add(paragraphBlock(
-                0,
-                "1.1 Nested heading............................12",
-                40,
-                58
-        ));
-        page.getStructuredBlocks().add(paragraphBlock(
-                0,
-                "A deliberately long wrapped list entry that keeps its page number aligned"
-                        + " ..............................................................24",
-                40,
-                76
-        ));
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Table of Contents..............................7",
+                        20,
+                        40
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1.1 Nested heading............................12",
+                        40,
+                        58
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "A deliberately long wrapped list entry that keeps its page number aligned"
+                                + " ..............................................................24",
+                        40,
+                        76
+                )
+        );
+
         extractionResult.getPages().add(page);
 
-        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
-            assertThat(document.getParagraphs()).hasSize(3);
-            assertThat(document.getDocument().xmlText())
-                    .contains("w:val=\"right\"")
-                    .contains("w:leader=\"dot\"")
-                    .contains("Table of Contents\t7")
-                    .contains("1.1 Nested heading\t12");
+        try (
+                XWPFDocument document =
+                        readDocument(
+                                wordWriterService.write(
+                                        extractionResult
+                                )
+                        )
+        ) {
+
             assertThat(document.getParagraphs())
-                    .allSatisfy(paragraph -> {
-                        assertThat(paragraph.getSpacingBefore()).isZero();
-                        assertThat(paragraph.getSpacingAfter()).isZero();
-                    });
+                    .hasSize(3);
+
+            String xml =
+                    document.getDocument()
+                            .xmlText();
+
+            assertThat(xml)
+                    .contains(
+                            "<w:t>Table of Contents</w:t>"
+                    )
+                    .contains(
+                            "<w:t>7</w:t>"
+                    )
+                    .contains(
+                            "<w:t>1.1 Nested heading</w:t>"
+                    )
+                    .contains(
+                            "<w:t>12</w:t>"
+                    )
+                    .contains(
+                            "<w:t>A deliberately long wrapped list entry that keeps its page number aligned</w:t>"
+                    )
+                    .contains(
+                            "<w:t>24</w:t>"
+                    )
+                    .contains(
+                            "<w:tab/>"
+                    )
+                    .contains(
+                            "w:val=\"right\""
+                    )
+                    .contains(
+                            "w:leader=\"dot\""
+                    );
+
+            assertThat(xml)
+                    .doesNotContain(
+                            "Table of Contents\t7"
+                    );
+
+            assertThat(
+                    document.getParagraphs()
+            ).allSatisfy(
+                    paragraph -> {
+                        assertThat(
+                                paragraph.getSpacingBefore()
+                        ).isZero();
+
+                        assertThat(
+                                paragraph.getSpacingAfter()
+                        ).isZero();
+                    }
+            );
         }
     }
 
@@ -3087,6 +3152,143 @@ class WordWriterServiceTest {
                                     )
                             )
             ).isTrue();
+        }
+    }
+
+    @Test
+    void shouldWriteAdjacentTocEntriesAsSeparateParagraphs()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1",
+                        72,
+                        216
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Introduction ......................................................................... 7",
+                        96,
+                        216
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1.1",
+                        83,
+                        236
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Types of health care plug loads ………………………………………… 7",
+                        116,
+                        236
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+            List<String> paragraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(text -> !text.isBlank())
+                            .toList();
+
+            assertThat(paragraphs)
+                    .containsExactly(
+                            "1 Introduction\t7",
+                            "1.1 Types of health care plug loads\t7"
+                    );
+        }
+    }
+
+    @Test
+    void shouldMergeWrappedTocEntryIntoSingleParagraph()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1.4.3",
+                        96,
+                        351
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "LBNL, “Evaluation of Miscellaneous and Electronic Device Energy Use in Hospitals,”",
+                        138,
+                        351
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "(2012)…….. .......................................................................... 11",
+                        96,
+                        364
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            List<String> paragraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(text -> !text.isBlank())
+                            .toList();
+
+            assertThat(paragraphs)
+                    .containsExactly(
+                            "1.4.3 LBNL, “Evaluation of Miscellaneous and Electronic Device Energy Use in Hospitals,” (2012)\t11"
+                    );
         }
     }
 }

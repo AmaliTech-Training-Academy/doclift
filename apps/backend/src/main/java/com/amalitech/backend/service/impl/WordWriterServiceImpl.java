@@ -78,7 +78,9 @@ public class WordWriterServiceImpl implements WordWriterService {
             );
 
     private static final Pattern INDEX_ENTRY_PATTERN =
-            Pattern.compile("^(.+?)(?:\\.{2,}|…{2,}|\\s{3,})(\\d{1,3})$");
+            Pattern.compile(
+                    "^(.+?)(?:\\s*[.…]{2,}[.…\\s]*|\\s{3,})(\\d{1,3})$"
+            );
 
     private static final Pattern FONT_SUBSET_PREFIX =
             Pattern.compile("^[A-Z]{6}\\+");
@@ -500,6 +502,45 @@ public class WordWriterServiceImpl implements WordWriterService {
                 StructuredBlock previousBlock = null;
 
                 List<StructuredBlock> pageBlocks = page.getStructuredBlocks();
+
+                if (pageIndex == 6 || pageIndex == 7) {
+                    System.out.println(
+                            "\n=== PAGE " + pageIndex + " BLOCKS ==="
+                    );
+
+                    for (int i = 0; i < pageBlocks.size(); i++) {
+
+                        StructuredBlock debugBlock =
+                                pageBlocks.get(i);
+
+                        System.out.println(
+                                "BLOCK " + i
+                                        + " type=" + debugBlock.getType()
+                                        + " x=" + debugBlock.getX()
+                                        + " y=" + debugBlock.getY()
+                                        + " h=" + debugBlock.getHeight()
+                                        + " text=[" + debugBlock.getText() + "]"
+                        );
+
+                        if (debugBlock.getSpans() != null) {
+                            for (int j = 0;
+                                 j < debugBlock.getSpans().size();
+                                 j++) {
+
+                                TextSpan span =
+                                        debugBlock.getSpans().get(j);
+
+                                System.out.println(
+                                        "    SPAN " + j
+                                                + " x=" + span.getX()
+                                                + " y=" + span.getY()
+                                                + " text=[" + span.getText() + "]"
+                                );
+                            }
+                        }
+                    }
+                }
+
                 for (int blockIndex = 0; blockIndex < pageBlocks.size(); blockIndex++) {
 
                     StructuredBlock block =
@@ -1474,11 +1515,27 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         if (indexEntry != null) {
-            XWPFRun run = paragraph.createRun();
-            run.setText(indexEntry.title() + "\t" + indexEntry.pageNumber());
-            if (block.getSpans() != null && !block.getSpans().isEmpty()) {
-                applyFormatting(run, block.getSpans().getFirst());
+            XWPFRun run =
+                    paragraph.createRun();
+
+            run.setText(
+                    indexEntry.title()
+            );
+
+            run.addTab();
+
+            run.setText(
+                    indexEntry.pageNumber()
+            );
+
+            if (block.getSpans() != null
+                    && !block.getSpans().isEmpty()) {
+                applyFormatting(
+                        run,
+                        block.getSpans().getFirst()
+                );
             }
+
             return;
         }
 
