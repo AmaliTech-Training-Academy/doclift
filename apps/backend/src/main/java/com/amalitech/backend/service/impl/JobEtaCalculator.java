@@ -2,6 +2,7 @@ package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.model.Job;
 import com.amalitech.backend.model.JobPhase;
+import com.amalitech.backend.model.JobStatus;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -54,7 +55,8 @@ public class JobEtaCalculator {
             Instant now
     ) {
         if (job == null
-                || job.getStartedAt() == null) {
+                || job.getStartedAt() == null
+                || job.getStatus() == JobStatus.FAILED) {
             return null;
         }
 
@@ -99,7 +101,8 @@ public class JobEtaCalculator {
     ) {
         if (job == null
                 || job.getPhase() == null
-                || job.getStartedAt() == null) {
+                || job.getStartedAt() == null
+                || job.getStatus() == JobStatus.FAILED) {
             return null;
         }
 
@@ -236,7 +239,8 @@ public class JobEtaCalculator {
             Instant now
     ) {
         if (job == null
-                || job.getPhase() == null) {
+                || job.getPhase() == null
+                || job.getStatus() == JobStatus.FAILED) {
             return null;
         }
 
