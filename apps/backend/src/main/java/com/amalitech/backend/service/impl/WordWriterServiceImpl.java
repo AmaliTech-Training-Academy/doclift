@@ -58,8 +58,8 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private static final float DEFAULT_PAGE_WIDTH_POINTS = 612f;
     private static final float DEFAULT_PAGE_HEIGHT_POINTS = 792f;
-        private static final float DEFAULT_MARGIN_POINTS = 36f;
-        private static final float MAX_FLOW_VERTICAL_MARGIN_POINTS = 18f;
+    private static final float DEFAULT_MARGIN_POINTS = 36f;
+    private static final float MAX_FLOW_VERTICAL_MARGIN_POINTS = 18f;
 
     private static final Pattern NUMBERED_PATTERN =
             Pattern.compile(
@@ -77,37 +77,26 @@ public class WordWriterServiceImpl implements WordWriterService {
                             + ")\\s*"
             );
 
-        private static final Pattern INDEX_ENTRY_PATTERN =
-                        Pattern.compile("^(.+?)(?:\\.{2,}|…{2,}|\\s{3,})(\\d{1,3})$");
+    private static final Pattern INDEX_ENTRY_PATTERN =
+            Pattern.compile("^(.+?)(?:\\.{2,}|…{2,}|\\s{3,})(\\d{1,3})$");
 
-        private static final Pattern FONT_SUBSET_PREFIX =
-                        Pattern.compile("^[A-Z]{6}\\+");
+    private static final Pattern FONT_SUBSET_PREFIX =
+            Pattern.compile("^[A-Z]{6}\\+");
 
-            private static final Map<String, String> FONT_FAMILY_ALIASES = Map.ofEntries(
-                    Map.entry("helvetica", "Arial"),
-                    Map.entry("helvetica-bold", "Arial"),
-                    Map.entry("helvetica-oblique", "Arial"),
-                    Map.entry("helvetica-boldoblique", "Arial"),
-                    Map.entry("times-roman", "Times New Roman"),
-                    Map.entry("times-bold", "Times New Roman"),
-                    Map.entry("times-italic", "Times New Roman"),
-                    Map.entry("times-bolditalic", "Times New Roman"),
-                    Map.entry("courier", "Courier New"),
-                    Map.entry("courier-bold", "Courier New"),
-                    Map.entry("courier-oblique", "Courier New"),
-                    Map.entry("courier-boldoblique", "Courier New")
-            );
-
-    private boolean isNumberedListItem(String text) {
-
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-
-        return NUMBERED_PATTERN
-                .matcher(text)
-                .find();
-    }
+    private static final Map<String, String> FONT_FAMILY_ALIASES = Map.ofEntries(
+            Map.entry("helvetica", "Arial"),
+            Map.entry("helvetica-bold", "Arial"),
+            Map.entry("helvetica-oblique", "Arial"),
+            Map.entry("helvetica-boldoblique", "Arial"),
+            Map.entry("times-roman", "Times New Roman"),
+            Map.entry("times-bold", "Times New Roman"),
+            Map.entry("times-italic", "Times New Roman"),
+            Map.entry("times-bolditalic", "Times New Roman"),
+            Map.entry("courier", "Courier New"),
+            Map.entry("courier-bold", "Courier New"),
+            Map.entry("courier-oblique", "Courier New"),
+            Map.entry("courier-boldoblique", "Courier New")
+    );
 
     private void applyFormatting(
             XWPFRun run,
@@ -138,7 +127,7 @@ public class WordWriterServiceImpl implements WordWriterService {
         );
 
         if (span.getFontSize() > 0) {
-                        run.setFontSize(span.getFontSize());
+            run.setFontSize(span.getFontSize());
         }
         if (span.getColorHex() != null
                 && !span.getColorHex().isBlank()) {
@@ -148,7 +137,6 @@ public class WordWriterServiceImpl implements WordWriterService {
             );
         }
     }
-
 
 
     private boolean hasLaterNonBlankListContent(
@@ -448,8 +436,9 @@ public class WordWriterServiceImpl implements WordWriterService {
     ) {
         paragraph.setSpacingBefore(spacingBefore);
         paragraph.setSpacingAfter(0);
-                paragraph.setSpacingBetween(1.0, LineSpacingRule.AUTO);
+        paragraph.setSpacingBetween(1.0, LineSpacingRule.AUTO);
     }
+
     private String removeListMarker(String text) {
 
         if (text == null) {
@@ -463,7 +452,6 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     @Override
     public byte[] write(PdfExtractionResult extractionResult) {
-
 
 
         if (extractionResult == null) {
@@ -514,26 +502,54 @@ public class WordWriterServiceImpl implements WordWriterService {
                 List<StructuredBlock> pageBlocks = page.getStructuredBlocks();
                 for (int blockIndex = 0; blockIndex < pageBlocks.size(); blockIndex++) {
 
-                        StructuredBlock block = pageBlocks.get(blockIndex);
-                        if (isIndexLevelMarker(block)
-                                        && blockIndex + 1 < pageBlocks.size()) {
-                                while (blockIndex + 1 < pageBlocks.size()
-                                                && isAdjacentIndexEntry(block, pageBlocks.get(blockIndex + 1))
-                                                && parseIndexEntry(block) == null) {
-                                        block = mergeIndexLevelMarker(
-                                                        block,
-                                                        pageBlocks.get(++blockIndex)
-                                        );
-                                }
-                        }
+                    StructuredBlock block =
+                            pageBlocks.get(blockIndex);
 
-                                        String blockText = normalizedBlockText(block);
-                                        if (repeatedHeaders.contains(blockText)
-                                                        || repeatedFooters.contains(blockText)
-                                                        || (repeatedPageNumbers
-                                                        && isPageNumberBlock(page, block))) {
-                                                continue;
-                                        }
+                    if (shouldSuppressRunningBlock(
+                            page,
+                            block,
+                            repeatedHeaders,
+                            repeatedFooters,
+                            repeatedPageNumbers
+                    )) {
+                        continue;
+                    }
+
+                    if (isIndexLevelMarker(block)
+                            && blockIndex + 1 < pageBlocks.size()) {
+
+                        while (blockIndex + 1 < pageBlocks.size()) {
+
+                            StructuredBlock nextBlock =
+                                    pageBlocks.get(blockIndex + 1);
+
+                            if (shouldSuppressRunningBlock(
+                                    page,
+                                    nextBlock,
+                                    repeatedHeaders,
+                                    repeatedFooters,
+                                    repeatedPageNumbers
+                            )) {
+                                break;
+                            }
+
+                            if (!isAdjacentIndexEntry(
+                                    block,
+                                    nextBlock
+                            )) {
+                                break;
+                            }
+
+                            if (parseIndexEntry(block) != null) {
+                                break;
+                            }
+
+                            block = mergeIndexLevelMarker(
+                                    block,
+                                    pageBlocks.get(++blockIndex)
+                            );
+                        }
+                    }
 
                     int spacingBefore =
                             calculateSpacingBefore(
@@ -599,7 +615,6 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                         boolean newBulletGroup =
                                 activeListType != ListType.UNORDERED
-                                        || activeBulletGlyph == null
                                         || !currentBulletGlyph.equals(
                                         activeBulletGlyph
                                 );
@@ -642,9 +657,9 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 if (!page.getImages().isEmpty()) {
                     XWPFParagraph carrier = document.createParagraph();
-                                        carrier.setSpacingBefore(0);
-                                        carrier.setSpacingAfter(0);
-                                        carrier.setSpacingBetween(0.0, LineSpacingRule.EXACT);
+                    carrier.setSpacingBefore(0);
+                    carrier.setSpacingAfter(0);
+                    carrier.setSpacingBetween(0.0, LineSpacingRule.EXACT);
 
                     for (ExtractedImage image : page.getImages()) {
                         insertFloatingImage(carrier, page, image, shapeId++);
@@ -654,35 +669,35 @@ public class WordWriterServiceImpl implements WordWriterService {
                 boolean isLastPage = pageIndex == pages.size() - 1;
 
                 if (isLastPage) {
-                                        applyPageSize(
-                                                        document,
-                                                        page,
-                                                        findRepeatedBlock(page, repeatedHeaders, true),
-                                                        findRepeatedBlock(page, repeatedFooters, false),
-                                                        repeatedPageNumbers,
-                                                        pageMargins
-                                        );
+                    applyPageSize(
+                            document,
+                            page,
+                            findRepeatedBlock(page, repeatedHeaders, true),
+                            findRepeatedBlock(page, repeatedFooters, false),
+                            repeatedPageNumbers,
+                            pageMargins
+                    );
                 } else {
-                                        PageExtraction nextPage = pages.get(pageIndex + 1);
+                    PageExtraction nextPage = pages.get(pageIndex + 1);
 
-                                        if (hasSamePageGeometry(page, nextPage)
-                                                        && !requiresExplicitPageBoundary(
-                                                        page,
-                                                        repeatedHeaders,
-                                                        repeatedFooters,
-                                                        repeatedPageNumbers
-                                        )) {
-                                                insertPageBreak(document);
-                                        } else {
-                                                insertSectionBreak(
-                                                                document,
-                                                                page,
-                                                                findRepeatedBlock(page, repeatedHeaders, true),
-                                                                findRepeatedBlock(page, repeatedFooters, false),
-                                                                repeatedPageNumbers,
-                                                                pageMargins
-                                                );
-                                        }
+                    if (hasSamePageGeometry(page, nextPage)
+                            && !requiresExplicitPageBoundary(
+                            page,
+                            repeatedHeaders,
+                            repeatedFooters,
+                            repeatedPageNumbers
+                    )) {
+                        insertPageBreak(document);
+                    } else {
+                        insertSectionBreak(
+                                document,
+                                page,
+                                findRepeatedBlock(page, repeatedHeaders, true),
+                                findRepeatedBlock(page, repeatedFooters, false),
+                                repeatedPageNumbers,
+                                pageMargins
+                        );
+                    }
                 }
             }
 
@@ -712,24 +727,24 @@ public class WordWriterServiceImpl implements WordWriterService {
         CTSectPr sectPr =
                 body.isSetSectPr() ? body.getSectPr() : body.addNewSectPr();
 
-                setPageSize(
-                        document,
-                        sectPr,
-                        page,
-                        headerBlock,
-                        footerBlock,
-                        pageNumberFooter,
-                        pageMargins
-                );
+        setPageSize(
+                document,
+                sectPr,
+                page,
+                headerBlock,
+                footerBlock,
+                pageNumberFooter,
+                pageMargins
+        );
     }
 
     private void insertSectionBreak(
             XWPFDocument document,
-                        PageExtraction page,
-                        StructuredBlock headerBlock,
-                        StructuredBlock footerBlock,
-                        boolean pageNumberFooter,
-                        PageMargins pageMargins
+            PageExtraction page,
+            StructuredBlock headerBlock,
+            StructuredBlock footerBlock,
+            boolean pageNumberFooter,
+            PageMargins pageMargins
     ) {
         XWPFParagraph paragraph = document.createParagraph();
         CTPPr pPr =
@@ -738,26 +753,26 @@ public class WordWriterServiceImpl implements WordWriterService {
                         : paragraph.getCTP().addNewPPr();
 
         CTSectPr sectPr = pPr.addNewSectPr();
-                sectPr.addNewType().setVal(STSectionMark.NEXT_PAGE);
-                setPageSize(
-                        document,
-                        sectPr,
-                        page,
-                        headerBlock,
-                        footerBlock,
-                        pageNumberFooter,
-                        pageMargins
-                );
+        sectPr.addNewType().setVal(STSectionMark.NEXT_PAGE);
+        setPageSize(
+                document,
+                sectPr,
+                page,
+                headerBlock,
+                footerBlock,
+                pageNumberFooter,
+                pageMargins
+        );
     }
 
     private void setPageSize(
-                        XWPFDocument document,
+            XWPFDocument document,
             CTSectPr sectPr,
-                        PageExtraction page,
-                        StructuredBlock headerBlock,
-                        StructuredBlock footerBlock,
-                        boolean pageNumberFooter,
-                        PageMargins pageMargins
+            PageExtraction page,
+            StructuredBlock headerBlock,
+            StructuredBlock footerBlock,
+            boolean pageNumberFooter,
+            PageMargins pageMargins
     ) {
         boolean swapped =
                 page.getRotation() == 90
@@ -804,276 +819,404 @@ public class WordWriterServiceImpl implements WordWriterService {
         pageMargin.setFooter(toTwips(12f));
         pageMargin.setGutter(BigInteger.ZERO);
 
-                if (headerBlock != null || footerBlock != null || pageNumberFooter) {
-                        XWPFHeaderFooterPolicy policy =
-                                        new XWPFHeaderFooterPolicy(document, sectPr);
+        if (headerBlock != null || footerBlock != null || pageNumberFooter) {
+            XWPFHeaderFooterPolicy policy =
+                    new XWPFHeaderFooterPolicy(document, sectPr);
 
-                        if (headerBlock != null) {
-                                writeHeaderFooter(
-                                                policy.createHeader(STHdrFtr.DEFAULT),
-                                                headerBlock,
-                                                false
-                                );
-                        }
-
-                        if (footerBlock != null || pageNumberFooter) {
-                                writeHeaderFooter(
-                                                policy.createFooter(STHdrFtr.DEFAULT),
-                                                footerBlock,
-                                                pageNumberFooter
-                                );
-                        }
-                }
-                }
-
-        private void insertPageBreak(XWPFDocument document) {
-                XWPFParagraph paragraph = document.createParagraph();
-                paragraph.setSpacingBefore(0);
-                paragraph.setSpacingAfter(0);
-                XWPFRun breakRun = paragraph.createRun();
-                breakRun.setFontSize(1);
-                breakRun.addBreak(BreakType.PAGE);
-        }
-
-        private boolean hasSamePageGeometry(
-                        PageExtraction first,
-                        PageExtraction second
-        ) {
-                return nearlyEqual(first.getCropX(), second.getCropX())
-                                && nearlyEqual(first.getCropY(), second.getCropY())
-                                && nearlyEqual(first.getCropWidth(), second.getCropWidth())
-                                && nearlyEqual(first.getCropHeight(), second.getCropHeight())
-                                && first.getRotation() == second.getRotation();
-        }
-
-        private boolean requiresExplicitPageBoundary(
-                        PageExtraction page,
-                        Set<String> repeatedHeaders,
-                        Set<String> repeatedFooters,
-                        boolean repeatedPageNumbers
-        ) {
-                if (!page.getImages().isEmpty()) {
-                        return true;
-                }
-
-                for (StructuredBlock block : page.getStructuredBlocks()) {
-                        String text = normalizedBlockText(block);
-                        if (repeatedHeaders.contains(text)
-                                        || repeatedFooters.contains(text)
-                                        || (repeatedPageNumbers && isPageNumberBlock(page, block))) {
-                                continue;
-                        }
-
-                        float pageHeight = page.getCropHeight() > 0
-                                        ? page.getCropHeight()
-                                        : DEFAULT_PAGE_HEIGHT_POINTS;
-                        if (block.getY() + block.getHeight() < pageHeight * 0.85f) {
-                                return false;
-                        }
-                }
-
-                return true;
-        }
-
-        private boolean nearlyEqual(float first, float second) {
-                return Math.abs(first - second) <= 0.01f;
-        }
-
-        private void writeHeaderFooter(
-                        XWPFHeaderFooter container,
-                        StructuredBlock block,
-                        boolean pageNumber
-        ) {
-                XWPFParagraph paragraph = container.createParagraph();
-                if (block != null) {
-                        paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
-                        writeRuns(paragraph, block);
-                }
-                if (pageNumber) {
-                        XWPFRun run = paragraph.createRun();
-                        run.getCTR().addNewFldChar().setFldCharType(STFldCharType.BEGIN);
-                        run.getCTR().addNewInstrText().setStringValue(" PAGE ");
-                        run.getCTR().addNewFldChar().setFldCharType(STFldCharType.SEPARATE);
-                        run.getCTR().addNewT().setStringValue("1");
-                        run.getCTR().addNewFldChar().setFldCharType(STFldCharType.END);
-                }
-        }
-
-        private Set<String> findRepeatedPageBlocks(
-                        List<PageExtraction> pages,
-                        boolean header
-        ) {
-                Map<String, Set<Integer>> pageIndexesByText = new HashMap<>();
-
-                for (PageExtraction page : pages) {
-                        float pageHeight = page.getCropHeight() > 0
-                                        ? page.getCropHeight()
-                                        : DEFAULT_PAGE_HEIGHT_POINTS;
-
-                        for (StructuredBlock block : page.getStructuredBlocks()) {
-                                boolean inBand = header
-                                                ? block.getY() <= pageHeight * 0.15f
-                                                : block.getY() + block.getHeight()
-                                                >= pageHeight * 0.85f;
-
-                                String text = normalizedBlockText(block);
-                                if (inBand && !text.isBlank()
-                                                && !(isPageNumberText(text) && !header)) {
-                                        pageIndexesByText
-                                                        .computeIfAbsent(text, ignored -> new HashSet<>())
-                                                        .add(page.getPageIndex());
-                                }
-                        }
-                }
-
-                Set<String> repeated = new HashSet<>();
-                for (Map.Entry<String, Set<Integer>> entry : pageIndexesByText.entrySet()) {
-                        if (entry.getValue().size() >= 2) {
-                                repeated.add(entry.getKey());
-                        }
-                }
-
-                return repeated;
-        }
-
-        private boolean hasRepeatedPageNumbers(List<PageExtraction> pages) {
-                Set<Integer> pageIndexes = new HashSet<>();
-
-                for (PageExtraction page : pages) {
-                        for (StructuredBlock block : page.getStructuredBlocks()) {
-                                if (isPageNumberBlock(page, block)) {
-                                        pageIndexes.add(page.getPageIndex());
-                                }
-                        }
-                }
-
-                return pageIndexes.size() >= 2;
-        }
-
-        private boolean isPageNumberBlock(
-                        PageExtraction page,
-                        StructuredBlock block
-        ) {
-                float pageHeight = page.getCropHeight() > 0
-                                ? page.getCropHeight()
-                                : DEFAULT_PAGE_HEIGHT_POINTS;
-
-                return block.getY() + block.getHeight() >= pageHeight * 0.85f
-                                && isPageNumberText(normalizedBlockText(block));
-        }
-
-        private boolean isPageNumberText(String text) {
-                return text != null && text.matches("\\d{1,4}");
-        }
-
-        private StructuredBlock findRepeatedBlock(
-                        PageExtraction page,
-                        Set<String> repeatedBlocks,
-                        boolean header
-        ) {
-                float pageHeight = page.getCropHeight() > 0
-                                ? page.getCropHeight()
-                                : DEFAULT_PAGE_HEIGHT_POINTS;
-
-                for (StructuredBlock block : page.getStructuredBlocks()) {
-                        boolean inBand = header
-                                        ? block.getY() <= pageHeight * 0.15f
-                                        : block.getY() + block.getHeight()
-                                        >= pageHeight * 0.85f;
-
-                        if (inBand && repeatedBlocks.contains(normalizedBlockText(block))) {
-                                return block;
-                        }
-                }
-
-                return null;
-        }
-
-        private String normalizedBlockText(StructuredBlock block) {
-                return block.getText() == null ? "" : block.getText().strip();
-        }
-
-        private PageMargins determinePageMargins(
-                        List<PageExtraction> pages,
-                        Set<String> repeatedHeaders,
-                        Set<String> repeatedFooters,
-                        boolean repeatedPageNumbers
-        ) {
-                List<Float> leftMargins = new ArrayList<>();
-                List<Float> rightMargins = new ArrayList<>();
-                List<Float> topMargins = new ArrayList<>();
-                List<Float> bottomMargins = new ArrayList<>();
-
-                for (PageExtraction page : pages) {
-                        float pageWidth = page.getCropWidth() > 0
-                                        ? page.getCropWidth()
-                                        : DEFAULT_PAGE_WIDTH_POINTS;
-                        float pageHeight = page.getCropHeight() > 0
-                                        ? page.getCropHeight()
-                                        : DEFAULT_PAGE_HEIGHT_POINTS;
-                        float minX = Float.MAX_VALUE;
-                        float minY = Float.MAX_VALUE;
-                        float maxRight = 0f;
-                        float maxBottom = 0f;
-                        boolean hasContent = false;
-
-                        for (StructuredBlock block : page.getStructuredBlocks()) {
-                                String text = normalizedBlockText(block);
-                                if (repeatedHeaders.contains(text)
-                                                || repeatedFooters.contains(text)
-                                                || (repeatedPageNumbers
-                                                && isPageNumberBlock(page, block))) {
-                                        continue;
-                                }
-
-                                minX = Math.min(minX, block.getX());
-                                minY = Math.min(minY, block.getY());
-                                maxRight = Math.max(maxRight, block.getX() + block.getWidth());
-                                maxBottom = Math.max(maxBottom, block.getY() + block.getHeight());
-                                hasContent = true;
-                        }
-
-                        if (hasContent) {
-                                leftMargins.add(clampMargin(minX));
-                                rightMargins.add(clampMargin(pageWidth - maxRight));
-                                topMargins.add(clampMargin(minY));
-                                bottomMargins.add(clampMargin(pageHeight - maxBottom));
-                        }
-                }
-
-                return new PageMargins(
-                                stableMargin(leftMargins),
-                                stableMargin(rightMargins),
-                                stableMargin(topMargins),
-                                stableMargin(bottomMargins)
+            if (headerBlock != null) {
+                writeHeaderFooter(
+                        policy.createHeader(STHdrFtr.DEFAULT),
+                        headerBlock,
+                        false
                 );
+            }
+
+            if (footerBlock != null || pageNumberFooter) {
+                writeHeaderFooter(
+                        policy.createFooter(STHdrFtr.DEFAULT),
+                        footerBlock,
+                        pageNumberFooter
+                );
+            }
+        }
+    }
+
+    private void insertPageBreak(XWPFDocument document) {
+        XWPFParagraph paragraph = document.createParagraph();
+        paragraph.setSpacingBefore(0);
+        paragraph.setSpacingAfter(0);
+        XWPFRun breakRun = paragraph.createRun();
+        breakRun.setFontSize(1);
+        breakRun.addBreak(BreakType.PAGE);
+    }
+
+    private boolean hasSamePageGeometry(
+            PageExtraction first,
+            PageExtraction second
+    ) {
+        return nearlyEqual(first.getCropX(), second.getCropX())
+                && nearlyEqual(first.getCropY(), second.getCropY())
+                && nearlyEqual(first.getCropWidth(), second.getCropWidth())
+                && nearlyEqual(first.getCropHeight(), second.getCropHeight())
+                && first.getRotation() == second.getRotation();
+    }
+
+    private boolean requiresExplicitPageBoundary(
+            PageExtraction page,
+            Set<String> repeatedHeaders,
+            Set<String> repeatedFooters,
+            boolean repeatedPageNumbers
+    ) {
+        if (!page.getImages().isEmpty()) {
+            return true;
         }
 
-        private float stableMargin(List<Float> margins) {
-                if (margins.isEmpty()) {
-                        return DEFAULT_MARGIN_POINTS;
+        for (StructuredBlock block : page.getStructuredBlocks()) {
+            if (shouldSuppressRunningBlock(
+                    page,
+                    block,
+                    repeatedHeaders,
+                    repeatedFooters,
+                    repeatedPageNumbers
+            )) {
+                continue;
+            }
+
+            float pageHeight = page.getCropHeight() > 0
+                    ? page.getCropHeight()
+                    : DEFAULT_PAGE_HEIGHT_POINTS;
+            if (block.getY() + block.getHeight() < pageHeight * 0.85f) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean nearlyEqual(float first, float second) {
+        return Math.abs(first - second) <= 0.01f;
+    }
+
+    private void writeHeaderFooter(
+            XWPFHeaderFooter container,
+            StructuredBlock block,
+            boolean pageNumber
+    ) {
+        XWPFParagraph paragraph = container.createParagraph();
+        if (block != null) {
+            paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
+            writeRuns(paragraph, block);
+        }
+        if (pageNumber) {
+            XWPFRun run = paragraph.createRun();
+            run.getCTR().addNewFldChar().setFldCharType(STFldCharType.BEGIN);
+            run.getCTR().addNewInstrText().setStringValue(" PAGE ");
+            run.getCTR().addNewFldChar().setFldCharType(STFldCharType.SEPARATE);
+            run.getCTR().addNewT().setStringValue("1");
+            run.getCTR().addNewFldChar().setFldCharType(STFldCharType.END);
+        }
+    }
+
+    private Set<String> findRepeatedPageBlocks(
+            List<PageExtraction> pages,
+            boolean header
+    ) {
+        Map<String, Set<Integer>> pageIndexesByText = new HashMap<>();
+
+        for (PageExtraction page : pages) {
+            float pageHeight = page.getCropHeight() > 0
+                    ? page.getCropHeight()
+                    : DEFAULT_PAGE_HEIGHT_POINTS;
+
+            for (StructuredBlock block : page.getStructuredBlocks()) {
+                boolean inBand = header
+                        ? block.getY() <= pageHeight * 0.18f
+                        : block.getY() + block.getHeight()
+                        >= pageHeight * 0.82f;
+
+                String text =
+                        normalizedRunningText(block);
+                if (inBand && !text.isBlank()
+                        && !(isPageNumberText(text) && !header)) {
+                    pageIndexesByText
+                            .computeIfAbsent(text, ignored -> new HashSet<>())
+                            .add(page.getPageIndex());
+                }
+            }
+        }
+
+        Set<String> repeated = new HashSet<>();
+        for (Map.Entry<String, Set<Integer>> entry : pageIndexesByText.entrySet()) {
+            if (entry.getValue().size() >= 2) {
+                repeated.add(entry.getKey());
+            }
+        }
+
+        return repeated;
+    }
+
+    private boolean hasRepeatedPageNumbers(List<PageExtraction> pages) {
+        Set<Integer> pageIndexes = new HashSet<>();
+
+        for (PageExtraction page : pages) {
+            for (StructuredBlock block : page.getStructuredBlocks()) {
+                if (isPageNumberBlock(page, block)) {
+                    pageIndexes.add(page.getPageIndex());
+                }
+            }
+        }
+
+        return pageIndexes.size() >= 2;
+    }
+
+    private boolean isPageNumberBlock(
+            PageExtraction page,
+            StructuredBlock block
+    ) {
+        float pageHeight = page.getCropHeight() > 0
+                ? page.getCropHeight()
+                : DEFAULT_PAGE_HEIGHT_POINTS;
+
+        return block.getY() + block.getHeight() >= pageHeight * 0.85f
+                && isPageNumberText(normalizedBlockText(block));
+    }
+
+    private boolean isPageNumberText(String text) {
+        return text != null && text.matches("\\d{1,4}");
+    }
+
+    private StructuredBlock findRepeatedBlock(
+            PageExtraction page,
+            Set<String> repeatedBlocks,
+            boolean header
+    ) {
+        float pageHeight =
+                page.getCropHeight() > 0f
+                        ? page.getCropHeight()
+                        : DEFAULT_PAGE_HEIGHT_POINTS;
+
+        for (StructuredBlock block
+                : page.getStructuredBlocks()) {
+
+            boolean inBand =
+                    header
+                            ? block.getY()
+                            <= pageHeight * 0.18f
+                            : block.getY()
+                            + block.getHeight()
+                            >= pageHeight * 0.82f;
+
+            if (!inBand) {
+                continue;
+            }
+
+            String text =
+                    normalizedRunningText(block);
+
+            if (repeatedBlocks.contains(text)) {
+                return block;
+            }
+        }
+
+        return null;
+    }
+
+    private String normalizedBlockText(
+            StructuredBlock block
+    ) {
+        if (block == null
+                || block.getText() == null) {
+            return "";
+        }
+
+        return block.getText()
+                .replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
+                .strip();
+    }
+
+    private String normalizedRunningText(
+            StructuredBlock block
+    ) {
+        String text =
+                normalizedBlockText(block);
+
+        return text
+                .replaceFirst("\\s+\\d{1,4}$", "")
+                .strip();
+    }
+
+    private boolean containsEquivalentRunningText(
+            Set<String> repeatedBlocks,
+            String text,
+            String runningText
+    ) {
+        if (repeatedBlocks.contains(text)
+                || repeatedBlocks.contains(runningText)) {
+            return true;
+        }
+
+        for (String repeated : repeatedBlocks) {
+
+            String normalizedRepeated =
+                    repeated
+                            .replace('\u00A0', ' ')
+                            .replaceAll("\\s+", " ")
+                            .replaceFirst("\\s+\\d{1,4}$", "")
+                            .strip();
+
+            if (normalizedRepeated.equals(runningText)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean shouldSuppressRunningBlock(
+            PageExtraction page,
+            StructuredBlock block,
+            Set<String> repeatedHeaders,
+            Set<String> repeatedFooters,
+            boolean repeatedPageNumbers
+    ) {
+        if (block == null) {
+            return false;
+        }
+
+        String text =
+                normalizedBlockText(block);
+
+        String runningText =
+                normalizedRunningText(block);
+
+        if (text.isBlank()) {
+            return false;
+        }
+
+        if (repeatedPageNumbers
+                && isPageNumberBlock(page, block)) {
+            return true;
+        }
+
+        float pageHeight =
+                page.getCropHeight() > 0f
+                        ? page.getCropHeight()
+                        : DEFAULT_PAGE_HEIGHT_POINTS;
+
+        float blockTop =
+                block.getY();
+
+        float blockBottom =
+                block.getY()
+                        + block.getHeight();
+
+        boolean inHeaderBand =
+                blockTop <= pageHeight * 0.18f;
+
+        boolean inFooterBand =
+                blockBottom >= pageHeight * 0.82f;
+
+        if (inHeaderBand
+                && containsEquivalentRunningText(
+                repeatedHeaders,
+                text,
+                runningText
+        )) {
+            return true;
+        }
+
+        return inFooterBand
+                && containsEquivalentRunningText(
+                repeatedFooters,
+                text,
+                runningText
+        );
+    }
+
+    private PageMargins determinePageMargins(
+            List<PageExtraction> pages,
+            Set<String> repeatedHeaders,
+            Set<String> repeatedFooters,
+            boolean repeatedPageNumbers
+    ) {
+        List<Float> leftMargins = new ArrayList<>();
+        List<Float> rightMargins = new ArrayList<>();
+        List<Float> topMargins = new ArrayList<>();
+        List<Float> bottomMargins = new ArrayList<>();
+
+        for (PageExtraction page : pages) {
+            float pageWidth = page.getCropWidth() > 0
+                    ? page.getCropWidth()
+                    : DEFAULT_PAGE_WIDTH_POINTS;
+            float pageHeight = page.getCropHeight() > 0
+                    ? page.getCropHeight()
+                    : DEFAULT_PAGE_HEIGHT_POINTS;
+            float minX = Float.MAX_VALUE;
+            float minY = Float.MAX_VALUE;
+            float maxRight = 0f;
+            float maxBottom = 0f;
+            boolean hasContent = false;
+
+            for (StructuredBlock block : page.getStructuredBlocks()) {
+                if (shouldSuppressRunningBlock(
+                        page,
+                        block,
+                        repeatedHeaders,
+                        repeatedFooters,
+                        repeatedPageNumbers
+                )) {
+                    continue;
                 }
 
-                margins.sort(Float::compare);
-                float median = margins.get(margins.size() / 2);
-                return median > 0f ? median : DEFAULT_MARGIN_POINTS;
+                minX = Math.min(minX, block.getX());
+                minY = Math.min(minY, block.getY());
+                maxRight = Math.max(maxRight, block.getX() + block.getWidth());
+                maxBottom = Math.max(maxBottom, block.getY() + block.getHeight());
+                hasContent = true;
+            }
+
+            if (hasContent) {
+                leftMargins.add(clampMargin(minX));
+                rightMargins.add(clampMargin(pageWidth - maxRight));
+                topMargins.add(clampMargin(minY));
+                bottomMargins.add(clampMargin(pageHeight - maxBottom));
+            }
         }
 
-        private float clampMargin(float margin) {
-                if (!Float.isFinite(margin)) {
-                        return DEFAULT_MARGIN_POINTS;
-                }
+        return new PageMargins(
+                stableMargin(leftMargins),
+                stableMargin(rightMargins),
+                stableMargin(topMargins),
+                stableMargin(bottomMargins)
+        );
+    }
 
-                return Math.clamp(margin, 0f, 144f);
+    private float stableMargin(List<Float> margins) {
+        if (margins.isEmpty()) {
+            return DEFAULT_MARGIN_POINTS;
         }
 
-        private record PageMargins(
-                        float left,
-                        float right,
-                        float top,
-                        float bottom
-        ) {
+        margins.sort(Float::compare);
+        float median = margins.get(margins.size() / 2);
+        return median > 0f ? median : DEFAULT_MARGIN_POINTS;
+    }
+
+    private float clampMargin(float margin) {
+        if (!Float.isFinite(margin)) {
+            return DEFAULT_MARGIN_POINTS;
         }
+
+        return Math.clamp(margin, 0f, 144f);
+    }
+
+    private record PageMargins(
+            float left,
+            float right,
+            float top,
+            float bottom
+    ) {
+    }
 
     private void insertFloatingImage(
             XWPFParagraph carrier,
@@ -1098,17 +1241,14 @@ public class WordWriterServiceImpl implements WordWriterService {
         try {
             int pictureType =
                     switch (image.getMimeType()) {
-                        case "image/jpeg" ->
-                                Document.PICTURE_TYPE_JPEG;
+                        case "image/jpeg" -> Document.PICTURE_TYPE_JPEG;
 
-                        case "image/png" ->
-                                Document.PICTURE_TYPE_PNG;
+                        case "image/png" -> Document.PICTURE_TYPE_PNG;
 
-                        default ->
-                                throw new IllegalArgumentException(
-                                        "Unsupported image type: "
-                                                + image.getMimeType()
-                                );
+                        default -> throw new IllegalArgumentException(
+                                "Unsupported image type: "
+                                        + image.getMimeType()
+                        );
                     };
 
             String relationId =
@@ -1274,18 +1414,18 @@ public class WordWriterServiceImpl implements WordWriterService {
             BigInteger bulletNumId,
             BigInteger numberedNumId,
             float bodyFontSize,
-                        Map<String, XWPFFootnote> footnotesByKey,
+            Map<String, XWPFFootnote> footnotesByKey,
             int spacingBefore,
             float availableWidth
     ) {
 
-                if (block.getType() == BlockType.TABLE) {
-                        writeTable(document, block, footnotesByKey, availableWidth);
-                        return;
-                }
+        if (block.getType() == BlockType.TABLE) {
+            writeTable(document, block, footnotesByKey, availableWidth);
+            return;
+        }
 
-                XWPFParagraph paragraph =
-                                document.createParagraph();
+        XWPFParagraph paragraph =
+                document.createParagraph();
 
         IndexEntry indexEntry = parseIndexEntry(block);
 
@@ -1311,114 +1451,115 @@ public class WordWriterServiceImpl implements WordWriterService {
             paragraph.setStyle("Normal");
         }
 
-                paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
+        paragraph.setAlignment(toParagraphAlignment(block.getAlignment()));
 
-                if (block.getFootnoteKey() != null) {
-                        writeFootnoteReference(paragraph, block.getFootnoteKey(), footnotesByKey);
-                }
-
-                if (block.getType() == BlockType.LIST_ITEM) {
-
-                        if (block.getListType() == ListType.ORDERED) {
-                                paragraph.setNumID(numberedNumId);
-                                paragraph.setNumILvl(BigInteger.ZERO);
-
-                        } else if (block.getListType() == ListType.UNORDERED) {
-                                paragraph.setNumID(bulletNumId);
-                                paragraph.setNumILvl(BigInteger.ZERO);
-                        }
-
-                        writeListRuns(paragraph, block);
-
-                        return;
-                }
-
-                if (indexEntry != null) {
-                        XWPFRun run = paragraph.createRun();
-                        run.setText(indexEntry.title() + "\t" + indexEntry.pageNumber());
-                        if (block.getSpans() != null && !block.getSpans().isEmpty()) {
-                                applyFormatting(run, block.getSpans().getFirst());
-                        }
-                        return;
-                }
-
-                writeRuns(paragraph, block);
+        if (block.getFootnoteKey() != null) {
+            writeFootnoteReference(paragraph, block.getFootnoteKey(), footnotesByKey);
         }
 
-        private IndexEntry parseIndexEntry(StructuredBlock block) {
-                if (block.getType() != BlockType.PARAGRAPH || block.getText() == null) {
-                        return null;
-                }
+        if (block.getType() == BlockType.LIST_ITEM) {
 
-                var matcher = INDEX_ENTRY_PATTERN.matcher(block.getText().strip());
-                return matcher.matches()
-                                ? new IndexEntry(matcher.group(1).strip(), matcher.group(2))
-                                : null;
+            if (block.getListType() == ListType.ORDERED) {
+                paragraph.setNumID(numberedNumId);
+                paragraph.setNumILvl(BigInteger.ZERO);
+
+            } else if (block.getListType() == ListType.UNORDERED) {
+                paragraph.setNumID(bulletNumId);
+                paragraph.setNumILvl(BigInteger.ZERO);
+            }
+
+            writeListRuns(paragraph, block);
+
+            return;
         }
 
-        private boolean isIndexLevelMarker(StructuredBlock block) {
-                return block.getType() == BlockType.PARAGRAPH
-                                && block.getText() != null
-                                && block.getText().strip().matches("\\d+(?:\\.\\d+)*");
+        if (indexEntry != null) {
+            XWPFRun run = paragraph.createRun();
+            run.setText(indexEntry.title() + "\t" + indexEntry.pageNumber());
+            if (block.getSpans() != null && !block.getSpans().isEmpty()) {
+                applyFormatting(run, block.getSpans().getFirst());
+            }
+            return;
         }
 
-        private boolean isAdjacentIndexEntry(
-                        StructuredBlock marker,
-                        StructuredBlock entry
-        ) {
-                return entry.getType() == BlockType.PARAGRAPH
-                                && entry.getText() != null
-                                && entry.getPageIndex() == marker.getPageIndex()
-                                && entry.getY() >= marker.getY()
-                                && entry.getY() - marker.getY() <= Math.max(48f, marker.getHeight() * 3f);
+        writeRuns(paragraph, block);
+    }
+
+    private IndexEntry parseIndexEntry(StructuredBlock block) {
+        if (block.getType() != BlockType.PARAGRAPH || block.getText() == null) {
+            return null;
         }
 
-        private StructuredBlock mergeIndexLevelMarker(
-                        StructuredBlock marker,
-                        StructuredBlock entry
-        ) {
-                StructuredBlock merged = new StructuredBlock(
-                                marker.getPageIndex(),
-                                BlockType.PARAGRAPH,
-                                marker.getText().strip() + " " + entry.getText().strip(),
-                                marker.getX(),
-                                marker.getY(),
-                                Math.max(
-                                                marker.getWidth(),
-                                                entry.getX() + entry.getWidth() - marker.getX()
-                                ),
-                                Math.max(
-                                                marker.getHeight(),
-                                                entry.getY() + entry.getHeight() - marker.getY()
-                                ),
-                                entry.getSpans()
-                );
-                merged.setAlignment(entry.getAlignment());
-                return merged;
-        }
+        var matcher = INDEX_ENTRY_PATTERN.matcher(block.getText().strip());
+        return matcher.matches()
+                ? new IndexEntry(matcher.group(1).strip(), matcher.group(2))
+                : null;
+    }
 
-        private void configureIndexEntryTab(
-                        XWPFParagraph paragraph,
-                        float availableWidth
-        ) {
-                CTPPr pPr = paragraph.getCTP().isSetPPr()
-                                ? paragraph.getCTP().getPPr()
-                                : paragraph.getCTP().addNewPPr();
-                var spacing = pPr.isSetSpacing() ? pPr.getSpacing() : pPr.addNewSpacing();
-                spacing.setBefore(BigInteger.ZERO);
-                spacing.setAfter(BigInteger.ZERO);
-                spacing.setLine(BigInteger.valueOf(240));
-                spacing.setLineRule(
-                                org.openxmlformats.schemas.wordprocessingml.x2006.main.STLineSpacingRule.AUTO
-                );
-                var tabs = pPr.isSetTabs() ? pPr.getTabs() : pPr.addNewTabs();
-                var tab = tabs.addNewTab();
-                tab.setVal(STTabJc.RIGHT);
-                tab.setLeader(STTabTlc.DOT);
-                tab.setPos(toTwips(Math.max(1f, availableWidth)));
-        }
+    private boolean isIndexLevelMarker(StructuredBlock block) {
+        return block.getType() == BlockType.PARAGRAPH
+                && block.getText() != null
+                && block.getText().strip().matches("\\d+(?:\\.\\d+)*");
+    }
 
-        private record IndexEntry(String title, String pageNumber) {}
+    private boolean isAdjacentIndexEntry(
+            StructuredBlock marker,
+            StructuredBlock entry
+    ) {
+        return entry.getType() == BlockType.PARAGRAPH
+                && entry.getText() != null
+                && entry.getPageIndex() == marker.getPageIndex()
+                && entry.getY() >= marker.getY()
+                && entry.getY() - marker.getY() <= Math.max(48f, marker.getHeight() * 3f);
+    }
+
+    private StructuredBlock mergeIndexLevelMarker(
+            StructuredBlock marker,
+            StructuredBlock entry
+    ) {
+        StructuredBlock merged = new StructuredBlock(
+                marker.getPageIndex(),
+                BlockType.PARAGRAPH,
+                marker.getText().strip() + " " + entry.getText().strip(),
+                marker.getX(),
+                marker.getY(),
+                Math.max(
+                        marker.getWidth(),
+                        entry.getX() + entry.getWidth() - marker.getX()
+                ),
+                Math.max(
+                        marker.getHeight(),
+                        entry.getY() + entry.getHeight() - marker.getY()
+                ),
+                entry.getSpans()
+        );
+        merged.setAlignment(entry.getAlignment());
+        return merged;
+    }
+
+    private void configureIndexEntryTab(
+            XWPFParagraph paragraph,
+            float availableWidth
+    ) {
+        CTPPr pPr = paragraph.getCTP().isSetPPr()
+                ? paragraph.getCTP().getPPr()
+                : paragraph.getCTP().addNewPPr();
+        var spacing = pPr.isSetSpacing() ? pPr.getSpacing() : pPr.addNewSpacing();
+        spacing.setBefore(BigInteger.ZERO);
+        spacing.setAfter(BigInteger.ZERO);
+        spacing.setLine(BigInteger.valueOf(240));
+        spacing.setLineRule(
+                org.openxmlformats.schemas.wordprocessingml.x2006.main.STLineSpacingRule.AUTO
+        );
+        var tabs = pPr.isSetTabs() ? pPr.getTabs() : pPr.addNewTabs();
+        var tab = tabs.addNewTab();
+        tab.setVal(STTabJc.RIGHT);
+        tab.setLeader(STTabTlc.DOT);
+        tab.setPos(toTwips(Math.max(1f, availableWidth)));
+    }
+
+    private record IndexEntry(String title, String pageNumber) {
+    }
 
 
     private ParagraphAlignment toParagraphAlignment(BlockAlignment alignment) {
@@ -1501,71 +1642,71 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
     }
 
-        private void configureFixedTableLayout(
-                        XWPFTable table,
-                        List<Float> columnWidths
-        ) {
-                if (columnWidths == null || columnWidths.isEmpty()) {
-                        return;
-                }
-
-                float tableWidth = columnWidths.stream()
-                                .filter(width -> width != null && width > 0f)
-                                .reduce(0f, Float::sum);
-
-                if (tableWidth <= 0f) {
-                        return;
-                }
-
-                table.setWidthType(TableWidthType.DXA);
-                table.setWidth(toTwips(tableWidth).toString());
-
-                CTTblPr tableProperties = table.getCTTbl().getTblPr();
-                if (tableProperties == null) {
-                    tableProperties = table.getCTTbl().addNewTblPr();
-                }
-                var layout = tableProperties.isSetTblLayout()
-                                ? tableProperties.getTblLayout()
-                                : tableProperties.addNewTblLayout();
-                layout.setType(STTblLayoutType.FIXED);
+    private void configureFixedTableLayout(
+            XWPFTable table,
+            List<Float> columnWidths
+    ) {
+        if (columnWidths == null || columnWidths.isEmpty()) {
+            return;
         }
 
-        private float pageContentWidth(
-                        PageMargins pageMargins,
-                        PageExtraction page
-        ) {
-                float pageWidth = page.getRotation() == 90 || page.getRotation() == 270
-                                ? page.getCropHeight()
-                                : page.getCropWidth();
+        float tableWidth = columnWidths.stream()
+                .filter(width -> width != null && width > 0f)
+                .reduce(0f, Float::sum);
 
-                if (pageWidth <= 0f) {
-                        pageWidth = DEFAULT_PAGE_WIDTH_POINTS;
-                }
-
-                return Math.max(1f, pageWidth - pageMargins.left() - pageMargins.right());
+        if (tableWidth <= 0f) {
+            return;
         }
 
-        private List<Float> scaleTableColumnWidths(
-                        List<Float> columnWidths,
-                        float availableWidth
-        ) {
-                if (columnWidths == null || columnWidths.isEmpty()) {
-                        return columnWidths;
-                }
+        table.setWidthType(TableWidthType.DXA);
+        table.setWidth(toTwips(tableWidth).toString());
 
-                float totalWidth = columnWidths.stream()
-                                .filter(width -> width != null && width > 0f)
-                                .reduce(0f, Float::sum);
-
-                if (totalWidth <= 0f || totalWidth <= availableWidth) {
-                        return columnWidths;
-                }
-
-                float scale = availableWidth / totalWidth;
-                return columnWidths.stream()
-                                .map(width -> width == null ? 0f : width * scale)
-                                .toList();
+        CTTblPr tableProperties = table.getCTTbl().getTblPr();
+        if (tableProperties == null) {
+            tableProperties = table.getCTTbl().addNewTblPr();
         }
+        var layout = tableProperties.isSetTblLayout()
+                ? tableProperties.getTblLayout()
+                : tableProperties.addNewTblLayout();
+        layout.setType(STTblLayoutType.FIXED);
+    }
+
+    private float pageContentWidth(
+            PageMargins pageMargins,
+            PageExtraction page
+    ) {
+        float pageWidth = page.getRotation() == 90 || page.getRotation() == 270
+                ? page.getCropHeight()
+                : page.getCropWidth();
+
+        if (pageWidth <= 0f) {
+            pageWidth = DEFAULT_PAGE_WIDTH_POINTS;
+        }
+
+        return Math.max(1f, pageWidth - pageMargins.left() - pageMargins.right());
+    }
+
+    private List<Float> scaleTableColumnWidths(
+            List<Float> columnWidths,
+            float availableWidth
+    ) {
+        if (columnWidths == null || columnWidths.isEmpty()) {
+            return columnWidths;
+        }
+
+        float totalWidth = columnWidths.stream()
+                .filter(width -> width != null && width > 0f)
+                .reduce(0f, Float::sum);
+
+        if (totalWidth <= 0f || totalWidth <= availableWidth) {
+            return columnWidths;
+        }
+
+        float scale = availableWidth / totalWidth;
+        return columnWidths.stream()
+                .map(width -> width == null ? 0f : width * scale)
+                .toList();
+    }
 
     private int effectiveColumnSpan(
             List<List<TableCell>> rows,
@@ -1619,15 +1760,15 @@ public class WordWriterServiceImpl implements WordWriterService {
         for (int column = 0; column < columnCount; column++) {
 
             float widthPoints =
-                    columnWidths != null && column < columnWidths.size()
+                    column < columnWidths.size()
                             ? columnWidths.get(column)
                             : 0f;
 
-                        if (column >= gridColumns.size()) {
-                                gridColumns.add(grid.addNewGridCol());
-                        }
+            if (column >= gridColumns.size()) {
+                gridColumns.add(grid.addNewGridCol());
+            }
 
-                        gridColumns.get(column).setW(toTwips(widthPoints));
+            gridColumns.get(column).setW(toTwips(widthPoints));
         }
     }
 
@@ -1726,21 +1867,21 @@ public class WordWriterServiceImpl implements WordWriterService {
             writeFootnoteReference(cellParagraph, footnoteKey, footnotesByKey);
         }
 
-                if (spans == null || spans.isEmpty()) {
-                        XWPFRun run = cellParagraph.createRun();
-                        run.setText(text);
-                        return;
-                }
+        if (spans == null || spans.isEmpty()) {
+            XWPFRun run = cellParagraph.createRun();
+            run.setText(text);
+            return;
+        }
 
-                for (TextSpan span : spans) {
-                        if (span.getText() == null || span.getText().isEmpty()) {
-                                continue;
-                        }
+        for (TextSpan span : spans) {
+            if (span.getText() == null || span.getText().isEmpty()) {
+                continue;
+            }
 
-                        XWPFRun run = cellParagraph.createRun();
-                        run.setText(span.getText());
-                        applyFormatting(run, span);
-                }
+            XWPFRun run = cellParagraph.createRun();
+            run.setText(span.getText());
+            applyFormatting(run, span);
+        }
     }
 
 
@@ -1975,11 +2116,11 @@ public class WordWriterServiceImpl implements WordWriterService {
             return 0;
         }
 
-                if (previousBlock.getType() == BlockType.LIST_ITEM
-                                && currentBlock.getType() == BlockType.LIST_ITEM
-                                && previousBlock.getListType() == currentBlock.getListType()) {
-                        return 0;
-                }
+        if (previousBlock.getType() == BlockType.LIST_ITEM
+                && currentBlock.getType() == BlockType.LIST_ITEM
+                && previousBlock.getListType() == currentBlock.getListType()) {
+            return 0;
+        }
 
         float previousBottom =
                 previousBlock.getY()
@@ -2020,34 +2161,34 @@ public class WordWriterServiceImpl implements WordWriterService {
         float heightRatio =
                 image.getHeight() / page.getCropHeight();
 
-                if (widthRatio >= 0.80f && heightRatio >= 0.80f) {
-                        return true;
-                }
+        if (widthRatio >= 0.80f && heightRatio >= 0.80f) {
+            return true;
+        }
 
-                List<StructuredBlock> blocks = page.getStructuredBlocks();
+        List<StructuredBlock> blocks = page.getStructuredBlocks();
 
-                if (blocks.isEmpty()
-                                || widthRatio < 0.50f
-                                || heightRatio < 0.50f) {
-                        return false;
-                }
+        if (blocks.isEmpty()
+                || widthRatio < 0.50f
+                || heightRatio < 0.50f) {
+            return false;
+        }
 
-                float imageRight = image.getX() + image.getWidth();
-                float imageBottom = image.getY() + image.getHeight();
-                int coveredBlocks = 0;
+        float imageRight = image.getX() + image.getWidth();
+        float imageBottom = image.getY() + image.getHeight();
+        int coveredBlocks = 0;
 
-                for (StructuredBlock block : blocks) {
-                        float blockCenterX = block.getX() + block.getWidth() / 2f;
-                        float blockCenterY = block.getY() + block.getHeight() / 2f;
+        for (StructuredBlock block : blocks) {
+            float blockCenterX = block.getX() + block.getWidth() / 2f;
+            float blockCenterY = block.getY() + block.getHeight() / 2f;
 
-                        if (blockCenterX >= image.getX()
-                                        && blockCenterX <= imageRight
-                                        && blockCenterY >= image.getY()
-                                        && blockCenterY <= imageBottom) {
-                                coveredBlocks++;
-                        }
-                }
+            if (blockCenterX >= image.getX()
+                    && blockCenterX <= imageRight
+                    && blockCenterY >= image.getY()
+                    && blockCenterY <= imageBottom) {
+                coveredBlocks++;
+            }
+        }
 
-                return coveredBlocks >= Math.ceil(blocks.size() * 0.80f);
+        return coveredBlocks >= Math.ceil(blocks.size() * 0.80f);
     }
 }

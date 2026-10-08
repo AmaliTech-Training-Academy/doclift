@@ -57,6 +57,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float LINE_SPACING_CLUSTER_TOLERANCE = 1.5f;
     private static final int MIN_LINE_SPACING_SUPPORT = 3;
     private static final float MAX_LINE_SPACING_TO_FONT_RATIO = 1.8f;
+    private static final float PAGE_EDGE_START_RATIO = 0.94f;
 
 
     @Override
@@ -71,10 +72,12 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return;
         }
 
-        List<LogicalLine> lines = buildReadingOrder(
-                pageExtraction.getTextSpans(),
-                pageExtraction.getCandidateTableRegions()
-        );
+        List<LogicalLine> lines =
+                buildReadingOrder(
+                        pageExtraction.getTextSpans(),
+                        pageExtraction.getCandidateTableRegions(),
+                        pageExtraction.getPageHeight()
+                );
 
         float bodyFontSize = determineBodyFontSize(
                 pageExtraction.getTextSpans()
@@ -89,6 +92,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 bodyFontSize,
                 bodyRightMargin,
                 pageExtraction.getPageWidth(),
+                pageExtraction.getPageHeight(),
                 dominantLineSpacing
         );
 
@@ -180,6 +184,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             float bodyFontSize,
             Float bodyRightMargin,
             float pageWidth,
+            float pageHeight,
             Float dominantLineSpacing
     ) {
         List<StructuredBlock> blocks = new ArrayList<>();
@@ -273,6 +278,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     line,
                     paragraphLines.size() == 1,
                     bodyRightMargin,
+                    pageHeight,
                     dominantLineSpacing
             )) {
                 paragraphLines.add(line);
@@ -405,10 +411,18 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine current,
             boolean previousIsFirstLine,
             Float bodyRightMargin,
+            float pageHeight,
             Float dominantLineSpacing
     ) {
 
         if (current.getY() < previous.getY()) {
+            return false;
+        }
+        if (crossesBottomPageEdgeBoundary(
+                previous,
+                current,
+                pageHeight
+        )) {
             return false;
         }
 
@@ -601,7 +615,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
     private List<LogicalLine> buildReadingOrder(
             List<TextSpan> textSpans,
-            List<TableRegion> tableRegions
+            List<TableRegion> tableRegions,
+            float pageHeight
     ) {
         List<TextSpan> flowSpans = new ArrayList<>();
         List<TextSpan> tableSpans = new ArrayList<>();
@@ -616,13 +631,19 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
 
         List<LogicalLine> physicalRows =
-                groupSpansIntoLines(flowSpans);
+                groupSpansIntoLines(
+                        flowSpans,
+                        pageHeight
+                );
 
         Float splitX =
                 detectRepeatedColumnSplit(physicalRows);
 
         List<LogicalLine> tableRows =
-                groupSpansIntoLines(tableSpans);
+                groupSpansIntoLines(
+                        tableSpans,
+                        pageHeight
+                );
 
         for (LogicalLine tableRow : tableRows) {
             tableRow.markAsTableRow();
@@ -915,7 +936,10 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
     }
 
-    private List<LogicalLine> groupSpansIntoLines(List<TextSpan> textSpans) {
+    private List<LogicalLine> groupSpansIntoLines(
+            List<TextSpan> textSpans,
+            float pageHeight
+    ) {
         List<TextSpan> sortedSpans = new ArrayList<>(textSpans);
 
         sortedSpans.sort(
@@ -927,7 +951,12 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         List<LogicalLine> lines = new ArrayList<>();
 
         for (TextSpan span : sortedSpans) {
-            LogicalLine matchingLine = findMatchingLine(lines, span);
+            LogicalLine matchingLine =
+                    findMatchingLine(
+                            lines,
+                            span,
+                            pageHeight
+                    );
 
             if (matchingLine == null) {
                 LogicalLine newLine = new LogicalLine();
@@ -1174,21 +1203,46 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
     private LogicalLine findMatchingLine(
             List<LogicalLine> lines,
-            TextSpan span
+            TextSpan span,
+            float pageHeight
     ) {
         LogicalLine closest = null;
         float closestDistance = Float.MAX_VALUE;
 
+        boolean spanNearBottom =
+                pageHeight > 0f
+                        && span.getY()
+                        >= pageHeight * PAGE_EDGE_START_RATIO;
+
         for (LogicalLine line : lines) {
+
             float tolerance = Math.max(
                     MIN_LINE_TOLERANCE,
-                    Math.max(line.getAverageHeight(), span.getHeight())
-                            * LINE_TOLERANCE_FACTOR
+                    Math.max(
+                            line.getAverageHeight(),
+                            span.getHeight()
+                    ) * LINE_TOLERANCE_FACTOR
             );
 
-            float distance = Math.abs(line.getY() - span.getY());
+            float distance =
+                    Math.abs(
+                            line.getY()
+                                    - span.getY()
+                    );
 
-            if (distance <= tolerance && distance < closestDistance) {
+            boolean lineNearBottom =
+                    pageHeight > 0f
+                            && line.getY()
+                            >= pageHeight * PAGE_EDGE_START_RATIO;
+
+            float effectiveTolerance =
+                    (spanNearBottom || lineNearBottom)
+                            ? MIN_LINE_TOLERANCE
+                            : tolerance;
+
+            if (distance <= effectiveTolerance
+                    && distance < closestDistance) {
+
                 closest = line;
                 closestDistance = distance;
             }
@@ -1200,7 +1254,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private ListType detectListType(LogicalLine line) {
         String text = line.getText();
 
-        if (text == null || text.isBlank()) {
+        if (text.isBlank()) {
             return null;
         }
 
@@ -1449,5 +1503,35 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
             return builder.toString();
         }
+    }
+    private boolean crossesBottomPageEdgeBoundary(
+            LogicalLine previous,
+            LogicalLine current,
+            float pageHeight
+    ) {
+        if (pageHeight <= 0f) {
+            return false;
+        }
+
+        float bottomEdgeStart =
+                pageHeight * 0.94f;
+
+        boolean previousInBottomEdge =
+                previous.getY() >= bottomEdgeStart;
+
+        boolean currentInBottomEdge =
+                current.getY() >= bottomEdgeStart;
+
+        if (!previousInBottomEdge
+                && currentInBottomEdge) {
+            return true;
+        }
+
+        return previousInBottomEdge
+                && currentInBottomEdge
+                && Math.abs(
+                current.getY()
+                        - previous.getY()
+        ) > MIN_LINE_TOLERANCE;
     }
 }

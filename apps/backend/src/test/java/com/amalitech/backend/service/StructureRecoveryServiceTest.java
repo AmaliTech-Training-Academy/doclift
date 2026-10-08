@@ -18,6 +18,30 @@ class StructureRecoveryServiceTest {
         structureRecoveryService = new StructureRecoveryServiceImpl();
     }
 
+    private TextSpan textSpan(
+            int pageIndex,
+            String text,
+            float x,
+            float y,
+            float width,
+            float height
+    ) {
+        return new TextSpan(
+                pageIndex,
+                text,
+                x,
+                y,
+                width,
+                height,
+                "Helvetica",
+                height,
+                false,
+                false,
+                false,
+                true
+        );
+    }
+
     // =========================================================
     // SINGLE-COLUMN READING ORDER
     // =========================================================
@@ -1351,5 +1375,120 @@ class StructureRecoveryServiceTest {
 
         assertThat(block.getListType())
                 .isNull();
+    }
+
+    @Test
+    void shouldNotMergeBottomPageEdgeTextIntoBodyParagraph() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageWidth(612);
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "This is body text.",
+                        50,
+                        700,
+                        300,
+                        12
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "More body text.",
+                        50,
+                        712,
+                        300,
+                        12
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "23",
+                        50,
+                        756,
+                        20,
+                        10
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "MAZZETTI | Electric Circuit Data Collection",
+                        90,
+                        768,
+                        350,
+                        8
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .contains(
+                        "This is body text. More body text.",
+                        "23",
+                        "MAZZETTI | Electric Circuit Data Collection"
+                );
+
+        assertThat(page.getStructuredBlocks())
+                .noneMatch(block ->
+                        block.getText().contains("More body text.")
+                                && block.getText().contains("MAZZETTI")
+                );
+    }
+
+    @Test
+    void shouldStillMergeNormalParagraphLinesAboveBottomEdge() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageWidth(612);
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "First line of paragraph",
+                        50,
+                        700,
+                        300,
+                        12
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "second line of paragraph",
+                        50,
+                        712,
+                        300,
+                        12
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .hasSize(1);
+
+        assertThat(
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getText()
+        ).isEqualTo(
+                "First line of paragraph second line of paragraph"
+        );
     }
 }
