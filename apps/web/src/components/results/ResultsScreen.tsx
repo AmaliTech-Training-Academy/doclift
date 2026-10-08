@@ -30,13 +30,17 @@ export default function ResultsScreen() {
   const durationSeconds = session?.durationSeconds;
   const conversionTimeText = (() => {
     if (durationSeconds == null) return null;
-    const mins = Math.floor(durationSeconds / 60);
-    const secs = Math.floor(durationSeconds % 60);
+    const roundedSeconds = Math.round(durationSeconds);
+    const mins = Math.floor(roundedSeconds / 60);
+    const secs = roundedSeconds % 60;
     const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
     return `${formatted} conversion time`;
   })();
 
-  const sizeBytes = session?.output?.sizeBytes ?? session?.fileSize;
+  const sizeBytes =
+    session?.output?.sizeBytes ??
+    session?.outputSizeBytes ??
+    session?.fileSize;
   const fileSizeText = sizeBytes
     ? sizeBytes < 1024 * 1024
       ? `${(sizeBytes / 1024).toFixed(1)} KB`
