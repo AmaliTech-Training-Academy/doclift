@@ -42,6 +42,28 @@ describe("ResultsScreen", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the output file size and conversion time from the session", async () => {
+    saveConversionSession({
+      jobId: "job-123",
+      fileName: "report.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+      durationSeconds: 17.6,
+      fileSize: 5 * 1024 * 1024,
+      outputSizeBytes: 48213,
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(
+      await screen.findByText("47.1 KB • 18s conversion time"),
+    ).toBeInTheDocument();
+  });
+
   it("renders the download button when a completed session has a jobId", async () => {
     saveConversionSession({
       jobId: "job-123",

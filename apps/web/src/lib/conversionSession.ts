@@ -8,6 +8,7 @@ export type ConversionSession = {
     createdAt?: number;
     startedAt?: string | null;
     durationSeconds?: number;
+    outputSizeBytes?: number;
     completedAt?: number;
     fileSize?: number;
     pageCount?: number | null;

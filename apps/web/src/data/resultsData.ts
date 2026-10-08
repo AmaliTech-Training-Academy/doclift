@@ -167,7 +167,7 @@ export const summaryCards: SummaryCardItem[] = [
         id: 3,
         title: "Secure Session Lifespan",
         description:
-            "Temporary server conversion cache automatically purges after 60 minutes. No lingering artifacts stored.",
+            "Temporary server conversion cache automatically purges after 5 minutes. No lingering artifacts stored.",
         icon: ShieldCheck,
         badge: "00:00",
         variant: "session",

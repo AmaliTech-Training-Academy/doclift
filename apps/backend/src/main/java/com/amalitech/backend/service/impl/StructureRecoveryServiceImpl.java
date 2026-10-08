@@ -126,6 +126,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return new StructuredBlock(
                 pageIndex,
                 BlockType.PARAGRAPH,
+                null,
                 text.toString(),
                 minX,
                 minY,

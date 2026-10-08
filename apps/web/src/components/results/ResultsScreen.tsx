@@ -30,13 +30,17 @@ export default function ResultsScreen() {
   const durationSeconds = session?.durationSeconds;
   const conversionTimeText = (() => {
     if (durationSeconds == null) return null;
-    const mins = Math.floor(durationSeconds / 60);
-    const secs = Math.floor(durationSeconds % 60);
+    const roundedSeconds = Math.round(durationSeconds);
+    const mins = Math.floor(roundedSeconds / 60);
+    const secs = roundedSeconds % 60;
     const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
     return `${formatted} conversion time`;
   })();
 
-  const sizeBytes = session?.output?.sizeBytes ?? session?.fileSize;
+  const sizeBytes =
+    session?.output?.sizeBytes ??
+    session?.outputSizeBytes ??
+    session?.fileSize;
   const fileSizeText = sizeBytes
     ? sizeBytes < 1024 * 1024
       ? `${(sizeBytes / 1024).toFixed(1)} KB`
@@ -146,7 +150,7 @@ export default function ResultsScreen() {
               </div>
             </div>
           </div>
-          <div className="flex flex-col flex-nowrap sm:flex-row gap-2 sm:w-auto w-full shrink-0">
+          <div className="flex flex-col flex-nowrap md:flex-row gap-2 sm:w-auto w-full shrink-0">
             <Button variant="secondary" onClick={requestReset}>
               <RotateCw className="size-4" />
               <span>Convert Another File</span>

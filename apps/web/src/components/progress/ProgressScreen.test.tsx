@@ -1,12 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { useEffect } from "react";
 import ProgressScreen from "./ProgressScreen";
 import { ConversionProvider, useConversion } from "@/context/ConversionContext";
+import { saveConversionSession, clearConversionSession } from "@/lib/conversionSession";
+import type { JobStatusResponse } from "@/lib/pollingApi";
+
+const mocks = vi.hoisted(() => ({
+  job: null as JobStatusResponse | null,
+  useJobStatus: vi.fn(),
+}));
+
+vi.mock("@/app/hooks/useJobStatus", () => ({
+  useJobStatus: (jobId: string | null) => {
+    mocks.useJobStatus(jobId);
+    return { job: mocks.job, error: null, notFound: false };
+  },
+}));
 
 vi.mock("./HeaderBar", () => ({
-  default: ({ file }: { file: File | null }) => (
-    <div data-testid="header-bar">{file ? file.name : "no file"}</div>
+  default: ({
+    file,
+    timeRemaining,
+  }: {
+    file: File | null;
+    timeRemaining: number | null;
+  }) => (
+    <div data-testid="header-bar">
+      {file ? file.name : "no file"}
+      <span data-testid="time-remaining">{String(timeRemaining)}</span>
+    </div>
   ),
 }));
 
@@ -14,7 +37,75 @@ vi.mock("./ProgressCard", () => ({
   default: () => <div data-testid="progress-card" />,
 }));
 
+function makeJob(overrides: Partial<JobStatusResponse> = {}): JobStatusResponse {
+  return {
+    jobId: "job-1",
+    status: "PROCESSING",
+    sourceFilename: "sample.pdf",
+    pageCount: 3,
+    createdAt: null,
+    startedAt: null,
+    completedAt: null,
+    phase: "EXTRACTING_CONTENT",
+    progressPercent: 40,
+    durationSeconds: null,
+    estimatedRemainingSeconds: null,
+    estimatedTotalSeconds: null,
+    currentPhaseEstimatedRemainingSeconds: null,
+    output: null,
+    metrics: null,
+    ...overrides,
+  };
+}
+
+function renderWithActiveSession() {
+  saveConversionSession({
+    jobId: "job-1",
+    fileName: "sample.pdf",
+    status: "processing",
+    updatedAt: Date.now(),
+  });
+  render(
+    <ConversionProvider>
+      <ProgressScreen />
+    </ConversionProvider>,
+  );
+}
+
 describe("ProgressScreen", () => {
+  beforeEach(() => {
+    mocks.job = null;
+    mocks.useJobStatus.mockClear();
+    clearConversionSession();
+  });
+
+  it("polls the job from the active session", async () => {
+    renderWithActiveSession();
+    await screen.findByTestId("header-bar");
+    expect(mocks.useJobStatus).toHaveBeenLastCalledWith("job-1");
+  });
+
+  it("does not poll when there is no active session", () => {
+    render(
+      <ConversionProvider>
+        <ProgressScreen />
+      </ConversionProvider>,
+    );
+    expect(mocks.useJobStatus).toHaveBeenLastCalledWith(null);
+  });
+
+  it("passes the backend's overall time remaining to the header bar", async () => {
+    mocks.job = makeJob({ estimatedRemainingSeconds: 12.4 });
+    renderWithActiveSession();
+    expect(await screen.findByTestId("time-remaining")).toHaveTextContent("12.4");
+  });
+
+  it("passes null to the header bar while the backend has no estimate", async () => {
+    mocks.job = makeJob({ estimatedRemainingSeconds: null });
+    renderWithActiveSession();
+    expect(await screen.findByTestId("time-remaining")).toHaveTextContent("null");
+  });
+
   it("renders the header bar and the progress card", () => {
     render(
       <ConversionProvider>
