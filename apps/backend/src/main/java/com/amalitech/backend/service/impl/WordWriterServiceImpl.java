@@ -503,44 +503,6 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 List<StructuredBlock> pageBlocks = page.getStructuredBlocks();
 
-                if (pageIndex == 6 || pageIndex == 7) {
-                    System.out.println(
-                            "\n=== PAGE " + pageIndex + " BLOCKS ==="
-                    );
-
-                    for (int i = 0; i < pageBlocks.size(); i++) {
-
-                        StructuredBlock debugBlock =
-                                pageBlocks.get(i);
-
-                        System.out.println(
-                                "BLOCK " + i
-                                        + " type=" + debugBlock.getType()
-                                        + " x=" + debugBlock.getX()
-                                        + " y=" + debugBlock.getY()
-                                        + " h=" + debugBlock.getHeight()
-                                        + " text=[" + debugBlock.getText() + "]"
-                        );
-
-                        if (debugBlock.getSpans() != null) {
-                            for (int j = 0;
-                                 j < debugBlock.getSpans().size();
-                                 j++) {
-
-                                TextSpan span =
-                                        debugBlock.getSpans().get(j);
-
-                                System.out.println(
-                                        "    SPAN " + j
-                                                + " x=" + span.getX()
-                                                + " y=" + span.getY()
-                                                + " text=[" + span.getText() + "]"
-                                );
-                            }
-                        }
-                    }
-                }
-
                 for (int blockIndex = 0; blockIndex < pageBlocks.size(); blockIndex++) {
 
                     StructuredBlock block =
