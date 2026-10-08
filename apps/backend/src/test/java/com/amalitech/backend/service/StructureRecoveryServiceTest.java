@@ -1491,4 +1491,162 @@ class StructureRecoveryServiceTest {
                 "First line of paragraph second line of paragraph"
         );
     }
+
+    @Test
+    void shouldSplitFigureIndexEntriesButKeepWrappedContinuationWithEntry()
+            throws Exception {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Figure 1: Comparison of panel-level calculated and actual load values",
+                        72f,
+                        100f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "at West Coast hospital 1 ........................................ 26",
+                        72f,
+                        114f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Figure 2: Cumulative calculated vs. metered load",
+                        72f,
+                        128f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "at the circuit level for general receptacles ................ 28",
+                        72f,
+                        142f,
+                        420f,
+                        12f
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        List<StructuredBlock> paragraphs =
+                page.getStructuredBlocks()
+                        .stream()
+                        .filter(block ->
+                                block.getType() == BlockType.PARAGRAPH
+                        )
+                        .toList();
+
+        assertThat(paragraphs)
+                .hasSize(2);
+
+        assertThat(paragraphs.get(0).getText())
+                .isEqualTo(
+                        "Figure 1: Comparison of panel-level calculated and actual load values "
+                                + "at West Coast hospital 1 ........................................ 26"
+                );
+
+        assertThat(paragraphs.get(1).getText())
+                .isEqualTo(
+                        "Figure 2: Cumulative calculated vs. metered load "
+                                + "at the circuit level for general receptacles ................ 28"
+                );
+    }
+
+    @Test
+    void shouldSplitTableIndexEntriesButKeepWrappedContinuationWithEntry()
+            throws Exception {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Table 1: Approximate beds, square footage, and description of studied hospitals",
+                        72f,
+                        100f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "............................................................ 18",
+                        72f,
+                        114f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Table 2: Data collection period, panels metered, and information available",
+                        72f,
+                        128f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "for studied hospitals ...................................... 18",
+                        72f,
+                        142f,
+                        420f,
+                        12f
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        List<StructuredBlock> paragraphs =
+                page.getStructuredBlocks()
+                        .stream()
+                        .filter(block ->
+                                block.getType() == BlockType.PARAGRAPH
+                        )
+                        .toList();
+
+        assertThat(paragraphs)
+                .hasSize(2);
+
+        assertThat(paragraphs.get(0).getText())
+                .isEqualTo(
+                        "Table 1: Approximate beds, square footage, and description of studied hospitals "
+                                + "............................................................ 18"
+                );
+
+        assertThat(paragraphs.get(1).getText())
+                .isEqualTo(
+                        "Table 2: Data collection period, panels metered, and information available "
+                                + "for studied hospitals ...................................... 18"
+                );
+    }
 }

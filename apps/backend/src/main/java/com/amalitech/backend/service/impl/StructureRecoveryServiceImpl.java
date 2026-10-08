@@ -39,6 +39,17 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                             + "\\((?:\\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\\)"
                             + ")\\s+.+"
             );
+    private static final Pattern FIGURE_INDEX_ENTRY_PATTERN =
+            Pattern.compile(
+                    "^\\s*Figure\\s+\\d+\\s*:\\s*.+",
+                    Pattern.CASE_INSENSITIVE
+            );
+
+    private static final Pattern TABLE_INDEX_ENTRY_PATTERN =
+            Pattern.compile(
+                    "^\\s*Table\\s+\\d+\\s*:\\s*.+",
+                    Pattern.CASE_INSENSITIVE
+            );
     private static final float MIN_SEGMENT_GAP = 8f;
     private static final float SEGMENT_GAP_FONT_FACTOR = 0.9f;
     private static final int MIN_MULTI_COLUMN_ROWS = 3;
@@ -416,6 +427,9 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     ) {
 
         if (current.getY() < previous.getY()) {
+            return false;
+        }
+        if (startsFigureOrTableIndexEntry(current)) {
             return false;
         }
         if (crossesBottomPageEdgeBoundary(
@@ -1534,4 +1548,24 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                         - previous.getY()
         ) > MIN_LINE_TOLERANCE;
     }
+
+    private boolean startsFigureOrTableIndexEntry(
+            LogicalLine line
+    ) {
+        if (line == null
+                || line.getText() == null) {
+            return false;
+        }
+
+        String text =
+                line.getText().strip();
+
+        return FIGURE_INDEX_ENTRY_PATTERN
+                .matcher(text)
+                .matches()
+                || TABLE_INDEX_ENTRY_PATTERN
+                .matcher(text)
+                .matches();
+    }
+
 }
