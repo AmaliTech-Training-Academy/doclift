@@ -3,7 +3,10 @@ import { render, renderHook, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConversionProvider, useConversion } from "./ConversionContext";
 import type { ConversionSession } from "@/lib/conversionSession";
+import type { JobStatusResponse } from "@/lib/jobApi";
 import { toast } from "sonner";
+
+let pollingOnComplete: ((data: JobStatusResponse) => void) | undefined;
 
 vi.mock("sonner", () => ({
   toast: {
@@ -11,6 +14,12 @@ vi.mock("sonner", () => ({
     success: vi.fn(),
     warning: vi.fn(),
     info: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/useJobPolling", () => ({
+  useJobPolling: (options: { onComplete?: (data: JobStatusResponse) => void }) => {
+    pollingOnComplete = options.onComplete;
   },
 }));
 
@@ -259,6 +268,37 @@ describe("useConversion", () => {
     expect(result.current.session?.outputSizeBytes).toBe(48213);
   });
 
+  it("shows a success toast when polling reports conversion completion", () => {
+    renderHook(() => useConversion(), { wrapper });
+
+    expect(pollingOnComplete).toBeDefined();
+
+    act(() => {
+      pollingOnComplete?.({
+        jobId: "job-123",
+        status: "DONE",
+        sourceFilename: "doc.pdf",
+        pageCount: 1,
+        createdAt: "2026-10-08T11:00:00Z",
+        completedAt: "2026-10-08T11:01:00Z",
+        durationSeconds: 60,
+        output: {
+          filename: "doc.docx",
+          sizeBytes: 1024,
+          downloadUrl: "/api/v1/jobs/job-123/download",
+        },
+        metrics: null,
+      });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith(
+      "Conversion complete!",
+      expect.objectContaining({
+        description: expect.stringContaining("ready for download"),
+      }),
+    );
+  });
+
   it("triggers warning toast when <= 10 minutes remain before purge and resets when purge expires", async () => {
     vi.useFakeTimers();
     const now = Date.now();
@@ -266,17 +306,17 @@ describe("useConversion", () => {
 
     const { result } = renderHook(() => useConversion(), { wrapper });
 
-    // Set session to done at (now - 51 minutes), so only 9 minutes remain out of 60 minutes
-    const fiftyOneMinutesAgo = now - 51 * 60 * 1000;
+    // Set session to done at (now - 21 minutes), so only 9 minutes remain out of 30 minutes
+    const twentyOneMinutesAgo = now - 21 * 60 * 1000;
 
     act(() => {
       result.current.setSession({
         jobId: "session-123",
         fileName: "file.pdf",
         status: "done",
-        createdAt: fiftyOneMinutesAgo,
-        completedAt: fiftyOneMinutesAgo,
-        updatedAt: fiftyOneMinutesAgo,
+        createdAt: twentyOneMinutesAgo,
+        completedAt: twentyOneMinutesAgo,
+        updatedAt: twentyOneMinutesAgo,
       });
       result.current.setActiveView("result");
     });
@@ -289,7 +329,7 @@ describe("useConversion", () => {
     expect(toast.warning).toHaveBeenCalledWith(
       "Auto-Purge Warning",
       expect.objectContaining({
-        description: expect.stringContaining("10 minutes"),
+        description: expect.stringContaining("30 minutes"),
       })
     );
 

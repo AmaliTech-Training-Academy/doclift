@@ -52,7 +52,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const isUploadingRef = useRef(false);
     const initialPurgeToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purgeExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const hasWarned10MinRef = useRef(false);
+    const hasWarned30MinRef = useRef(false);
     const hasExpiredRef = useRef(false);
 
     const isConverting = Boolean(
@@ -142,7 +142,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             clearTimeout(purgeExpiryTimerRef.current);
             purgeExpiryTimerRef.current = null;
         }
-        hasWarned10MinRef.current = false;
+        hasWarned30MinRef.current = false;
         hasExpiredRef.current = false;
         // Cancel any in-flight upload before clearing state.
         abortControllerRef.current?.abort();
@@ -166,7 +166,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             clearTimeout(purgeExpiryTimerRef.current);
             purgeExpiryTimerRef.current = null;
         }
-        hasWarned10MinRef.current = false;
+        hasWarned30MinRef.current = false;
         hasExpiredRef.current = false;
         isUploadingRef.current = false;
         setIsUploading(false);
@@ -286,17 +286,17 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (purgeTimeRemaining === null || session?.status !== "done") {
-            hasWarned10MinRef.current = false;
+            hasWarned30MinRef.current = false;
             hasExpiredRef.current = false;
             return;
         }
 
-        // 10-minute warning toast
-        if (purgeTimeRemaining <= 10 * 60 && purgeTimeRemaining > 0 && !hasWarned10MinRef.current) {
-            hasWarned10MinRef.current = true;
+        // 30-minute warning toast
+        if (purgeTimeRemaining <= 30 * 60 && purgeTimeRemaining > 0 && !hasWarned30MinRef.current) {
+            hasWarned30MinRef.current = true;
             if (typeof toast?.warning === "function") {
                 toast.warning("Auto-Purge Warning", {
-                    description: "Your file will be purged in 10 minutes. Please download your Word document soon.",
+                    description: "Your file will be purged in 30 minutes. Please download your Word document soon.",
                 });
             }
         }
