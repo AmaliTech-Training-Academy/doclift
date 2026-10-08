@@ -3,3 +3,9 @@
 
 # Local environment overrides for docker-compose
 .env
+
+# macOS Finder metadata
+.DS_Store
+
+# Backend runtime upload storage (app.upload.directory)
+/uploads/
