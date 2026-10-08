@@ -21,17 +21,91 @@ import DownloadButton from "@/components/results/DownloadButton";
 
 export default function ResultsScreen() {
   const { requestReset, session } = useConversion();
-  const docxTitle = session?.fileName
-    ? session.fileName.replace(/\.[^./]+$/, ".docx")
-    : "Word Document.docx";
-  const durationSeconds = session?.durationSeconds ?? 20;
-  const conversionTimeText = `${durationSeconds}s conversion time`;
+  const docxTitle =
+    session?.output?.filename ||
+    (session?.fileName
+      ? session.fileName.replace(/\.[^./]+$/, ".docx")
+      : "Word Document.docx");
 
-  const fileSizeText = session?.fileSize
-    ? session.fileSize < 1024 * 1024
-      ? `${(session.fileSize / 1024).toFixed(1)} KB`
-      : `${(session.fileSize / (1024 * 1024)).toFixed(1)} MB`
+  const durationSeconds = session?.durationSeconds;
+  const conversionTimeText = (() => {
+    if (durationSeconds == null) return null;
+    const mins = Math.floor(durationSeconds / 60);
+    const secs = Math.floor(durationSeconds % 60);
+    const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    return `${formatted} conversion time`;
+  })();
+
+  const sizeBytes = session?.output?.sizeBytes ?? session?.fileSize;
+  const fileSizeText = sizeBytes
+    ? sizeBytes < 1024 * 1024
+      ? `${(sizeBytes / 1024).toFixed(1)} KB`
+      : `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
     : null;
+
+  const pageCountText =
+    session?.pageCount != null
+      ? `${session.pageCount} ${session.pageCount === 1 ? "page" : "pages"}`
+      : null;
+
+  const metadataSummary = [pageCountText, fileSizeText, conversionTimeText]
+    .filter(Boolean)
+    .join(" • ");
+
+  const sourceWords = session?.metrics?.sourceWordCount;
+  const outputWords = session?.metrics?.outputWordCount;
+  const wordCount = outputWords ?? sourceWords;
+
+  const textYieldPercent =
+    sourceWords != null && outputWords != null && sourceWords > 0
+      ? Number(
+          Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)).toFixed(1)
+        )
+      : 'NA';
+
+  const dynamicChecklistData = checklistData.map((item) => {
+    if (item.id === 1 && wordCount != null) {
+      return {
+        ...item,
+        badge: `${wordCount.toLocaleString()} Words`,
+      };
+    }
+    if (item.id === 4 && session?.metrics) {
+      const {
+        orderedListsDetected,
+        unorderedListsDetected,
+        orderedListsReconstructed,
+        unorderedListsReconstructed,
+      } = session.metrics;
+
+      const hasDetected =
+        orderedListsDetected != null || unorderedListsDetected != null;
+      const hasReconstructed =
+        orderedListsReconstructed != null || unorderedListsReconstructed != null;
+
+      if (hasDetected || hasReconstructed) {
+        const detectedTotal =
+          (orderedListsDetected ?? 0) + (unorderedListsDetected ?? 0);
+        const reconstructedTotal =
+          (orderedListsReconstructed ?? 0) + (unorderedListsReconstructed ?? 0);
+
+        const badgeText =
+          detectedTotal > 0
+            ? `${reconstructedTotal}/${detectedTotal} Lists Reconstructed`
+            : "No Lists Detected";
+
+        return {
+          ...item,
+          badge: badgeText,
+          description:
+            detectedTotal > 0
+              ? `Reconstructed ${reconstructedTotal} of ${detectedTotal} list structures detected in the source PDF (${unorderedListsReconstructed ?? 0} bulleted, ${orderedListsReconstructed ?? 0} numbered).`
+              : item.description,
+        };
+      }
+    }
+    return item;
+  });
 
   return (
     <div className="flex-1 space-y-4 p-4">
@@ -64,10 +138,11 @@ export default function ResultsScreen() {
                     ID: {session.jobId}
                   </span>
                 )}
-                <p className="text-sm sm:text-md text-muted-foreground">
-                  {fileSizeText} • {conversionTimeText}{" "}
-                  {/* ToDo: File size and number of pages of .docx will be fetched from backend */}
-                </p>
+                {metadataSummary && (
+                  <p className="text-sm sm:text-md text-muted-foreground">
+                    {metadataSummary}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -94,7 +169,7 @@ export default function ResultsScreen() {
               Deterministic AST Validation
             </span>
           </div>
-          {checklistData.map((item) => (
+          {dynamicChecklistData.map((item) => (
             <ChecklistCard key={item.id} item={item} />
           ))}
         </div>
@@ -132,12 +207,12 @@ export default function ResultsScreen() {
                   fill="none"
                   stroke="#2563eb"
                   strokeWidth="3"
-                  strokeDasharray="98 100"
+                  strokeDasharray={`${textYieldPercent} 100`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute flex flex-col items-center leading-none">
-                <span className="text-lg font-bold">98%</span>
+                <span className="text-lg font-bold">{textYieldPercent}%</span>
                 <span className="text-[9px] text-gray-400 mt-0.5">
                   Text Match
                 </span>
@@ -165,9 +240,8 @@ export default function ResultsScreen() {
               </p>
               <p className="text-sm text-primary leading-relaxed">
                 We never fabricate simulated 99.9% metrics. Our parser runs
-                strict geometric audits: when slight manual alignment or cell
-                adjustments are required, we flag the exact page offsets
-                directly in your report.
+                strict geometric audits: we make sure that all the content from
+                the PDF is preserved and matched up with the Word document.
               </p>
             </div>
           </div>
