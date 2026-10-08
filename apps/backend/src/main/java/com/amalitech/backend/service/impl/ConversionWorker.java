@@ -95,6 +95,31 @@ public class ConversionWorker {
                             extractionResult
                     );
 
+            int headingsDetected =
+                    documentMetricsService.countHeadings(
+                            extractionResult
+                    );
+
+            HeadingLevelCountResult headingLevels =
+                    documentMetricsService.countHeadingLevels(
+                            extractionResult
+                    );
+
+            int tablesDetected =
+                    documentMetricsService.countTables(
+                            extractionResult
+                    );
+
+            int imagesDetected =
+                    documentMetricsService.countImages(
+                            extractionResult
+                    );
+
+            int multiColumnPageCount =
+                    documentMetricsService.countMultiColumnPages(
+                            extractionResult
+                    );
+
             jobService.updateProgress(
                     jobId,
                     JobPhase.GENERATING_DOCUMENT,
@@ -134,12 +159,21 @@ public class ConversionWorker {
 
             jobMetricsService.saveMetrics(
                     jobId,
-                    sourceWordCount,
-                    outputWordCount,
-                    sourceLists.ordered(),
-                    sourceLists.unordered(),
-                    outputLists.ordered(),
-                    outputLists.unordered()
+                    new ConversionMetrics(
+                            sourceWordCount,
+                            outputWordCount,
+                            sourceLists.ordered(),
+                            sourceLists.unordered(),
+                            outputLists.ordered(),
+                            outputLists.unordered(),
+                            headingsDetected,
+                            headingLevels.levelOne(),
+                            headingLevels.levelTwo(),
+                            headingLevels.levelThree(),
+                            tablesDetected,
+                            imagesDetected,
+                            multiColumnPageCount
+                    )
             );
 
             jobService.markCompleted(

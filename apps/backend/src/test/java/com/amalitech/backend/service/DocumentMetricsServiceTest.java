@@ -53,6 +53,37 @@ class DocumentMetricsServiceTest {
         );
     }
 
+    private StructuredBlock headingBlock(
+            String text,
+            float fontSize
+    ) {
+        return new StructuredBlock(
+                0,
+                BlockType.HEADING,
+                text,
+                0,
+                0,
+                100,
+                20,
+                List.of(
+                        new TextSpan(
+                                0,
+                                text,
+                                0,
+                                0,
+                                100,
+                                20,
+                                "Helvetica",
+                                fontSize,
+                                false,
+                                false,
+                                false,
+                                false
+                        )
+                )
+        );
+    }
+
     @BeforeEach
     void setUp() {
         documentMetricsService =
@@ -661,5 +692,279 @@ class DocumentMetricsServiceTest {
         ).isEqualTo(3);
     }
 
+    @Test
+    void shouldCountHeadingsAmongOtherBlocks() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        headingBlock("Title", 24f),
+                        new StructuredBlock(
+                                0,
+                                BlockType.PARAGRAPH,
+                                null,
+                                "Body text",
+                                0,
+                                0,
+                                100,
+                                20,
+                                List.of()
+                        ),
+                        headingBlock("Subtitle", 18f)
+                );
+
+        assertEquals(
+                2,
+                documentMetricsService.countHeadings(result)
+        );
+    }
+
+    @Test
+    void countHeadingsShouldReturnZeroForNullExtractionResult() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countHeadings(null)
+        );
+    }
+
+    @Test
+    void countHeadingsShouldReturnZeroWhenExtractionHasNoPages() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countHeadings(
+                        new PdfExtractionResult()
+                )
+        );
+    }
+
+    @Test
+    void shouldBucketHeadingsIntoThreeLevelsByFontSize() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        headingBlock("Chapter 1", 24f),
+                        headingBlock("Section A", 18f),
+                        headingBlock("Section B", 18f),
+                        headingBlock("Sub-point", 14f),
+                        headingBlock("Another sub-point", 13f)
+                );
+
+        HeadingLevelCountResult levels =
+                documentMetricsService.countHeadingLevels(result);
+
+        assertEquals(1, levels.levelOne());
+        assertEquals(2, levels.levelTwo());
+        assertEquals(2, levels.levelThree());
+    }
+
+    @Test
+    void countHeadingLevelsShouldReturnZeroesForNullExtractionResult() {
+
+        HeadingLevelCountResult levels =
+                documentMetricsService.countHeadingLevels(null);
+
+        assertEquals(0, levels.levelOne());
+        assertEquals(0, levels.levelTwo());
+        assertEquals(0, levels.levelThree());
+    }
+
+    @Test
+    void countHeadingLevelsShouldReturnZeroesWhenNoHeadingsPresent() {
+
+        PdfExtractionResult result =
+                extractionResultWithBlocks(
+                        new StructuredBlock(
+                                0,
+                                BlockType.PARAGRAPH,
+                                null,
+                                "Body text",
+                                0,
+                                0,
+                                100,
+                                20,
+                                List.of()
+                        )
+                );
+
+        HeadingLevelCountResult levels =
+                documentMetricsService.countHeadingLevels(result);
+
+        assertEquals(0, levels.levelOne());
+        assertEquals(0, levels.levelTwo());
+        assertEquals(0, levels.levelThree());
+    }
+
+    @Test
+    void shouldSumDetectedTablesAcrossPages() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction firstPage = new PageExtraction(0);
+        firstPage.setTableCount(2);
+
+        PageExtraction secondPage = new PageExtraction(1);
+        secondPage.setTableCount(1);
+
+        result.getPages().add(firstPage);
+        result.getPages().add(secondPage);
+
+        assertEquals(
+                3,
+                documentMetricsService.countTables(result)
+        );
+    }
+
+    @Test
+    void countTablesShouldReturnZeroForNullExtractionResult() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countTables(null)
+        );
+    }
+
+    @Test
+    void countTablesShouldReturnZeroWhenExtractionHasNoPages() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countTables(
+                        new PdfExtractionResult()
+                )
+        );
+    }
+
+    @Test
+    void shouldSumDetectedImagesAcrossPages() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction firstPage = new PageExtraction(0);
+
+        firstPage.getImages().add(
+                new ExtractedImage(
+                        0,
+                        "image1.png",
+                        0,
+                        0,
+                        10,
+                        10,
+                        100,
+                        100,
+                        "image/png",
+                        0f,
+                        false,
+                        new byte[0]
+                )
+        );
+
+        PageExtraction secondPage = new PageExtraction(1);
+
+        secondPage.getImages().add(
+                new ExtractedImage(
+                        1,
+                        "image2.png",
+                        0,
+                        0,
+                        10,
+                        10,
+                        100,
+                        100,
+                        "image/png",
+                        0f,
+                        false,
+                        new byte[0]
+                )
+        );
+
+        secondPage.getImages().add(
+                new ExtractedImage(
+                        1,
+                        "image3.png",
+                        0,
+                        0,
+                        10,
+                        10,
+                        100,
+                        100,
+                        "image/png",
+                        0f,
+                        false,
+                        new byte[0]
+                )
+        );
+
+        result.getPages().add(firstPage);
+        result.getPages().add(secondPage);
+
+        assertEquals(
+                3,
+                documentMetricsService.countImages(result)
+        );
+    }
+
+    @Test
+    void countImagesShouldReturnZeroForNullExtractionResult() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countImages(null)
+        );
+    }
+
+    @Test
+    void countImagesShouldReturnZeroWhenExtractionHasNoPages() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countImages(
+                        new PdfExtractionResult()
+                )
+        );
+    }
+
+    @Test
+    void shouldCountOnlyMultiColumnPages() {
+
+        PdfExtractionResult result =
+                new PdfExtractionResult();
+
+        PageExtraction singleColumnPage = new PageExtraction(0);
+        singleColumnPage.setMultiColumn(false);
+
+        PageExtraction multiColumnPage = new PageExtraction(1);
+        multiColumnPage.setMultiColumn(true);
+
+        result.getPages().add(singleColumnPage);
+        result.getPages().add(multiColumnPage);
+
+        assertEquals(
+                1,
+                documentMetricsService.countMultiColumnPages(result)
+        );
+    }
+
+    @Test
+    void countMultiColumnPagesShouldReturnZeroForNullExtractionResult() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countMultiColumnPages(null)
+        );
+    }
+
+    @Test
+    void countMultiColumnPagesShouldReturnZeroWhenExtractionHasNoPages() {
+
+        assertEquals(
+                0,
+                documentMetricsService.countMultiColumnPages(
+                        new PdfExtractionResult()
+                )
+        );
+    }
 
 }

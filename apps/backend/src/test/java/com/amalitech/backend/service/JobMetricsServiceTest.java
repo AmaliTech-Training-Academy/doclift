@@ -26,6 +26,23 @@ class JobMetricsServiceTest {
                     "11111111-1111-1111-1111-111111111111"
             );
 
+    private static final ConversionMetrics METRICS =
+            new ConversionMetrics(
+                    120,
+                    118,
+                    2,
+                    1,
+                    2,
+                    1,
+                    5,
+                    2,
+                    2,
+                    1,
+                    1,
+                    3,
+                    0
+            );
+
     @BeforeEach
     void setUp() {
         jobRepository =
@@ -46,6 +63,7 @@ class JobMetricsServiceTest {
 
         Job job = new Job();
         job.setId(JOB_ID);
+        job.setPageCount(7);
 
         when(jobRepository.findById(JOB_ID))
                 .thenReturn(Optional.of(job));
@@ -58,12 +76,7 @@ class JobMetricsServiceTest {
         JobMetrics result =
                 jobMetricsService.saveMetrics(
                         JOB_ID,
-                        120,
-                        118,
-                        2,
-                        1,
-                        2,
-                        1
+                        METRICS
                 );
 
         assertNotNull(result);
@@ -98,6 +111,46 @@ class JobMetricsServiceTest {
                 result.getUnorderedListsReconstructed()
         );
 
+        assertEquals(
+                5,
+                result.getHeadingsDetected()
+        );
+
+        assertEquals(
+                2,
+                result.getH1HeadingCount()
+        );
+
+        assertEquals(
+                2,
+                result.getH2HeadingCount()
+        );
+
+        assertEquals(
+                1,
+                result.getH3HeadingCount()
+        );
+
+        assertEquals(
+                1,
+                result.getTablesDetected()
+        );
+
+        assertEquals(
+                3,
+                result.getImagesDetected()
+        );
+
+        assertEquals(
+                0,
+                result.getMultiColumnPageCount()
+        );
+
+        assertEquals(
+                7,
+                result.getOutputPageCount()
+        );
+
         assertSame(
                 job,
                 result.getJob()
@@ -120,6 +173,7 @@ class JobMetricsServiceTest {
 
         Job job = new Job();
         job.setId(JOB_ID);
+        job.setPageCount(4);
 
         JobMetrics existingMetrics =
                 new JobMetrics(
@@ -139,12 +193,7 @@ class JobMetricsServiceTest {
         JobMetrics result =
                 jobMetricsService.saveMetrics(
                         JOB_ID,
-                        120,
-                        118,
-                        2,
-                        1,
-                        2,
-                        1
+                        METRICS
                 );
 
         assertSame(
@@ -182,6 +231,26 @@ class JobMetricsServiceTest {
                 result.getUnorderedListsReconstructed()
         );
 
+        assertEquals(
+                5,
+                result.getHeadingsDetected()
+        );
+
+        assertEquals(
+                1,
+                result.getTablesDetected()
+        );
+
+        assertEquals(
+                3,
+                result.getImagesDetected()
+        );
+
+        assertEquals(
+                4,
+                result.getOutputPageCount()
+        );
+
         verify(jobMetricsRepository)
                 .save(existingMetrics);
     }
@@ -196,12 +265,7 @@ class JobMetricsServiceTest {
                 JobNotFoundException.class,
                 () -> jobMetricsService.saveMetrics(
                         JOB_ID,
-                        120,
-                        118,
-                        2,
-                        1,
-                        2,
-                        1
+                        METRICS
                 )
         );
 

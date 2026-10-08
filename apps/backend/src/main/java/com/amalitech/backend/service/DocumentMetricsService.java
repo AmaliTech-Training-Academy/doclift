@@ -15,4 +15,16 @@ public interface DocumentMetricsService {
     ListCountResult countOutputLists(
             byte[] docxBytes
     );
+
+    int countHeadings(PdfExtractionResult extractionResult);
+
+    HeadingLevelCountResult countHeadingLevels(
+            PdfExtractionResult extractionResult
+    );
+
+    int countTables(PdfExtractionResult extractionResult);
+
+    int countImages(PdfExtractionResult extractionResult);
+
+    int countMultiColumnPages(PdfExtractionResult extractionResult);
 }

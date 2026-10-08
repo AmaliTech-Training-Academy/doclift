@@ -71,6 +71,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return;
         }
 
+        pageExtraction.setMultiColumn(detectsMultiColumnLayout(pageExtraction));
+
         List<LogicalLine> lines = buildReadingOrder(
                 pageExtraction.getTextSpans(),
                 pageExtraction.getCandidateTableRegions()
@@ -93,6 +95,20 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
 
         pageExtraction.getStructuredBlocks().addAll(blocks);
+    }
+
+    private boolean detectsMultiColumnLayout(PageExtraction pageExtraction) {
+        List<TextSpan> flowSpans = new ArrayList<>();
+
+        for (TextSpan span : pageExtraction.getTextSpans()) {
+            if (!isInsideTableRegion(span, pageExtraction.getCandidateTableRegions())) {
+                flowSpans.add(span);
+            }
+        }
+
+        List<LogicalLine> physicalRows = groupSpansIntoLines(flowSpans);
+
+        return detectRepeatedColumnSplit(physicalRows) != null;
     }
 
     private StructuredBlock toParagraphBlock(
