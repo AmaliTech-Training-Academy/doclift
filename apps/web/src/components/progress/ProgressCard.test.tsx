@@ -104,7 +104,7 @@ describe("ProgressCard", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getByText("Phase 5 of 5:")).toBeInTheDocument();
     expect(mocks.updateStatus).toHaveBeenCalledWith("done", 12, 48213);
-    expect(toast.success).toHaveBeenCalledWith("Conversion complete!");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("marks the session failed when the job fails", () => {

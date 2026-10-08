@@ -39,7 +39,6 @@ const ProgressCard = ({ job, notFound }: ProgressCardProps) => {
     if (!isActive) return;
     if (jobStatus === "DONE") {
       updateStatusRef.current("done", durationSeconds, outputSizeBytes);
-      toast.success("Conversion complete!");
     } else if (jobStatus === "FAILED") {
       updateStatusRef.current("failed");
       toast.error("Conversion failed");

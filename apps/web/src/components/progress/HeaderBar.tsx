@@ -4,7 +4,7 @@ import FileInfoCard from "./FileInfoCard";
 import { useConversion } from "@/context/ConversionContext";
 import { JobStatusResponse } from "@/lib/pollingApi";
 
-interface HeaderBarProps {
+export interface HeaderBarProps {
   file: File | null;
   timeElapsed: number;
   timeRemaining: JobStatusResponse["estimatedTotalSeconds"] | null;

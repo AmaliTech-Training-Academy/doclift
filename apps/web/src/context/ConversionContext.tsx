@@ -226,7 +226,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     useJobPolling({
         jobId: session?.jobId,
         enabled: isConverting,
-        intervalMs: 500,
+        intervalMs: 5000,
         onComplete: () => {
             updateStatus("done");
             setActiveView("result");
@@ -267,12 +267,12 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        // 10-minute warning toast
-        if (purgeTimeRemaining <= 10 * 60 && purgeTimeRemaining > 0 && !hasWarned10MinRef.current) {
+        // 5-minute warning toast
+        if (purgeTimeRemaining <= 30 * 60 && purgeTimeRemaining > 0 && !hasWarned10MinRef.current) {
             hasWarned10MinRef.current = true;
             if (typeof toast?.warning === "function") {
                 toast.warning("Auto-Purge Warning", {
-                    description: "Your file will be purged in 10 minutes. Please download your Word document soon.",
+                    description: "Your file will be purged in 30 minutes. Please download your Word document soon.",
                 });
             }
         }
