@@ -1,6 +1,7 @@
 package com.amalitech.backend.service.impl;
 
 import com.amalitech.backend.service.*;
+import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
@@ -28,17 +29,12 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STFldCharType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabTlc;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @Service
 public class WordWriterServiceImpl implements WordWriterService {
@@ -49,6 +45,10 @@ public class WordWriterServiceImpl implements WordWriterService {
     private static final float DEFAULT_PAGE_HEIGHT_POINTS = 792f;
     private static final float DEFAULT_MARGIN_POINTS = 36f;
     private static final float MAX_FLOW_VERTICAL_MARGIN_POINTS = 18f;
+    private static final double EMU_PER_POINT =
+            12700.0;
+    private static final float IMAGE_ROW_TOLERANCE =
+            12f;
     private static final float MAX_RUNNING_BLOCK_HEIGHT_RATIO =
             0.08f;
 
@@ -524,6 +524,15 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 List<StructuredBlock> pageBlocks = page.getStructuredBlocks();
 
+                List<List<ExtractedImage>> imageRows =
+                        groupImagesIntoRows(
+                                page,
+                                flowImages(page)
+                        );
+
+                int nextImageRowIndex =
+                        0;
+
                 ColumnRegion activeColumnRegion =
                         null;
 
@@ -665,6 +674,41 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 null;
                     }
 
+                    while (nextImageRowIndex
+                            < imageRows.size()) {
+
+                        List<ExtractedImage> imageRow =
+                                imageRows.get(
+                                        nextImageRowIndex
+                                );
+
+                        float imageY =
+                                getImageFlowY(
+                                        page,
+                                        imageRow.getFirst()
+                                );
+
+                        if (imageY
+                                > block.getY()) {
+                            break;
+                        }
+
+                        writeFlowImageRow(
+                                document,
+                                imageRow,
+                                pageContentWidth(
+                                        pageMargins,
+                                        page
+                                )
+                        );
+
+                        nextImageRowIndex++;
+
+                        previousBlock =
+                                null;
+                    }
+
+
                     int spacingBefore =
                             calculateSpacingBefore(
                                     previousBlock,
@@ -769,6 +813,23 @@ public class WordWriterServiceImpl implements WordWriterService {
                     previousBlock = block;
                 }
 
+                while (nextImageRowIndex
+                        < imageRows.size()) {
+
+                    writeFlowImageRow(
+                            document,
+                            imageRows.get(
+                                    nextImageRowIndex
+                            ),
+                            pageContentWidth(
+                                    pageMargins,
+                                    page
+                            )
+                    );
+
+                    nextImageRowIndex++;
+                }
+
                 if (activeColumnRegion != null) {
 
                     insertContinuousColumnSectionBreak(
@@ -782,14 +843,37 @@ public class WordWriterServiceImpl implements WordWriterService {
                             null;
                 }
 
-                if (!page.getImages().isEmpty()) {
-                    XWPFParagraph carrier = document.createParagraph();
+                List<ExtractedImage> backgroundImages =
+                        page.getImages().stream()
+                                .filter(image ->
+                                        isBackgroundImage(
+                                                page,
+                                                image
+                                        )
+                                )
+                                .toList();
+
+                if (!backgroundImages.isEmpty()) {
+
+                    XWPFParagraph carrier =
+                            document.createParagraph();
+
                     carrier.setSpacingBefore(0);
                     carrier.setSpacingAfter(0);
-                    carrier.setSpacingBetween(0.0, LineSpacingRule.EXACT);
+                    carrier.setSpacingBetween(
+                            0.0,
+                            LineSpacingRule.EXACT
+                    );
 
-                    for (ExtractedImage image : page.getImages()) {
-                        insertFloatingImage(carrier, page, image, shapeId++);
+                    for (ExtractedImage image :
+                            backgroundImages) {
+
+                        insertFloatingImage(
+                                carrier,
+                                page,
+                                image,
+                                shapeId++
+                        );
                     }
                 }
 
@@ -1497,6 +1581,372 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         return false;
+    }
+
+    private List<ExtractedImage> flowImages(
+            PageExtraction page
+    ) {
+        return page.getImages().stream()
+                .filter(image ->
+                        !isBackgroundImage(
+                                page,
+                                image
+                        )
+                )
+                .sorted(
+                        Comparator
+                                .comparingDouble(
+                                        (ExtractedImage image) ->
+                                                getImageFlowY(
+                                                        page,
+                                                        image
+                                                )
+                                )
+                                .thenComparingDouble(
+                                        (ExtractedImage image) ->
+                                                image.getX()
+                                )
+                )
+                .toList();
+    }
+
+    private List<List<ExtractedImage>> groupImagesIntoRows(
+            PageExtraction page,
+            List<ExtractedImage> images
+    ) {
+        List<List<ExtractedImage>> rows =
+                new ArrayList<>();
+
+        for (ExtractedImage image : images) {
+
+            List<ExtractedImage> matchingRow =
+                    null;
+
+            for (List<ExtractedImage> row :
+                    rows) {
+
+                if (row.isEmpty()) {
+                    continue;
+                }
+
+                float referenceY =
+                        getImageFlowY(
+                                page,
+                                row.getFirst()
+                        );
+
+                float imageY =
+                        getImageFlowY(
+                                page,
+                                image
+                        );
+
+                if (Math.abs(
+                        imageY - referenceY
+                ) <= IMAGE_ROW_TOLERANCE) {
+
+                    matchingRow = row;
+                    break;
+                }
+            }
+
+            if (matchingRow == null) {
+                matchingRow =
+                        new ArrayList<>();
+
+                rows.add(
+                        matchingRow
+                );
+            }
+
+            matchingRow.add(
+                    image
+            );
+        }
+
+        for (List<ExtractedImage> row :
+                rows) {
+
+            row.sort(
+                    Comparator.comparing(
+                            ExtractedImage::getX
+                    )
+            );
+        }
+
+        rows.sort(
+                Comparator.comparingDouble(
+                        row ->
+                                getImageFlowY(
+                                        page,
+                                        row.getFirst()
+                                )
+                )
+        );
+
+        return rows;
+    }
+
+    private void writeFlowImageRow(
+            XWPFDocument document,
+            List<ExtractedImage> images,
+            float availableWidth
+    ) {
+        if (images == null
+                || images.isEmpty()) {
+            return;
+        }
+
+        if (images.size() == 1) {
+
+            writeSingleFlowImage(
+                    document,
+                    images.getFirst(),
+                    availableWidth
+            );
+
+            return;
+        }
+
+        writeSideBySideImages(
+                document,
+                images,
+                availableWidth
+        );
+    }
+
+    private void writeSingleFlowImage(
+            XWPFDocument document,
+            ExtractedImage image,
+            float availableWidth
+    ) {
+        XWPFParagraph paragraph =
+                document.createParagraph();
+
+        paragraph.setSpacingBefore(0);
+        paragraph.setSpacingAfter(0);
+
+        paragraph.setAlignment(
+                ParagraphAlignment.CENTER
+        );
+
+        XWPFRun run =
+                paragraph.createRun();
+
+        float scale =
+                image.getWidth() > availableWidth
+                        ? availableWidth
+                        / image.getWidth()
+                        : 1f;
+
+        float width =
+                image.getWidth() * scale;
+
+        float height =
+                image.getHeight() * scale;
+
+        try {
+            run.addPicture(
+                    new java.io.ByteArrayInputStream(
+                            image.getData()
+                    ),
+                    pictureType(image),
+                    image.getImageName() == null
+                            ? "image"
+                            : image.getImageName(),
+                    Units.toEMU(width),
+                    Units.toEMU(height)
+            );
+
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to insert image '"
+                            + image.getImageName()
+                            + "'.",
+                    e
+            );
+        }
+    }
+
+    private int pictureType(
+            ExtractedImage image
+    ) {
+        return switch (image.getMimeType()) {
+
+            case "image/jpeg" ->
+                    Document.PICTURE_TYPE_JPEG;
+
+            case "image/png" ->
+                    Document.PICTURE_TYPE_PNG;
+
+            default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported image type: "
+                                    + image.getMimeType()
+                    );
+        };
+    }
+
+    private void writeSideBySideImages(
+            XWPFDocument document,
+            List<ExtractedImage> images,
+            float availableWidth
+    ) {
+        int count =
+                images.size();
+
+        XWPFTable table =
+                document.createTable(
+                        1,
+                        count
+                );
+
+        table.setWidthType(
+                TableWidthType.DXA
+        );
+
+        table.setWidth(
+                toTwips(
+                        availableWidth
+                ).toString()
+        );
+
+        float cellWidth =
+                availableWidth
+                        / count;
+
+        XWPFTableRow row =
+                table.getRow(0);
+
+        for (int i = 0;
+             i < count;
+             i++) {
+
+            ExtractedImage image =
+                    images.get(i);
+
+            XWPFTableCell cell =
+                    row.getCell(i);
+
+            cell.setWidthType(
+                    TableWidthType.DXA
+            );
+
+            cell.setWidth(
+                    toTwips(
+                            cellWidth
+                    ).toString()
+            );
+
+            XWPFParagraph paragraph =
+                    cell.getParagraphArray(0);
+
+            paragraph.setSpacingBefore(0);
+            paragraph.setSpacingAfter(0);
+
+            paragraph.setAlignment(
+                    ParagraphAlignment.CENTER
+            );
+
+            XWPFRun run =
+                    paragraph.createRun();
+
+            float usableWidth =
+                    Math.max(
+                            1f,
+                            cellWidth - 6f
+                    );
+
+            float scale =
+                    image.getWidth()
+                            > usableWidth
+                            ? usableWidth
+                            / image.getWidth()
+                            : 1f;
+
+            float width =
+                    image.getWidth()
+                            * scale;
+
+            float height =
+                    image.getHeight()
+                            * scale;
+
+            try {
+                run.addPicture(
+                        new ByteArrayInputStream(
+                                image.getData()
+                        ),
+                        pictureType(image),
+                        image.getImageName() == null
+                                ? "image-" + i
+                                : image.getImageName(),
+                        Units.toEMU(width),
+                        Units.toEMU(height)
+                );
+
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        "Failed to insert image '"
+                                + image.getImageName()
+                                + "'.",
+                        e
+                );
+            }
+        }
+
+        removeTableBorders(
+                table
+        );
+    }
+
+    private void removeTableBorders(
+            XWPFTable table
+    ) {
+        CTTblPr tblPr =
+                table.getCTTbl()
+                        .getTblPr();
+
+        if (tblPr == null) {
+            tblPr =
+                    table.getCTTbl()
+                            .addNewTblPr();
+        }
+
+        var borders =
+                tblPr.isSetTblBorders()
+                        ? tblPr.getTblBorders()
+                        : tblPr.addNewTblBorders();
+
+        borders.addNewTop()
+                .setVal(
+                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                );
+
+        borders.addNewBottom()
+                .setVal(
+                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                );
+
+        borders.addNewLeft()
+                .setVal(
+                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                );
+
+        borders.addNewRight()
+                .setVal(
+                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                );
+
+        borders.addNewInsideH()
+                .setVal(
+                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                );
+
+        borders.addNewInsideV()
+                .setVal(
+                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                );
     }
 
     private boolean shouldSuppressRunningBlock(
@@ -2613,6 +3063,22 @@ public class WordWriterServiceImpl implements WordWriterService {
         return Math.min(
                 spacingTwips,
                 720
+        );
+    }
+
+    private float getImageFlowY(
+            PageExtraction page,
+            ExtractedImage image
+    ) {
+        ImagePositionMapper.Placement placement =
+                ImagePositionMapper.map(
+                        image,
+                        page
+                );
+
+        return (float) (
+                placement.offsetYEmu()
+                        / EMU_PER_POINT
         );
     }
 
