@@ -1445,6 +1445,19 @@ public class WordWriterServiceImpl implements WordWriterService {
             return true;
         }
 
+        boolean hasColumnRegions =
+                page.getColumnRegions() != null
+                        && !page.getColumnRegions().isEmpty();
+
+        if (!hasColumnRegions
+                && !page.getImages().isEmpty()) {
+            return true;
+        }
+
+        if (page.getStructuredBlocks().isEmpty()) {
+            return true;
+        }
+
         return false;
     }
 
