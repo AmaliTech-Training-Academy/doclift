@@ -6,6 +6,8 @@ import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.apache.xmlbeans.XmlCursor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTDrawing;
@@ -38,6 +40,9 @@ import java.io.IOException;
 
 @Service
 public class WordWriterServiceImpl implements WordWriterService {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(WordWriterServiceImpl.class);
 
     private static final int TWIPS_PER_POINT = 20;
 
@@ -194,7 +199,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             BigInteger abstractNumId,
             STNumberFormat.Enum format,
             String levelText,
-            BigInteger start
+            BigInteger start,
+            float markerFontSize
     ) {
         XWPFNumbering numbering =
                 document.getNumbering();
@@ -228,6 +234,16 @@ public class WordWriterServiceImpl implements WordWriterService {
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
+        if (markerFontSize > 0f) {
+            level.addNewRPr()
+                    .addNewSz()
+                    .setVal(
+                            BigInteger.valueOf(
+                                    Math.round(markerFontSize * 2)
+                            )
+                    );
+        }
+
         var pPr = level.addNewPPr();
 
         var tabs = pPr.addNewTabs();
@@ -253,14 +269,16 @@ public class WordWriterServiceImpl implements WordWriterService {
     private BigInteger createBulletNumbering(
             XWPFDocument document,
             BigInteger abstractNumId,
-            String bulletGlyph
+            String bulletGlyph,
+            float markerFontSize
     ) {
         return createNumbering(
                 document,
                 abstractNumId,
                 STNumberFormat.BULLET,
                 bulletGlyph,
-                null
+                null,
+                markerFontSize
         );
     }
 
@@ -338,7 +356,8 @@ public class WordWriterServiceImpl implements WordWriterService {
     private BigInteger createNumberedNumbering(
             XWPFDocument document,
             BigInteger abstractNumId,
-            String firstItemText
+            String firstItemText,
+            float markerFontSize
     ) {
         return createNumbering(
                 document,
@@ -349,7 +368,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                 resolveOrderedLevelText(
                         firstItemText
                 ),
-                BigInteger.ONE
+                BigInteger.ONE,
+                markerFontSize
         );
     }
 
@@ -783,11 +803,17 @@ public class WordWriterServiceImpl implements WordWriterService {
                                             nextAbstractNumId++
                                     );
 
+                            float markerFontSize =
+                                    getBlockMaxFontSize(block) > 0f
+                                            ? getBlockMaxFontSize(block)
+                                            : bodyFontSize;
+
                             activeNumberedNumId =
                                     createNumberedNumbering(
                                             document,
                                             abstractNumId,
-                                            block.getText()
+                                            block.getText(),
+                                            markerFontSize
                                     );
                         }
 
@@ -817,11 +843,17 @@ public class WordWriterServiceImpl implements WordWriterService {
                                             nextAbstractNumId++
                                     );
 
+                            float markerFontSize =
+                                    getBlockMaxFontSize(block) > 0f
+                                            ? getBlockMaxFontSize(block)
+                                            : bodyFontSize;
+
                             activeBulletNumId =
                                     createBulletNumbering(
                                             document,
                                             abstractNumId,
-                                            currentBulletGlyph
+                                            currentBulletGlyph,
+                                            markerFontSize
                                     );
                         }
 
@@ -1454,7 +1486,19 @@ public class WordWriterServiceImpl implements WordWriterService {
             return true;
         }
 
-        if (page.getStructuredBlocks().isEmpty()) {
+        boolean writesNoContent =
+                page.getStructuredBlocks().stream()
+                        .allMatch(block ->
+                                shouldSuppressRunningBlock(
+                                        page,
+                                        block,
+                                        repeatedHeaders,
+                                        repeatedFooters,
+                                        repeatedPageNumbers
+                                )
+                        );
+
+        if (writesNoContent) {
             return true;
         }
 
@@ -2349,6 +2393,14 @@ public class WordWriterServiceImpl implements WordWriterService {
                 isBackgroundImage(page, image);
 
         if (placement.extentXEmu() <= 0 || placement.extentYEmu() <= 0) {
+            log.warn(
+                    "Dropping image '{}' on page {}: computed non-positive "
+                            + "extent (extentXEmu={}, extentYEmu={}).",
+                    image.getImageName(),
+                    page.getPageIndex(),
+                    placement.extentXEmu(),
+                    placement.extentYEmu()
+            );
             return;
         }
 
