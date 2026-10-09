@@ -64,12 +64,30 @@ export default function ResultsScreen() {
   const outputWords = session?.metrics?.outputWordCount;
   const wordCount = outputWords ?? sourceWords;
 
-  const textYieldPercent =
-    sourceWords != null && outputWords != null && sourceWords > 0
-      ? Number(
-          Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)).toFixed(1)
-        )
-      : 'NA';
+  const compositeComparisons: number[] = [];
+
+  if (sourceWords != null && outputWords != null && sourceWords > 0) {
+    compositeComparisons.push(Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)));
+  }
+
+  const inputPages = session?.pageCount;
+  const outputPages = session?.metrics?.outputPageCount;
+  if (inputPages != null && outputPages != null && inputPages > 0) {
+    compositeComparisons.push(Math.min(100, Math.max(0, (outputPages / inputPages) * 100)));
+  }
+
+  if (session?.metrics) {
+    const detectedLists = (session.metrics.orderedListsDetected ?? 0) + (session.metrics.unorderedListsDetected ?? 0);
+    const reconstructedLists = (session.metrics.orderedListsReconstructed ?? 0) + (session.metrics.unorderedListsReconstructed ?? 0);
+    if (detectedLists > 0) {
+      compositeComparisons.push(Math.min(100, Math.max(0, (reconstructedLists / detectedLists) * 100)));
+    }
+  }
+
+  const compositeFidelityPercent =
+    compositeComparisons.length > 0
+      ? Number((compositeComparisons.reduce((a, b) => a + b, 0) / compositeComparisons.length).toFixed(1))
+      : 'N/A';
 
   const dynamicChecklistData = checklistData.map((item) => {
     if (item.id === 1 && wordCount != null) {
@@ -273,7 +291,7 @@ export default function ResultsScreen() {
             </span>
           </div>
 
-          {/* Deterministic Text Yield donut */}
+          {/* Composite Fidelity Score donut */}
           <div className="flex flex-row items-center gap-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
               <svg className="w-20 h-20 -rotate-90" viewBox="0 0 36 36">
@@ -292,22 +310,22 @@ export default function ResultsScreen() {
                   fill="none"
                   stroke="#2563eb"
                   strokeWidth="3"
-                  strokeDasharray={`${textYieldPercent} 100`}
+                  strokeDasharray={`${compositeFidelityPercent} 100`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute flex flex-col items-center leading-none">
-                <span className="text-lg font-bold">{textYieldPercent}%</span>
+                <span className="text-lg font-bold">{compositeFidelityPercent}%</span>
                 <span className="text-[9px] text-gray-400 mt-0.5">
-                  Text Match
+                  Fidelity
                 </span>
               </div>
             </div>
             <div className="flex flex-col">
-              <p className="font-semibold text-sm">Deterministic Text Yield</p>
+              <p className="font-semibold text-sm">Composite Fidelity Score</p>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Calculated from Levenshtein token parity between raw PDF content
-                streams and Word runs.
+                Calculated by aggregating available structural like words, tables, and lists
+                between the source PDF and output Word document.
               </p>
             </div>
           </div>
