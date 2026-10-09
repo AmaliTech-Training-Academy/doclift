@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { SummaryCard } from "./SummaryCard";
-import { Image as ImageIcon, Type, ShieldCheck } from "lucide-react";
+import { Image as ImageIcon, ShieldCheck, FileText } from "lucide-react";
 import type { SummaryCardItem } from "@/data/resultsData";
 
 describe("SummaryCard", () => {
@@ -27,7 +27,7 @@ describe("SummaryCard", () => {
         expect(container.querySelector("svg.lucide-shield-check")).toBeInTheDocument();
     });
 
-    it("renders figures variant with file list and extra files indicator", () => {
+    it("renders figures variant with embedded assets indicator", () => {
         const item: SummaryCardItem = {
             id: 2,
             title: "Extracted Figures",
@@ -35,37 +35,32 @@ describe("SummaryCard", () => {
             icon: ImageIcon,
             badge: "4 Assets",
             variant: "figures",
-            files: [{ name: "fig_01.png" }, { name: "chart_02.png" }],
-            extraFiles: 2,
         };
 
         render(<SummaryCard item={item} />);
 
-        expect(screen.getByText("fig_01.png")).toBeInTheDocument();
-        expect(screen.getByText("chart_02.png")).toBeInTheDocument();
-        expect(screen.getByText("+2 more")).toBeInTheDocument();
+        expect(screen.getByText("Embedded Assets")).toBeInTheDocument();
+        expect(screen.getByText("Lossless PNG")).toBeInTheDocument();
     });
 
-    it("renders typography variant with mapping details and match label", () => {
+    it("renders pages variant with input and output pages", () => {
         const item: SummaryCardItem = {
             id: 3,
-            title: "Font Mapping",
-            description: "Embedded fonts matched.",
-            icon: Type,
-            badge: "100% Match",
-            variant: "typography",
-            mapping: {
-                from: "HelveticaNeue-Bold",
-                to: "Aptos Display",
-                matchLabel: "Exact Metric",
-            },
+            title: "Pages Processed",
+            description: "Document paginated.",
+            icon: FileText,
+            badge: "10 Pages",
+            variant: "pages",
+            inputPages: 5,
+            outputPages: 10,
         };
 
         render(<SummaryCard item={item} />);
 
-        expect(screen.getByText("HelveticaNeue-Bold")).toBeInTheDocument();
-        expect(screen.getByText("Aptos Display")).toBeInTheDocument();
-        expect(screen.getByText("Exact Metric")).toBeInTheDocument();
+        expect(screen.getByText("Input Pages")).toBeInTheDocument();
+        expect(screen.getByText("5")).toBeInTheDocument();
+        expect(screen.getByText("Output Pages")).toBeInTheDocument();
+        expect(screen.getByText("10")).toBeInTheDocument();
     });
 
     it("renders session variant with progress bar width percentage", () => {
