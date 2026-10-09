@@ -6,5 +6,13 @@ public record JobMetricsResponse(
         Integer orderedListsDetected,
         Integer unorderedListsDetected,
         Integer orderedListsReconstructed,
-        Integer unorderedListsReconstructed
+        Integer unorderedListsReconstructed,
+        Integer headingsDetected,
+        Integer h1HeadingCount,
+        Integer h2HeadingCount,
+        Integer h3HeadingCount,
+        Integer tablesDetected,
+        Integer imagesDetected,
+        Integer multiColumnPageCount,
+        Integer outputPageCount
 ) {}

@@ -38,6 +38,30 @@ public class JobMetrics {
     @Column(name = "unordered_lists_reconstructed")
     private Integer unorderedListsReconstructed;
 
+    @Column(name = "headings_detected")
+    private Integer headingsDetected;
+
+    @Column(name = "h1_heading_count")
+    private Integer h1HeadingCount;
+
+    @Column(name = "h2_heading_count")
+    private Integer h2HeadingCount;
+
+    @Column(name = "h3_heading_count")
+    private Integer h3HeadingCount;
+
+    @Column(name = "tables_detected")
+    private Integer tablesDetected;
+
+    @Column(name = "images_detected")
+    private Integer imagesDetected;
+
+    @Column(name = "multi_column_page_count")
+    private Integer multiColumnPageCount;
+
+    @Column(name = "output_page_count")
+    private Integer outputPageCount;
+
 
     public JobMetrics(
             Job job,

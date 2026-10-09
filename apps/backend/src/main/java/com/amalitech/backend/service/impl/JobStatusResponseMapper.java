@@ -83,7 +83,15 @@ public class JobStatusResponseMapper {
                 job.getMetrics().getOrderedListsDetected(),
                 job.getMetrics().getUnorderedListsDetected(),
                 job.getMetrics().getOrderedListsReconstructed(),
-                job.getMetrics().getUnorderedListsReconstructed()
+                job.getMetrics().getUnorderedListsReconstructed(),
+                job.getMetrics().getHeadingsDetected(),
+                job.getMetrics().getH1HeadingCount(),
+                job.getMetrics().getH2HeadingCount(),
+                job.getMetrics().getH3HeadingCount(),
+                job.getMetrics().getTablesDetected(),
+                job.getMetrics().getImagesDetected(),
+                job.getMetrics().getMultiColumnPageCount(),
+                job.getMetrics().getOutputPageCount()
         );
     }
 }
