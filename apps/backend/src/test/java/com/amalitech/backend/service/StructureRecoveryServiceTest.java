@@ -2,7 +2,6 @@ package com.amalitech.backend.service;
 
 import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
 import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
-import com.amalitech.backend.service.ColumnRegion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -1695,25 +1694,6 @@ class StructureRecoveryServiceTest {
 
         PageExtraction firstPage =
                 result.getPages().getFirst();
-
-        System.out.println(
-                "COLUMN REGIONS:"
-        );
-
-        for (ColumnRegion region :
-                firstPage.getColumnRegions()) {
-
-            System.out.println(
-                    "columns="
-                            + region.columnCount()
-                            + " startY="
-                            + region.startY()
-                            + " endY="
-                            + region.endY()
-                            + " splitX="
-                            + region.splitX()
-            );
-        }
 
         List<StructuredBlock> blocks =
                 firstPage.getStructuredBlocks();

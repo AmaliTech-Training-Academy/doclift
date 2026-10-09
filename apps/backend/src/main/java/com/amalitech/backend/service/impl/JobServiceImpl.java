@@ -87,7 +87,7 @@ public class JobServiceImpl implements JobService {
         Instant now = Instant.now();
 
         job.setStatus(JobStatus.FAILED);
-        job.setCompletedAt(Instant.now());
+        job.setCompletedAt(now);
         return job;
     }
 

@@ -1929,7 +1929,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         float bottomEdgeStart =
-                pageHeight * 0.94f;
+                pageHeight * PAGE_EDGE_START_RATIO;
 
         boolean previousInBottomEdge =
                 previous.getY() >= bottomEdgeStart;

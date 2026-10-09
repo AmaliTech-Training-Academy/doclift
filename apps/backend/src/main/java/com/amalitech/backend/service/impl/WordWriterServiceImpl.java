@@ -631,7 +631,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                                     document,
                                     page,
                                     pageMargins,
-                                    activeColumnRegion.columnCount()
+                                    activeColumnRegion.columnCount(),
+                                    activeColumnRegion
                             );
 
                             activeColumnRegion = null;
@@ -644,7 +645,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                                     document,
                                     page,
                                     pageMargins,
-                                    1
+                                    1,
+                                    null
                             );
 
                             activeColumnRegion =
@@ -677,6 +679,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                     while (nextImageRowIndex
                             < imageRows.size()) {
 
+                        final ColumnRegion currentColumnRegion =
+                                activeColumnRegion;
+
+                        final boolean currentRightColumn =
+                                writingRightColumn;
+
                         List<ExtractedImage> imageRow =
                                 imageRows.get(
                                         nextImageRowIndex
@@ -693,13 +701,38 @@ public class WordWriterServiceImpl implements WordWriterService {
                             break;
                         }
 
-                        writeFlowImageRow(
-                                document,
-                                imageRow,
+                        if (currentColumnRegion != null
+                                && !imageRow.stream().allMatch(
+                                image -> imageInCurrentColumn(
+                                        page,
+                                        currentColumnRegion,
+                                        image,
+                                        currentRightColumn
+                                )
+                        )) {
+                            break;
+                        }
+
+                        float availableWidth =
                                 pageContentWidth(
                                         pageMargins,
                                         page
-                                )
+                                );
+
+                        if (currentColumnRegion != null) {
+                            availableWidth =
+                                    columnContentWidth(
+                                            pageMargins,
+                                            page,
+                                            currentColumnRegion,
+                                            currentRightColumn
+                                    );
+                        }
+
+                        writeFlowImageRow(
+                                document,
+                                imageRow,
+                                availableWidth
                         );
 
                         nextImageRowIndex++;
@@ -836,7 +869,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                             document,
                             page,
                             pageMargins,
-                            activeColumnRegion.columnCount()
+                            activeColumnRegion.columnCount(),
+                            activeColumnRegion
                     );
 
                     activeColumnRegion =
@@ -940,9 +974,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                         ? body.getSectPr()
                         : body.addNewSectPr();
 
-        if (hasContentAfterLastColumnRegion(
-                page
-        )) {
+        if (page.getColumnRegions() != null
+                && !page.getColumnRegions().isEmpty()) {
             if (sectPr.isSetType()) {
                 sectPr.getType()
                         .setVal(
@@ -988,7 +1021,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             XWPFDocument document,
             PageExtraction page,
             PageMargins pageMargins,
-            int columnCount
+            int columnCount,
+            ColumnRegion activeColumnRegion
     ) {
         XWPFParagraph paragraph =
                 document.createParagraph();
@@ -1026,11 +1060,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                 )
         );
 
-        if (columnCount > 1) {
+        if (columnCount > 1 && activeColumnRegion != null) {
             columns.setSpace(
                     toTwips(
                             determineColumnGap(
-                                    page
+                                    page,
+                                    activeColumnRegion
                             )
                     )
             );
@@ -1068,8 +1103,53 @@ public class WordWriterServiceImpl implements WordWriterService {
     }
 
     private float determineColumnGap(
-            PageExtraction page
+            PageExtraction page,
+            ColumnRegion region
     ) {
+        if (page == null || region == null) {
+            return 18f;
+        }
+
+        float leftEdge = Float.NEGATIVE_INFINITY;
+        float rightEdge = Float.POSITIVE_INFINITY;
+
+        for (StructuredBlock block :
+                page.getStructuredBlocks()) {
+
+            float centerY =
+                    block.getY()
+                            + block.getHeight() / 2f;
+
+            if (centerY < region.startY()
+                    || centerY > region.endY()) {
+                continue;
+            }
+
+            float blockRight =
+                    block.getX()
+                            + block.getWidth();
+
+            if (blockRight <= region.splitX()) {
+                leftEdge =
+                        Math.max(
+                                leftEdge,
+                                blockRight
+                        );
+            } else if (block.getX() >= region.splitX()) {
+                rightEdge =
+                        Math.min(
+                                rightEdge,
+                                block.getX()
+                        );
+            }
+        }
+
+        if (leftEdge > Float.NEGATIVE_INFINITY
+                && rightEdge < Float.POSITIVE_INFINITY
+                && rightEdge > leftEdge) {
+            return rightEdge - leftEdge;
+        }
+
         return 18f;
     }
 
@@ -1288,10 +1368,10 @@ public class WordWriterServiceImpl implements WordWriterService {
         paragraph.setSpacingBefore(0);
         paragraph.setSpacingAfter(0);
 
-        XWPFRun breakRun =
+        XWPFRun run =
                 paragraph.createRun();
 
-        breakRun.addBreak(
+        run.addBreak(
                 BreakType.PAGE
         );
     }
@@ -1300,11 +1380,50 @@ public class WordWriterServiceImpl implements WordWriterService {
             PageExtraction first,
             PageExtraction second
     ) {
-        return nearlyEqual(first.getCropX(), second.getCropX())
-                && nearlyEqual(first.getCropY(), second.getCropY())
-                && nearlyEqual(first.getCropWidth(), second.getCropWidth())
-                && nearlyEqual(first.getCropHeight(), second.getCropHeight())
-                && first.getRotation() == second.getRotation();
+        if (!hasKnownPageDimensions(first)
+                || !hasKnownPageDimensions(second)) {
+            return false;
+        }
+
+        return optionalGeometryEqual(
+                first.getCropX(),
+                second.getCropX()
+        )
+                && optionalGeometryEqual(
+                first.getCropY(),
+                second.getCropY()
+        )
+                && nearlyEqual(
+                first.getCropWidth(),
+                second.getCropWidth()
+        )
+                && nearlyEqual(
+                first.getCropHeight(),
+                second.getCropHeight()
+        )
+                && first.getRotation()
+                == second.getRotation();
+    }
+
+    private boolean hasKnownPageDimensions(
+            PageExtraction page
+    ) {
+        return Float.isFinite(page.getCropWidth())
+                && page.getCropWidth() > 0f
+                && Float.isFinite(page.getCropHeight())
+                && page.getCropHeight() > 0f;
+    }
+
+    private boolean optionalGeometryEqual(
+            float first,
+            float second
+    ) {
+        if (Float.isNaN(first)
+                && Float.isNaN(second)) {
+            return true;
+        }
+
+        return nearlyEqual(first, second);
     }
 
     private boolean requiresExplicitPageBoundary(
@@ -1313,35 +1432,32 @@ public class WordWriterServiceImpl implements WordWriterService {
             Set<String> repeatedFooters,
             boolean repeatedPageNumbers
     ) {
-        if (!page.getImages().isEmpty()) {
+        boolean hasBackgroundImage =
+                page.getImages().stream()
+                        .anyMatch(image ->
+                                isBackgroundImage(
+                                        page,
+                                        image
+                                )
+                        );
+
+        if (hasBackgroundImage) {
             return true;
         }
 
-        for (StructuredBlock block : page.getStructuredBlocks()) {
-            if (shouldSuppressRunningBlock(
-                    page,
-                    block,
-                    repeatedHeaders,
-                    repeatedFooters,
-                    repeatedPageNumbers
-            )) {
-                continue;
-            }
-
-            float pageHeight = page.getCropHeight() > 0
-                    ? page.getCropHeight()
-                    : DEFAULT_PAGE_HEIGHT_POINTS;
-            if (block.getY() + block.getHeight() < pageHeight * 0.85f) {
-                return false;
-            }
-        }
-
-        return true;
+        return false;
     }
 
-    private boolean nearlyEqual(float first, float second) {
-        return Math.abs(first - second) <= 0.01f;
+    private boolean nearlyEqual(
+            float first,
+            float second
+    ) {
+        return Float.isFinite(first)
+                && Float.isFinite(second)
+                && Math.abs(first - second) <= 0.01f;
     }
+
+
 
     private void writeHeaderFooter(
             XWPFHeaderFooter container,
@@ -1687,6 +1803,43 @@ public class WordWriterServiceImpl implements WordWriterService {
         return rows;
     }
 
+    private float columnContentWidth(
+            PageMargins pageMargins,
+            PageExtraction page,
+            ColumnRegion region,
+            boolean rightColumn
+    ) {
+        float pageWidth = pageContentWidth(pageMargins, page);
+        float splitX = region.splitX();
+
+        if (rightColumn) {
+            return Math.max(
+                    1f,
+                    pageWidth - (splitX - pageMargins.left())
+            );
+        }
+
+        return Math.max(
+                1f,
+                splitX - pageMargins.left()
+        );
+    }
+
+    private boolean imageInCurrentColumn(
+            PageExtraction page,
+            ColumnRegion region,
+            ExtractedImage image,
+            boolean rightColumn
+    ) {
+        if (page == null || region == null || image == null) {
+            return true;
+        }
+
+        return rightColumn
+                ? image.getX() >= region.splitX()
+                : image.getX() < region.splitX();
+    }
+
     private void writeFlowImageRow(
             XWPFDocument document,
             List<ExtractedImage> images,
@@ -1918,35 +2071,88 @@ public class WordWriterServiceImpl implements WordWriterService {
                         ? tblPr.getTblBorders()
                         : tblPr.addNewTblBorders();
 
-        borders.addNewTop()
-                .setVal(
-                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
-                );
+        setNilBorder(borders, "top");
+        setNilBorder(borders, "bottom");
+        setNilBorder(borders, "left");
+        setNilBorder(borders, "right");
+        setNilBorder(borders, "insideH");
+        setNilBorder(borders, "insideV");
+    }
 
-        borders.addNewBottom()
-                .setVal(
-                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
-                );
-
-        borders.addNewLeft()
-                .setVal(
-                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
-                );
-
-        borders.addNewRight()
-                .setVal(
-                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
-                );
-
-        borders.addNewInsideH()
-                .setVal(
-                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
-                );
-
-        borders.addNewInsideV()
-                .setVal(
-                        org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
-                );
+    private void setNilBorder(
+            org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblBorders borders,
+            String edgeName
+    ) {
+        switch (edgeName) {
+            case "top" -> {
+                if (borders.isSetTop()) {
+                    borders.getTop().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                } else {
+                    borders.addNewTop().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                }
+            }
+            case "bottom" -> {
+                if (borders.isSetBottom()) {
+                    borders.getBottom().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                } else {
+                    borders.addNewBottom().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                }
+            }
+            case "left" -> {
+                if (borders.isSetLeft()) {
+                    borders.getLeft().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                } else {
+                    borders.addNewLeft().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                }
+            }
+            case "right" -> {
+                if (borders.isSetRight()) {
+                    borders.getRight().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                } else {
+                    borders.addNewRight().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                }
+            }
+            case "insideH" -> {
+                if (borders.isSetInsideH()) {
+                    borders.getInsideH().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                } else {
+                    borders.addNewInsideH().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                }
+            }
+            case "insideV" -> {
+                if (borders.isSetInsideV()) {
+                    borders.getInsideV().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                } else {
+                    borders.addNewInsideV().setVal(
+                            org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder.NIL
+                    );
+                }
+            }
+            default -> {
+            }
+        }
     }
 
     private boolean shouldSuppressRunningBlock(
@@ -2537,7 +2743,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                  columnIndex >= 0;
                  columnIndex--) {
 
-                writeTableCell(rows, tableRow, rowIndex, columnIndex, footnotesByKey);
+                boolean removed =
+                        writeTableCell(rows, tableRow, rowIndex, columnIndex, footnotesByKey);
+
+                if (removed) {
+                    continue;
+                }
 
                 if (columnWidths != null && columnIndex < columnWidths.size()) {
 
@@ -2698,7 +2909,7 @@ public class WordWriterServiceImpl implements WordWriterService {
         tableCell.setWidth(toTwips(widthPoints).toString());
     }
 
-    private void writeTableCell(
+    private boolean writeTableCell(
             List<List<TableCell>> rows,
             XWPFTableRow tableRow,
             int rowIndex,
@@ -2730,7 +2941,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                 setVerticalMerge(tableCell, STMerge.RESTART);
             }
 
-            return;
+            return false;
         }
 
         TableCell anchor =
@@ -2741,12 +2952,12 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         if (sameRowAsAnchor) {
             tableRow.removeCell(columnIndex);
-            return;
+            return true;
         }
 
         if (columnIndex != cell.column()) {
             tableRow.removeCell(columnIndex);
-            return;
+            return true;
         }
 
         XWPFTableCell tableCell =
@@ -2758,6 +2969,8 @@ public class WordWriterServiceImpl implements WordWriterService {
         if (anchor.columnSpan() > 1) {
             setGridSpan(tableCell, anchor.columnSpan());
         }
+
+        return false;
     }
 
     private void setCellText(
@@ -3112,17 +3325,19 @@ public class WordWriterServiceImpl implements WordWriterService {
             return false;
         }
 
+        float imageTop = getImageFlowY(page, image);
+        float imageBottom = imageTop + image.getHeight();
+        float imageLeft = image.getX();
         float imageRight = image.getX() + image.getWidth();
-        float imageBottom = image.getY() + image.getHeight();
         int coveredBlocks = 0;
 
         for (StructuredBlock block : blocks) {
             float blockCenterX = block.getX() + block.getWidth() / 2f;
             float blockCenterY = block.getY() + block.getHeight() / 2f;
 
-            if (blockCenterX >= image.getX()
+            if (blockCenterX >= imageLeft
                     && blockCenterX <= imageRight
-                    && blockCenterY >= image.getY()
+                    && blockCenterY >= imageTop
                     && blockCenterY <= imageBottom) {
                 coveredBlocks++;
             }
