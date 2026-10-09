@@ -10,7 +10,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.*;
@@ -112,9 +111,6 @@ class ConversionWorkerTest {
         PdfExtractionResult extractionResult =
                 mock(PdfExtractionResult.class);
 
-        PageExtraction page =
-                mock(PageExtraction.class);
-
         when(
                 fileStorageService
                         .getSourcePdfPath(JOB_ID)
@@ -128,10 +124,6 @@ class ConversionWorkerTest {
         )
                 .thenReturn(extractionResult);
 
-        when(extractionResult.getPages())
-                .thenReturn(
-                        List.of(page)
-                );
         when(documentMetricsService.countSourceWords(extractionResult))
                 .thenReturn(120);
 
@@ -232,6 +224,21 @@ class ConversionWorkerTest {
         verify(documentMetricsService)
                 .countOutputLists(docxContent);
 
+        verify(documentMetricsService)
+                .countHeadings(extractionResult);
+
+        verify(documentMetricsService)
+                .countHeadingLevels(extractionResult);
+
+        verify(documentMetricsService)
+                .countTables(extractionResult);
+
+        verify(documentMetricsService)
+                .countImages(extractionResult);
+
+        verify(documentMetricsService)
+                .countMultiColumnPages(extractionResult);
+
         verify(jobService).updateProgress(
                 JOB_ID,
                 JobPhase.SAVING_OUTPUT,
@@ -313,6 +320,12 @@ class ConversionWorkerTest {
                 JOB_ID,
                 JobPhase.EXTRACTING_CONTENT,
                 1
+        );
+
+        verify(jobService, never()).updateProgress(
+                eq(JOB_ID),
+                eq(JobPhase.RECOVERING_STRUCTURE),
+                anyInt()
         );
 
         verify(jobService)
