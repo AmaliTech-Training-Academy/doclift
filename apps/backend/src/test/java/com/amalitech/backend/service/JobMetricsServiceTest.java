@@ -146,8 +146,7 @@ class JobMetricsServiceTest {
                 result.getMultiColumnPageCount()
         );
 
-        assertEquals(
-                7,
+        assertNull(
                 result.getOutputPageCount()
         );
 
@@ -246,8 +245,7 @@ class JobMetricsServiceTest {
                 result.getImagesDetected()
         );
 
-        assertEquals(
-                4,
+        assertNull(
                 result.getOutputPageCount()
         );
 

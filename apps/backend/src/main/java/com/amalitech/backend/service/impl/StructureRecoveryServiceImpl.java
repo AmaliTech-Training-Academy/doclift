@@ -68,15 +68,18 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         pageExtraction.getStructuredBlocks().clear();
 
         if (pageExtraction.getTextSpans().isEmpty()) {
+            pageExtraction.setMultiColumn(false);
             return;
         }
 
-        pageExtraction.setMultiColumn(detectsMultiColumnLayout(pageExtraction));
-
-        List<LogicalLine> lines = buildReadingOrder(
+        ReadingOrderResult readingOrder = buildReadingOrder(
                 pageExtraction.getTextSpans(),
                 pageExtraction.getCandidateTableRegions()
         );
+
+        pageExtraction.setMultiColumn(readingOrder.multiColumn());
+
+        List<LogicalLine> lines = readingOrder.lines();
 
         float bodyFontSize = determineBodyFontSize(
                 pageExtraction.getTextSpans()
@@ -95,20 +98,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
 
         pageExtraction.getStructuredBlocks().addAll(blocks);
-    }
-
-    private boolean detectsMultiColumnLayout(PageExtraction pageExtraction) {
-        List<TextSpan> flowSpans = new ArrayList<>();
-
-        for (TextSpan span : pageExtraction.getTextSpans()) {
-            if (!isInsideTableRegion(span, pageExtraction.getCandidateTableRegions())) {
-                flowSpans.add(span);
-            }
-        }
-
-        List<LogicalLine> physicalRows = groupSpansIntoLines(flowSpans);
-
-        return detectRepeatedColumnSplit(physicalRows) != null;
     }
 
     private StructuredBlock toParagraphBlock(
@@ -615,7 +604,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return bestSpacing;
     }
 
-    private List<LogicalLine> buildReadingOrder(
+    private ReadingOrderResult buildReadingOrder(
             List<TextSpan> textSpans,
             List<TableRegion> tableRegions
     ) {
@@ -652,12 +641,13 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
 
         if (splitX == null) {
-            return physicalRows;
+            return new ReadingOrderResult(physicalRows, false);
         }
 
         List<LogicalLine> ordered = new ArrayList<>();
         List<LogicalLine> leftColumn = new ArrayList<>();
         List<LogicalLine> rightColumn = new ArrayList<>();
+        boolean multiColumn = false;
 
         int firstColumnRow = -1;
 
@@ -671,7 +661,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         if (firstColumnRow == -1) {
-            return physicalRows;
+            return new ReadingOrderResult(physicalRows, false);
         }
 
         for (int i = 0; i < firstColumnRow; i++) {
@@ -685,7 +675,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine row = physicalRows.get(i);
 
             if (isSpanningRow(row, splitX)) {
-                flushColumnSection(ordered, leftColumn, rightColumn);
+                multiColumn |= flushColumnSection(ordered, leftColumn, rightColumn);
                 ordered.add(row);
                 continue;
             }
@@ -695,7 +685,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     i,
                     splitX
             )) {
-                flushColumnSection(
+                multiColumn |= flushColumnSection(
                         ordered,
                         leftColumn,
                         rightColumn
@@ -705,7 +695,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     ordered.add(physicalRows.get(j));
                 }
 
-                return ordered;
+                return new ReadingOrderResult(ordered, multiColumn);
             }
 
             List<TextSpan> leftSpans =
@@ -745,11 +735,15 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             }
         }
 
-        flushColumnSection(ordered, leftColumn, rightColumn);
+        multiColumn |= flushColumnSection(ordered, leftColumn, rightColumn);
 
-        return ordered;
+        return new ReadingOrderResult(ordered, multiColumn);
     }
 
+    private record ReadingOrderResult(
+            List<LogicalLine> lines,
+            boolean multiColumn
+    ) {}
 
     private boolean hasNearbyColumnSupport(
             List<LogicalLine> rows,
@@ -905,11 +899,13 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return false;
     }
 
-    private void flushColumnSection(
+    private boolean flushColumnSection(
             List<LogicalLine> ordered,
             List<LogicalLine> leftColumn,
             List<LogicalLine> rightColumn
     ) {
+        boolean bothColumns = !leftColumn.isEmpty() && !rightColumn.isEmpty();
+
         if (!leftColumn.isEmpty()) {
             leftColumn.sort(
                     Comparator
@@ -929,6 +925,8 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             ordered.addAll(rightColumn);
             rightColumn.clear();
         }
+
+        return bothColumns;
     }
 
     private List<LogicalLine> groupSpansIntoLines(List<TextSpan> textSpans) {

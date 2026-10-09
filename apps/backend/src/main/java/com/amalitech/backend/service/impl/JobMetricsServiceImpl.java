@@ -68,7 +68,6 @@ public class JobMetricsServiceImpl implements JobMetricsService {
         jobMetrics.setTablesDetected(metrics.tablesDetected());
         jobMetrics.setImagesDetected(metrics.imagesDetected());
         jobMetrics.setMultiColumnPageCount(metrics.multiColumnPageCount());
-        jobMetrics.setOutputPageCount(job.getPageCount());
 
         return jobMetricsRepository.save(jobMetrics);
     }

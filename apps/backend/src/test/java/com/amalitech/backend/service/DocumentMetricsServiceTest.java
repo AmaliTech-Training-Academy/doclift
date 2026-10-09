@@ -36,6 +36,20 @@ class DocumentMetricsServiceTest {
         return result;
     }
 
+    private StructuredBlock tableBlock() {
+        return new StructuredBlock(
+                0,
+                BlockType.TABLE,
+                null,
+                "",
+                0,
+                0,
+                100,
+                20,
+                List.of()
+        );
+    }
+
     private StructuredBlock listBlock(
             String text,
             ListType listType
@@ -50,6 +64,37 @@ class DocumentMetricsServiceTest {
                 100,
                 20,
                 List.of()
+        );
+    }
+
+    private StructuredBlock paragraphBlock(
+            String text,
+            float fontSize
+    ) {
+        return new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                text,
+                0,
+                0,
+                100,
+                20,
+                List.of(
+                        new TextSpan(
+                                0,
+                                text,
+                                0,
+                                0,
+                                100,
+                                20,
+                                "Helvetica",
+                                fontSize,
+                                false,
+                                false,
+                                false,
+                                false
+                        )
+                )
         );
     }
 
@@ -747,7 +792,8 @@ class DocumentMetricsServiceTest {
                         headingBlock("Section A", 18f),
                         headingBlock("Section B", 18f),
                         headingBlock("Sub-point", 14f),
-                        headingBlock("Another sub-point", 13f)
+                        headingBlock("Another sub-point", 13f),
+                        paragraphBlock("Body text", 12f)
                 );
 
         HeadingLevelCountResult levels =
@@ -802,10 +848,11 @@ class DocumentMetricsServiceTest {
                 new PdfExtractionResult();
 
         PageExtraction firstPage = new PageExtraction(0);
-        firstPage.setTableCount(2);
+        firstPage.getStructuredBlocks().add(tableBlock());
+        firstPage.getStructuredBlocks().add(tableBlock());
 
         PageExtraction secondPage = new PageExtraction(1);
-        secondPage.setTableCount(1);
+        secondPage.getStructuredBlocks().add(tableBlock());
 
         result.getPages().add(firstPage);
         result.getPages().add(secondPage);

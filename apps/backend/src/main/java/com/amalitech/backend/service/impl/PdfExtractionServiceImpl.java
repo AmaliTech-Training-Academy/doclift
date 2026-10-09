@@ -146,8 +146,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                 lineEngine.getVerticalLines()
         );
 
-        pageExtraction.setTableCount(tables.size());
-
         for (DetectedTable table : tables) {
             pageExtraction.getCandidateTableRegions().add(
                     new TableRegion(

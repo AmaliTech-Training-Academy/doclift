@@ -8,8 +8,6 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -310,11 +308,6 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
         return max;
     }
 
-    private float normalizedFontSize(StructuredBlock block) {
-        float raw = representativeFontSize(block);
-        return Math.round(raw * 2f) / 2f;
-    }
-
     @Override
     public HeadingLevelCountResult countHeadingLevels(
             PdfExtractionResult extractionResult
@@ -324,48 +317,62 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
             return new HeadingLevelCountResult(0, 0, 0);
         }
 
-        List<StructuredBlock> headings = new ArrayList<>();
+        float bodyFontSize = medianBodyFontSize(extractionResult);
+        int levelOne = 0;
+        int levelTwo = 0;
+        int levelThree = 0;
 
         for (PageExtraction page : extractionResult.getPages()) {
-
             if (page.getStructuredBlocks() == null) {
                 continue;
             }
 
             for (StructuredBlock block : page.getStructuredBlocks()) {
-                if (block.getType() == BlockType.HEADING) {
-                    headings.add(block);
+                if (block.getType() != BlockType.HEADING) {
+                    continue;
+                }
+
+                float headingSize = representativeFontSize(block);
+
+                if (bodyFontSize <= 0f || headingSize <= 0f) {
+                    levelTwo++;
+                    continue;
+                }
+
+                float ratio = headingSize / bodyFontSize;
+
+                if (ratio >= 1.60f) {
+                    levelOne++;
+                } else if (ratio >= 1.30f) {
+                    levelTwo++;
+                } else {
+                    levelThree++;
                 }
             }
         }
 
-        if (headings.isEmpty()) {
-            return new HeadingLevelCountResult(0, 0, 0);
-        }
+        return new HeadingLevelCountResult(levelOne, levelTwo, levelThree);
+    }
 
-        List<Float> distinctSizes = headings.stream()
-                .map(this::normalizedFontSize)
-                .distinct()
-                .sorted(Comparator.reverseOrder())
+    private float medianBodyFontSize(PdfExtractionResult extractionResult) {
+        List<Float> sizes = extractionResult.getPages().stream()
+                .filter(page -> page.getStructuredBlocks() != null)
+                .flatMap(page -> page.getStructuredBlocks().stream())
+                .filter(block ->
+                        block.getType() == BlockType.PARAGRAPH
+                                || block.getType() == BlockType.LIST_ITEM)
+                .filter(block -> block.getSpans() != null)
+                .flatMap(block -> block.getSpans().stream())
+                .map(TextSpan::getFontSize)
+                .filter(size -> size > 0f)
+                .sorted()
                 .toList();
 
-        int levelOne = 0;
-        int levelTwo = 0;
-        int levelThree = 0;
-
-        for (StructuredBlock heading : headings) {
-            int rank = distinctSizes.indexOf(normalizedFontSize(heading));
-
-            if (rank == 0) {
-                levelOne++;
-            } else if (rank == 1) {
-                levelTwo++;
-            } else {
-                levelThree++;
-            }
+        if (sizes.isEmpty()) {
+            return 0f;
         }
 
-        return new HeadingLevelCountResult(levelOne, levelTwo, levelThree);
+        return sizes.get((sizes.size() - 1) / 2);
     }
 
     @Override
@@ -378,7 +385,15 @@ public class DocumentMetricsServiceImpl implements DocumentMetricsService {
         int total = 0;
 
         for (PageExtraction page : extractionResult.getPages()) {
-            total += page.getTableCount();
+            if (page.getStructuredBlocks() == null) {
+                continue;
+            }
+
+            for (StructuredBlock block : page.getStructuredBlocks()) {
+                if (block.getType() == BlockType.TABLE) {
+                    total++;
+                }
+            }
         }
 
         return total;
