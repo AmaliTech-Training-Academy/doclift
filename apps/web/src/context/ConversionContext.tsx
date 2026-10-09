@@ -94,7 +94,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             if (!prevSession) return null;
             const now = Date.now();
             const createdAt = prevSession.createdAt || prevSession.updatedAt;
-            const calculatedDuration = Math.max(1, Math.round((now - createdAt) / 1000));
+            const calculatedDuration = Math.max(0, (now - createdAt) / 1000);
             const completedJobData =
                 typeof jobData === "number" ? undefined : jobData;
             const outputSizeBytes =

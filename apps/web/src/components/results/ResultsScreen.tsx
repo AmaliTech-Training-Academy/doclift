@@ -30,6 +30,10 @@ export default function ResultsScreen() {
   const durationSeconds = session?.durationSeconds;
   const conversionTimeText = (() => {
     if (durationSeconds == null) return null;
+    if (durationSeconds < 1) {
+      const ms = Math.round(durationSeconds * 1000);
+      return `${ms}ms conversion time`;
+    }
     const roundedSeconds = Math.round(durationSeconds);
     const mins = Math.floor(roundedSeconds / 60);
     const secs = roundedSeconds % 60;
@@ -60,12 +64,30 @@ export default function ResultsScreen() {
   const outputWords = session?.metrics?.outputWordCount;
   const wordCount = outputWords ?? sourceWords;
 
-  const textYieldPercent =
-    sourceWords != null && outputWords != null && sourceWords > 0
-      ? Number(
-          Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)).toFixed(1)
-        )
-      : 'NA';
+  const compositeComparisons: number[] = [];
+
+  if (sourceWords != null && outputWords != null && sourceWords > 0) {
+    compositeComparisons.push(Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)));
+  }
+
+  const inputPages = session?.pageCount;
+  const outputPages = session?.metrics?.outputPageCount;
+  if (inputPages != null && outputPages != null && inputPages > 0) {
+    compositeComparisons.push(Math.min(100, Math.max(0, (outputPages / inputPages) * 100)));
+  }
+
+  if (session?.metrics) {
+    const detectedLists = (session.metrics.orderedListsDetected ?? 0) + (session.metrics.unorderedListsDetected ?? 0);
+    const reconstructedLists = (session.metrics.orderedListsReconstructed ?? 0) + (session.metrics.unorderedListsReconstructed ?? 0);
+    if (detectedLists > 0) {
+      compositeComparisons.push(Math.min(100, Math.max(0, (reconstructedLists / detectedLists) * 100)));
+    }
+  }
+
+  const compositeFidelityPercent =
+    compositeComparisons.length > 0
+      ? Number((compositeComparisons.reduce((a, b) => a + b, 0) / compositeComparisons.length).toFixed(1))
+      : 'N/A';
 
   const dynamicChecklistData = checklistData.map((item) => {
     if (item.id === 1 && wordCount != null) {
@@ -74,6 +96,32 @@ export default function ResultsScreen() {
         badge: `${wordCount.toLocaleString()} Words`,
       };
     }
+
+    if (item.id === 2 && session?.metrics?.multiColumnPageCount != null) {
+      const count = session.metrics.multiColumnPageCount;
+      return {
+        ...item,
+        badge: count > 0 ? `${count} Multi-Column ${count === 1 ? "Page" : "Pages"}` : "Single-Column",
+        description: count > 0
+          ? `Detected and preserved multi-column page layout across ${count} ${count === 1 ? "page" : "pages"}.`
+          : item.description,
+      };
+    }
+
+    if (item.id === 3 && session?.metrics?.headingsDetected != null) {
+      const hCount = session.metrics.headingsDetected;
+      const h1 = session.metrics.h1HeadingCount ?? 0;
+      const h2 = session.metrics.h2HeadingCount ?? 0;
+      const h3 = session.metrics.h3HeadingCount ?? 0;
+      return {
+        ...item,
+        badge: hCount > 0 ? `${hCount} Headings Mapped` : "No Headings Detected",
+        description: hCount > 0
+          ? `Mapped ${hCount} heading structures (${h1} H1, ${h2} H2, ${h3} H3) into native Word paragraph styles.`
+          : item.description,
+      };
+    }
+
     if (item.id === 4 && session?.metrics) {
       const {
         orderedListsDetected,
@@ -108,6 +156,62 @@ export default function ResultsScreen() {
         };
       }
     }
+
+
+
+    return item;
+  });
+
+  const dynamicFidelityMetrics = fidelityMetrics.map((item) => {
+    if (item.id === 1 && session?.metrics?.headingsDetected != null) {
+      return {
+        ...item,
+        value: session.metrics.headingsDetected,
+        note: "Mapped",
+      };
+    }
+    if (item.id === 2 && session?.metrics?.tablesDetected != null) {
+      return {
+        ...item,
+        value: session.metrics.tablesDetected,
+        note: `${session.metrics.tablesDetected === 1 ? "Grid" : "Grids"} Rebuilt`,
+      };
+    }
+    if (item.id === 3 && session?.metrics?.imagesDetected != null) {
+      return {
+        ...item,
+        value: session.metrics.imagesDetected,
+        note: "Embedded Assets",
+      };
+    }
+    return item;
+  });
+
+  const dynamicSummaryCards = summaryCards.map((item) => {
+    if (item.id === 1 && session?.metrics?.imagesDetected != null) {
+      const imgCount = session.metrics.imagesDetected;
+      return {
+        ...item,
+        badge: `${imgCount} ${imgCount === 1 ? "Asset" : "Assets"}`,
+        description:
+          imgCount > 0
+            ? `${imgCount} ${imgCount === 1 ? "bitmap image" : "bitmap images"} normalized to PNGs and embedded into the Word document.`
+            : "No bitmap images detected in the document.",
+      };
+    }
+    if (item.id === 2) {
+      const input = session?.pageCount;
+      const output = session?.metrics?.outputPageCount;
+      if (input != null || output != null) {
+        const pageCount = output ?? input;
+        return {
+          ...item,
+          badge: `${pageCount} ${pageCount === 1 ? "Page" : "Pages"}`,
+          inputPages: input ?? undefined,
+          outputPages: output ?? undefined,
+        };
+      }
+    }
     return item;
   });
 
@@ -137,11 +241,6 @@ export default function ResultsScreen() {
                 <div className="text-sm sm:text-md bg-primary-background rounded-lg w-fit px-2 py-1 text-primary">
                   <span>Converted Word Document</span>
                 </div>
-                {session?.jobId && (
-                  <span className="text-xs bg-gray-100 text-gray-600 font-mono px-2 py-1 rounded-md">
-                    ID: {session.jobId}
-                  </span>
-                )}
                 {metadataSummary && (
                   <p className="text-sm sm:text-md text-muted-foreground">
                     {metadataSummary}
@@ -192,7 +291,7 @@ export default function ResultsScreen() {
             </span>
           </div>
 
-          {/* Deterministic Text Yield donut */}
+          {/* Composite Fidelity Score donut */}
           <div className="flex flex-row items-center gap-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
               <svg className="w-20 h-20 -rotate-90" viewBox="0 0 36 36">
@@ -211,27 +310,27 @@ export default function ResultsScreen() {
                   fill="none"
                   stroke="#2563eb"
                   strokeWidth="3"
-                  strokeDasharray={`${textYieldPercent} 100`}
+                  strokeDasharray={`${compositeFidelityPercent} 100`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute flex flex-col items-center leading-none">
-                <span className="text-lg font-bold">{textYieldPercent}%</span>
+                <span className="text-lg font-bold">{compositeFidelityPercent}%</span>
                 <span className="text-[9px] text-gray-400 mt-0.5">
-                  Text Match
+                  Fidelity
                 </span>
               </div>
             </div>
             <div className="flex flex-col">
-              <p className="font-semibold text-sm">Deterministic Text Yield</p>
+              <p className="font-semibold text-sm">Composite Fidelity Score</p>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Calculated from Levenshtein token parity between raw PDF content
-                streams and Word runs.
+                Calculated by aggregating available structural like words, tables, and lists
+                between the source PDF and output Word document.
               </p>
             </div>
           </div>
 
-          {fidelityMetrics.map((item) => (
+          {dynamicFidelityMetrics.map((item) => (
             <FidelityMetricCard key={item.id} item={item} />
           ))}
 
@@ -254,7 +353,7 @@ export default function ResultsScreen() {
 
       {/* Summary Cards at the bottom section */}
       <div className="w-full mx-auto max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-4">
-        {summaryCards.map((item) => (
+        {dynamicSummaryCards.map((item) => (
           <SummaryCard
             key={item.id}
             item={item}
