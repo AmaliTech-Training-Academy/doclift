@@ -1,13 +1,6 @@
 package com.amalitech.backend.service.impl;
 
-import com.amalitech.backend.service.BlockAlignment;
-import com.amalitech.backend.service.BlockType;
-import com.amalitech.backend.service.ListType;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.StructureRecoveryService;
-import com.amalitech.backend.service.StructuredBlock;
-import com.amalitech.backend.service.TableRegion;
-import com.amalitech.backend.service.TextSpan;
+import com.amalitech.backend.service.*;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -26,6 +19,11 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float MAX_FIRST_LINE_INDENT = 48f;
     private static final float HEADING_FONT_RATIO = 1.25f;
     private static final int HEADING_MAX_LENGTH = 120;
+    private static final float MIN_COLUMN_START_SEPARATION_RATIO =
+            0.25f;
+
+    private static final float COLUMN_START_CLUSTER_TOLERANCE =
+            20f;
     private static final Pattern UNORDERED_LIST_PATTERN =
             Pattern.compile(
                     "^\\s*[•●◦▪‣⁃∙·✓*\\-]\\s+.+"
@@ -83,12 +81,21 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             return;
         }
 
-        List<LogicalLine> lines =
+        pageExtraction.getColumnRegions().clear();
+
+        ReadingOrderResult readingOrderResult =
                 buildReadingOrder(
                         pageExtraction.getTextSpans(),
                         pageExtraction.getCandidateTableRegions(),
                         pageExtraction.getPageHeight()
                 );
+
+        List<LogicalLine> lines =
+                readingOrderResult.lines();
+
+        pageExtraction.getColumnRegions().addAll(
+                readingOrderResult.columnRegions()
+        );
 
         float bodyFontSize = determineBodyFontSize(
                 pageExtraction.getTextSpans()
@@ -627,7 +634,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         return bestSpacing;
     }
 
-    private List<LogicalLine> buildReadingOrder(
+    private ReadingOrderResult buildReadingOrder(
             List<TextSpan> textSpans,
             List<TableRegion> tableRegions,
             float pageHeight
@@ -650,8 +657,23 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                         pageHeight
                 );
 
+        Float repeatedRowSplit =
+                detectRepeatedColumnSplit(
+                        physicalRows
+                );
+
+        Float verticalBandCandidate =
+                detectColumnSplitFromVerticalBands(
+                        physicalRows
+                );
+
+        boolean verticalBandSplit =
+                verticalBandCandidate != null;
+
         Float splitX =
-                detectRepeatedColumnSplit(physicalRows);
+                verticalBandSplit
+                        ? verticalBandCandidate
+                        : repeatedRowSplit;
 
         List<LogicalLine> tableRows =
                 groupSpansIntoLines(
@@ -671,26 +693,72 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         );
 
         if (splitX == null) {
-            return physicalRows;
+            return new ReadingOrderResult(
+                    physicalRows,
+                    List.of()
+            );
         }
 
         List<LogicalLine> ordered = new ArrayList<>();
         List<LogicalLine> leftColumn = new ArrayList<>();
         List<LogicalLine> rightColumn = new ArrayList<>();
+        List<ColumnRegion> columnRegions =
+                new ArrayList<>();
 
         int firstColumnRow = -1;
 
-        for (int i = 0; i < physicalRows.size(); i++) {
-            LogicalLine row = physicalRows.get(i);
+        for (int i = 0;
+             i < physicalRows.size();
+             i++) {
 
-            if (!row.isTableRow() && hasGutterAt(row, splitX)) {
+            LogicalLine row =
+                    physicalRows.get(i);
+
+            if (row.isTableRow()) {
+                continue;
+            }
+
+            if (verticalBandSplit) {
+
+                boolean belongsToLeftBand =
+                        row.getX()
+                                < splitX
+                                - COLUMN_START_CLUSTER_TOLERANCE;
+
+                boolean belongsToRightBand =
+                        row.getX()
+                                > splitX
+                                + COLUMN_START_CLUSTER_TOLERANCE;
+
+                if (!isSpanningRow(
+                        row,
+                        splitX
+                )
+                        && (belongsToLeftBand
+                        || belongsToRightBand)
+                        && hasNearbyOppositeColumnSupport(
+                        physicalRows,
+                        i,
+                        splitX
+                )) {
+
+                    firstColumnRow = i;
+                    break;
+                }
+            } else if (hasGutterAt(
+                    row,
+                    splitX
+            )) {
                 firstColumnRow = i;
                 break;
             }
         }
 
         if (firstColumnRow == -1) {
-            return physicalRows;
+            return new ReadingOrderResult(
+                    physicalRows,
+                    List.of()
+            );
         }
 
         for (int i = 0; i < firstColumnRow; i++) {
@@ -704,12 +772,19 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             LogicalLine row = physicalRows.get(i);
 
             if (isSpanningRow(row, splitX)) {
-                flushColumnSection(ordered, leftColumn, rightColumn);
+                flushColumnSection(
+                        ordered,
+                        leftColumn,
+                        rightColumn,
+                        columnRegions,
+                        splitX
+                );
                 ordered.add(row);
                 continue;
             }
 
-            if (!hasNearbyColumnSupport(
+            if (!verticalBandSplit
+                    && !hasNearbyColumnSupport(
                     physicalRows,
                     i,
                     splitX
@@ -717,14 +792,24 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 flushColumnSection(
                         ordered,
                         leftColumn,
-                        rightColumn
+                        rightColumn,
+                        columnRegions,
+                        splitX
                 );
 
-                for (int j = i; j < physicalRows.size(); j++) {
-                    ordered.add(physicalRows.get(j));
+                for (int j = i;
+                     j < physicalRows.size();
+                     j++) {
+
+                    ordered.add(
+                            physicalRows.get(j)
+                    );
                 }
 
-                return ordered;
+                return new ReadingOrderResult(
+                        ordered,
+                        columnRegions
+                );
             }
 
             List<TextSpan> leftSpans =
@@ -764,11 +849,77 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
             }
         }
 
-        flushColumnSection(ordered, leftColumn, rightColumn);
+        flushColumnSection(
+                ordered,
+                leftColumn,
+                rightColumn,
+                columnRegions,
+                splitX
+        );
 
-        return ordered;
+        return new ReadingOrderResult(
+                ordered,
+                columnRegions
+        );
     }
 
+    private boolean hasNearbyOppositeColumnSupport(
+            List<LogicalLine> rows,
+            int currentIndex,
+            float splitX
+    ) {
+        LogicalLine current =
+                rows.get(currentIndex);
+
+        boolean currentIsLeft =
+                current.getX() < splitX;
+
+        float verticalTolerance =
+                Math.max(
+                        24f,
+                        current.getAverageHeight() * 3f
+                );
+
+        for (int i = 0;
+             i < rows.size();
+             i++) {
+
+            if (i == currentIndex) {
+                continue;
+            }
+
+            LogicalLine other =
+                    rows.get(i);
+
+            if (other.isTableRow()
+                    || isSpanningRow(
+                    other,
+                    splitX
+            )) {
+                continue;
+            }
+
+            boolean otherIsLeft =
+                    other.getX() < splitX;
+
+            if (currentIsLeft == otherIsLeft) {
+                continue;
+            }
+
+            float verticalDistance =
+                    Math.abs(
+                            other.getY()
+                                    - current.getY()
+                    );
+
+            if (verticalDistance
+                    <= verticalTolerance) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private boolean hasNearbyColumnSupport(
             List<LogicalLine> rows,
@@ -927,25 +1078,98 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private void flushColumnSection(
             List<LogicalLine> ordered,
             List<LogicalLine> leftColumn,
-            List<LogicalLine> rightColumn
+            List<LogicalLine> rightColumn,
+            List<ColumnRegion> columnRegions,
+            float splitX
     ) {
+        if (!leftColumn.isEmpty()
+                && !rightColumn.isEmpty()) {
+
+            float startY =
+                    Float.MAX_VALUE;
+
+            float endY =
+                    -Float.MAX_VALUE;
+
+            for (LogicalLine line :
+                    leftColumn) {
+
+                startY =
+                        Math.min(
+                                startY,
+                                line.getY()
+                        );
+
+                endY =
+                        Math.max(
+                                endY,
+                                line.getY()
+                                        + line.getHeight()
+                        );
+            }
+
+            for (LogicalLine line :
+                    rightColumn) {
+
+                startY =
+                        Math.min(
+                                startY,
+                                line.getY()
+                        );
+
+                endY =
+                        Math.max(
+                                endY,
+                                line.getY()
+                                        + line.getHeight()
+                        );
+            }
+
+            columnRegions.add(
+                    new ColumnRegion(
+                            startY,
+                            endY,
+                            2,
+                            splitX
+                    )
+            );
+        }
+
         if (!leftColumn.isEmpty()) {
+
             leftColumn.sort(
                     Comparator
-                            .comparing(LogicalLine::getY)
-                            .thenComparing(LogicalLine::getX)
+                            .comparing(
+                                    LogicalLine::getY
+                            )
+                            .thenComparing(
+                                    LogicalLine::getX
+                            )
             );
-            ordered.addAll(leftColumn);
+
+            ordered.addAll(
+                    leftColumn
+            );
+
             leftColumn.clear();
         }
 
         if (!rightColumn.isEmpty()) {
+
             rightColumn.sort(
                     Comparator
-                            .comparing(LogicalLine::getY)
-                            .thenComparing(LogicalLine::getX)
+                            .comparing(
+                                    LogicalLine::getY
+                            )
+                            .thenComparing(
+                                    LogicalLine::getX
+                            )
             );
-            ordered.addAll(rightColumn);
+
+            ordered.addAll(
+                    rightColumn
+            );
+
             rightColumn.clear();
         }
     }
@@ -1060,6 +1284,177 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         }
 
         return largest;
+    }
+
+    private Float detectColumnSplitFromVerticalBands(
+            List<LogicalLine> rows
+    ) {
+        if (rows.size()
+                < MIN_MULTI_COLUMN_ROWS * 2) {
+            return null;
+        }
+
+        float contentLeft =
+                rows.stream()
+                        .map(LogicalLine::getX)
+                        .min(Float::compare)
+                        .orElse(0f);
+
+        float contentRight =
+                rows.stream()
+                        .map(row ->
+                                row.getX()
+                                        + row.getWidth()
+                        )
+                        .max(Float::compare)
+                        .orElse(contentLeft);
+
+        float contentWidth =
+                contentRight - contentLeft;
+
+        if (contentWidth <= 0f) {
+            return null;
+        }
+
+        List<Float> starts =
+                rows.stream()
+                        .map(LogicalLine::getX)
+                        .sorted()
+                        .toList();
+
+        float bestGap =
+                0f;
+
+        Float leftAnchor =
+                null;
+
+        Float rightAnchor =
+                null;
+
+        for (int i = 1;
+             i < starts.size();
+             i++) {
+
+            float previous =
+                    starts.get(i - 1);
+
+            float current =
+                    starts.get(i);
+
+            float gap =
+                    current - previous;
+
+            if (gap > bestGap) {
+                bestGap = gap;
+                leftAnchor = previous;
+                rightAnchor = current;
+            }
+        }
+
+        if (leftAnchor == null
+                || rightAnchor == null) {
+            return null;
+        }
+
+        if (bestGap
+                < contentWidth
+                * MIN_COLUMN_START_SEPARATION_RATIO) {
+            return null;
+        }
+
+        int leftSupport =
+                0;
+
+        int rightSupport =
+                0;
+
+        for (LogicalLine row : rows) {
+
+            if (Math.abs(
+                    row.getX()
+                            - contentLeft
+            ) <= COLUMN_START_CLUSTER_TOLERANCE) {
+
+                leftSupport++;
+            }
+
+            if (Math.abs(
+                    row.getX()
+                            - rightAnchor
+            ) <= COLUMN_START_CLUSTER_TOLERANCE) {
+
+                rightSupport++;
+            }
+        }
+
+        if (leftSupport < MIN_MULTI_COLUMN_ROWS
+                || rightSupport
+                < MIN_MULTI_COLUMN_ROWS) {
+            return null;
+        }
+
+        float leftContentRight =
+                -Float.MAX_VALUE;
+
+        float rightContentLeft =
+                Float.MAX_VALUE;
+
+        for (LogicalLine row : rows) {
+
+            float rowLeft =
+                    row.getX();
+
+            float rowRight =
+                    row.getX()
+                            + row.getWidth();
+
+            /*
+             * Only use rows that clearly belong to one side.
+             * Full-width headings or spanning rows must not
+             * destroy the detected gutter.
+             */
+            if (rowLeft
+                    < rightAnchor
+                    - COLUMN_START_CLUSTER_TOLERANCE
+                    && rowRight
+                    < rightAnchor) {
+
+                leftContentRight =
+                        Math.max(
+                                leftContentRight,
+                                rowRight
+                        );
+            }
+
+            if (Math.abs(
+                    rowLeft - rightAnchor
+            ) <= COLUMN_START_CLUSTER_TOLERANCE) {
+
+                rightContentLeft =
+                        Math.min(
+                                rightContentLeft,
+                                rowLeft
+                        );
+            }
+        }
+
+        if (leftContentRight
+                == -Float.MAX_VALUE
+                || rightContentLeft
+                == Float.MAX_VALUE) {
+
+            return null;
+        }
+
+        if (rightContentLeft
+                <= leftContentRight) {
+            return null;
+        }
+
+        return (
+                leftContentRight
+                        + rightContentLeft
+        ) / 2f;
     }
 
     private Float detectRepeatedColumnSplit(
@@ -1333,6 +1728,12 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         float center() {
             return left + (width() / 2f);
         }
+    }
+
+    private record ReadingOrderResult(
+            List<LogicalLine> lines,
+            List<ColumnRegion> columnRegions
+    ) {
     }
 
     private static class LogicalLine {

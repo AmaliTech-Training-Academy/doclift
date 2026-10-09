@@ -1,5 +1,7 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
+import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import com.amalitech.backend.service.impl.WordWriterServiceImpl;
 import org.apache.poi.xwpf.usermodel.XWPFAbstractNum;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -13,6 +15,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import java.awt.image.BufferedImage;
@@ -25,6 +29,11 @@ class WordWriterServiceTest {
 
     private final WordWriterService wordWriterService =
             new WordWriterServiceImpl();
+    private final PdfExtractionServiceImpl extractionService =
+            new PdfExtractionServiceImpl(
+                    new StructureRecoveryServiceImpl()
+            );
+
 
     private record NumberingInfo(
             String paragraphText,
@@ -3471,6 +3480,700 @@ class WordWriterServiceTest {
                                             repeatedBody
                                     )
                     );
+        }
+    }
+
+    @Test
+    void shouldPreserveSourcePageBoundariesBetweenChapterPages()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0;
+             pageIndex < 3;
+             pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.HEADING,
+                            "Chapter " + (pageIndex + 1),
+                            72,
+                            60,
+                            120,
+                            18,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            "Body content for chapter "
+                                    + (pageIndex + 1),
+                            72,
+                            110,
+                            460,
+                            100,
+                            List.of()
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            assertThat(pageBreakCount(document))
+                    .isEqualTo(2);
+
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains(
+                            "Chapter 1",
+                            "Chapter 2",
+                            "Chapter 3"
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotAddExtraSpacingForSmallNaturalParagraphGap()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "First paragraph",
+                        72,
+                        100,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Second paragraph",
+                        72,
+                        124,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            XWPFParagraph secondParagraph =
+                    document.getParagraphs()
+                            .stream()
+                            .filter(p ->
+                                    "Second paragraph"
+                                            .equals(p.getText()))
+                            .findFirst()
+                            .orElseThrow();
+
+            assertThat(
+                    secondParagraph
+                            .getSpacingBefore()
+            )
+                    .isEqualTo(0);
+        }
+    }
+
+    @Test
+    void shouldPreserveMeaningfulParagraphGap()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "First paragraph",
+                        72,
+                        100,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Second paragraph",
+                        72,
+                        134,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            XWPFParagraph secondParagraph =
+                    document.getParagraphs()
+                            .stream()
+                            .filter(p ->
+                                    "Second paragraph"
+                                            .equals(p.getText()))
+                            .findFirst()
+                            .orElseThrow();
+
+            assertThat(
+                    secondParagraph
+                            .getSpacingBefore()
+            )
+                    .isEqualTo(200);
+        }
+    }
+
+    @Test
+    void shouldCapExcessiveParagraphSpacing()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "First paragraph",
+                        72,
+                        100,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Second paragraph",
+                        72,
+                        200,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            XWPFParagraph secondParagraph =
+                    document.getParagraphs()
+                            .stream()
+                            .filter(p ->
+                                    "Second paragraph"
+                                            .equals(p.getText()))
+                            .findFirst()
+                            .orElseThrow();
+
+            assertThat(
+                    secondParagraph
+                            .getSpacingBefore()
+            )
+                    .isEqualTo(720);
+        }
+    }
+
+    @Test
+    void shouldPreserveRepeatedBodyParagraphsWithinSamePage()
+            throws Exception {
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy.";
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.HEADING,
+                        "Headers, Footers and Footnotes",
+                        72,
+                        80,
+                        300,
+                        20,
+                        List.of()
+                )
+        );
+
+        for (int i = 0; i < 4; i++) {
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            0,
+                            BlockType.PARAGRAPH,
+                            repeatedBody,
+                            72,
+                            140 + (i * 140),
+                            420,
+                            40,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            0,
+                            BlockType.PARAGRAPH,
+                            "Footnote-style note "
+                                    + (i + 1),
+                            90,
+                            190 + (i * 140),
+                            300,
+                            18,
+                            List.of()
+                    )
+            );
+        }
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            long repeatedBodyCount =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(repeatedBody::equals)
+                            .count();
+
+            assertThat(repeatedBodyCount)
+                    .isEqualTo(4);
+
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains(
+                            "Footnote-style note 1",
+                            "Footnote-style note 2",
+                            "Footnote-style note 3",
+                            "Footnote-style note 4"
+                    );
+        }
+    }
+
+    @Test
+    void shouldPreserveRepeatedBodyParagraphThatExtendsIntoFooterBand()
+            throws Exception {
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy, "
+                        + "employing a large share of the workforce and supplying "
+                        + "food to both rural and urban markets.";
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        116.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        267.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        418.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        569.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Page 1",
+                        500,
+                        756,
+                        50,
+                        5,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            long repeatedBodyCount =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(repeatedBody::equals)
+                            .count();
+
+            assertThat(repeatedBodyCount)
+                    .isEqualTo(4);
+        }
+    }
+
+    @Test
+    void shouldPreserveHeaderFooterFootnoteSampleContent()
+            throws Exception {
+
+        byte[] pdfBytes =
+                Files.readAllBytes(
+                        Path.of(
+                                "../../test-pdfs/samples/12_header_footer_footnotes.pdf"
+                        )
+                );
+
+        PdfExtractionResult extractionResult =
+                extractionService.extract(
+                        pdfBytes
+                );
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> paragraphTexts =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            long bodyBlockCount =
+                    paragraphTexts.stream()
+                            .filter(text ->
+                                    text.startsWith(
+                                            "Agriculture remains a cornerstone"
+                                    )
+                            )
+                            .count();
+
+            assertThat(bodyBlockCount)
+                    .isEqualTo(4);
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 1: source data collected in 2025."
+                            )
+                    );
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 2: source data collected in 2025."
+                            )
+                    );
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 3: source data collected in 2025."
+                            )
+                    );
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 4: source data collected in 2025."
+                            )
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotTreatFootnoteStyleMarkersAsIndexLevelMarkers()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy.";
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        116.5f,
+                        420,
+                        40,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "1",
+                        72,
+                        238,
+                        10,
+                        4,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Footnote-style note 1: source data collected in 2025.",
+                        90,
+                        242,
+                        300,
+                        5,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        267.5f,
+                        420,
+                        40,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> texts =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(texts)
+                    .contains(
+                            "1",
+                            "Footnote-style note 1: source data collected in 2025."
+                    );
+
+            assertThat(
+                    texts.stream()
+                            .filter(repeatedBody::equals)
+                            .count()
+            )
+                    .isEqualTo(2);
+        }
+    }
+    @Test
+    void debugTwoColumnArticleStructure()
+            throws Exception {
+
+        byte[] pdfBytes =
+                Files.readAllBytes(
+                        Path.of(
+                                "../../test-pdfs/samples/02_two_column_article.pdf"
+                        )
+                );
+
+        PdfExtractionResult result =
+                extractionService.extract(
+                        pdfBytes
+                );
+
+        for (PageExtraction page :
+                result.getPages()) {
+
+            System.out.println(
+                    "\nPAGE "
+                            + page.getPageIndex()
+            );
+
+            for (StructuredBlock block :
+                    page.getStructuredBlocks()) {
+
+                System.out.println(
+                        "BLOCK"
+                                + " type="
+                                + block.getType()
+                                + " x="
+                                + block.getX()
+                                + " y="
+                                + block.getY()
+                                + " w="
+                                + block.getWidth()
+                                + " h="
+                                + block.getHeight()
+                                + " text=["
+                                + block.getText()
+                                + "]"
+                );
+            }
         }
     }
 }

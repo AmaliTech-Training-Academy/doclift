@@ -1,17 +1,6 @@
 package com.amalitech.backend.service.impl;
 
-import com.amalitech.backend.service.BlockAlignment;
-import com.amalitech.backend.service.BlockType;
-import com.amalitech.backend.service.ExtractedImage;
-import com.amalitech.backend.service.ImagePositionMapper;
-import com.amalitech.backend.service.Footnote;
-import com.amalitech.backend.service.PageExtraction;
-import com.amalitech.backend.service.PdfExtractionResult;
-import com.amalitech.backend.service.StructuredBlock;
-import com.amalitech.backend.service.TableCell;
-import com.amalitech.backend.service.TextSpan;
-import com.amalitech.backend.service.ListType;
-import com.amalitech.backend.service.WordWriterService;
+import com.amalitech.backend.service.*;
 import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Service;
@@ -535,6 +524,12 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                 List<StructuredBlock> pageBlocks = page.getStructuredBlocks();
 
+                ColumnRegion activeColumnRegion =
+                        null;
+
+                boolean writingRightColumn =
+                        false;
+
                 for (int blockIndex = 0; blockIndex < pageBlocks.size(); blockIndex++) {
 
                     StructuredBlock block =
@@ -553,10 +548,22 @@ public class WordWriterServiceImpl implements WordWriterService {
                     if (isIndexLevelMarker(block)
                             && blockIndex + 1 < pageBlocks.size()) {
 
-                        while (blockIndex + 1 < pageBlocks.size()) {
+                        StructuredBlock candidate =
+                                block;
+
+                        int candidateIndex =
+                                blockIndex;
+
+                        boolean foundIndexEntry =
+                                false;
+
+                        while (candidateIndex + 1
+                                < pageBlocks.size()) {
 
                             StructuredBlock nextBlock =
-                                    pageBlocks.get(blockIndex + 1);
+                                    pageBlocks.get(
+                                            candidateIndex + 1
+                                    );
 
                             if (shouldSuppressRunningBlock(
                                     page,
@@ -569,21 +576,93 @@ public class WordWriterServiceImpl implements WordWriterService {
                             }
 
                             if (!isAdjacentIndexEntry(
-                                    block,
+                                    candidate,
                                     nextBlock
                             )) {
                                 break;
                             }
 
-                            if (parseIndexEntry(block) != null) {
+                            candidate =
+                                    mergeIndexLevelMarker(
+                                            candidate,
+                                            nextBlock
+                                    );
+
+                            candidateIndex++;
+
+                            if (parseIndexEntry(candidate)
+                                    != null) {
+
+                                foundIndexEntry =
+                                        true;
+
                                 break;
                             }
-
-                            block = mergeIndexLevelMarker(
-                                    block,
-                                    pageBlocks.get(++blockIndex)
-                            );
                         }
+
+                        if (foundIndexEntry) {
+                            block =
+                                    candidate;
+
+                            blockIndex =
+                                    candidateIndex;
+                        }
+                    }
+
+                    ColumnRegion blockColumnRegion =
+                            findColumnRegion(
+                                    page,
+                                    block
+                            );
+
+                    if (blockColumnRegion != activeColumnRegion) {
+
+                        if (activeColumnRegion != null) {
+                            insertContinuousColumnSectionBreak(
+                                    document,
+                                    page,
+                                    pageMargins,
+                                    activeColumnRegion.columnCount()
+                            );
+
+                            activeColumnRegion = null;
+                            writingRightColumn = false;
+                            previousBlock = null;
+                        }
+
+                        if (blockColumnRegion != null) {
+                            insertContinuousColumnSectionBreak(
+                                    document,
+                                    page,
+                                    pageMargins,
+                                    1
+                            );
+
+                            activeColumnRegion =
+                                    blockColumnRegion;
+
+                            writingRightColumn =
+                                    false;
+
+                            previousBlock =
+                                    null;
+                        }
+                    }
+
+                    if (activeColumnRegion != null
+                            && !writingRightColumn
+                            && block.getX()
+                            > activeColumnRegion.splitX()) {
+
+                        insertColumnBreak(
+                                document
+                        );
+
+                        writingRightColumn =
+                                true;
+
+                        previousBlock =
+                                null;
                     }
 
                     int spacingBefore =
@@ -690,6 +769,19 @@ public class WordWriterServiceImpl implements WordWriterService {
                     previousBlock = block;
                 }
 
+                if (activeColumnRegion != null) {
+
+                    insertContinuousColumnSectionBreak(
+                            document,
+                            page,
+                            pageMargins,
+                            activeColumnRegion.columnCount()
+                    );
+
+                    activeColumnRegion =
+                            null;
+                }
+
                 if (!page.getImages().isEmpty()) {
                     XWPFParagraph carrier = document.createParagraph();
                     carrier.setSpacingBefore(0);
@@ -760,7 +852,25 @@ public class WordWriterServiceImpl implements WordWriterService {
                 document.getDocument().getBody();
 
         CTSectPr sectPr =
-                body.isSetSectPr() ? body.getSectPr() : body.addNewSectPr();
+                body.isSetSectPr()
+                        ? body.getSectPr()
+                        : body.addNewSectPr();
+
+        if (hasContentAfterLastColumnRegion(
+                page
+        )) {
+            if (sectPr.isSetType()) {
+                sectPr.getType()
+                        .setVal(
+                                STSectionMark.CONTINUOUS
+                        );
+            } else {
+                sectPr.addNewType()
+                        .setVal(
+                                STSectionMark.CONTINUOUS
+                        );
+            }
+        }
 
         setPageSize(
                 document,
@@ -770,6 +880,210 @@ public class WordWriterServiceImpl implements WordWriterService {
                 footerBlock,
                 pageNumberFooter,
                 pageMargins
+        );
+    }
+
+    private void insertColumnBreak(
+            XWPFDocument document
+    ) {
+        XWPFParagraph paragraph =
+                document.createParagraph();
+
+        paragraph.setSpacingBefore(0);
+        paragraph.setSpacingAfter(0);
+
+        XWPFRun run =
+                paragraph.createRun();
+
+        run.addBreak(
+                BreakType.COLUMN
+        );
+    }
+
+    private void insertContinuousColumnSectionBreak(
+            XWPFDocument document,
+            PageExtraction page,
+            PageMargins pageMargins,
+            int columnCount
+    ) {
+        XWPFParagraph paragraph =
+                document.createParagraph();
+
+        paragraph.setSpacingBefore(0);
+        paragraph.setSpacingAfter(0);
+
+        CTPPr pPr =
+                paragraph.getCTP().isSetPPr()
+                        ? paragraph.getCTP().getPPr()
+                        : paragraph.getCTP().addNewPPr();
+
+        CTSectPr sectPr =
+                pPr.addNewSectPr();
+
+        sectPr.addNewType()
+                .setVal(
+                        STSectionMark.CONTINUOUS
+                );
+
+        applySectionGeometry(
+                sectPr,
+                page,
+                pageMargins
+        );
+
+        var columns =
+                sectPr.isSetCols()
+                        ? sectPr.getCols()
+                        : sectPr.addNewCols();
+
+        columns.setNum(
+                BigInteger.valueOf(
+                        Math.max(1, columnCount)
+                )
+        );
+
+        if (columnCount > 1) {
+            columns.setSpace(
+                    toTwips(
+                            determineColumnGap(
+                                    page
+                            )
+                    )
+            );
+        }
+    }
+
+    private boolean hasContentAfterLastColumnRegion(
+            PageExtraction page
+    ) {
+        if (page.getColumnRegions() == null
+                || page.getColumnRegions().isEmpty()) {
+            return false;
+        }
+
+        float lastRegionEndY =
+                page.getColumnRegions().stream()
+                        .map(ColumnRegion::endY)
+                        .max(Float::compare)
+                        .orElse(Float.MAX_VALUE);
+
+        for (StructuredBlock block :
+                page.getStructuredBlocks()) {
+
+            float blockCenterY =
+                    block.getY()
+                            + block.getHeight() / 2f;
+
+            if (blockCenterY
+                    > lastRegionEndY) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private float determineColumnGap(
+            PageExtraction page
+    ) {
+        return 18f;
+    }
+
+    private void applySectionGeometry(
+            CTSectPr sectPr,
+            PageExtraction page,
+            PageMargins pageMargins
+    ) {
+        boolean swapped =
+                page.getRotation() == 90
+                        || page.getRotation() == 270;
+
+        float rawWidth =
+                swapped
+                        ? page.getCropHeight()
+                        : page.getCropWidth();
+
+        float rawHeight =
+                swapped
+                        ? page.getCropWidth()
+                        : page.getCropHeight();
+
+        float widthPt =
+                rawWidth > 0f
+                        ? rawWidth
+                        : DEFAULT_PAGE_WIDTH_POINTS;
+
+        float heightPt =
+                rawHeight > 0f
+                        ? rawHeight
+                        : DEFAULT_PAGE_HEIGHT_POINTS;
+
+        CTPageSz pageSz =
+                sectPr.isSetPgSz()
+                        ? sectPr.getPgSz()
+                        : sectPr.addNewPgSz();
+
+        pageSz.setW(
+                toTwips(widthPt)
+        );
+
+        pageSz.setH(
+                toTwips(heightPt)
+        );
+
+        pageSz.setOrient(
+                widthPt > heightPt
+                        ? STPageOrientation.LANDSCAPE
+                        : STPageOrientation.PORTRAIT
+        );
+
+        CTPageMar pageMargin =
+                sectPr.isSetPgMar()
+                        ? sectPr.getPgMar()
+                        : sectPr.addNewPgMar();
+
+        float topMargin =
+                Math.min(
+                        pageMargins.top(),
+                        MAX_FLOW_VERTICAL_MARGIN_POINTS
+                );
+
+        float bottomMargin =
+                Math.min(
+                        pageMargins.bottom(),
+                        MAX_FLOW_VERTICAL_MARGIN_POINTS
+                );
+
+        pageMargin.setTop(
+                toTwips(topMargin)
+        );
+
+        pageMargin.setBottom(
+                toTwips(bottomMargin)
+        );
+
+        pageMargin.setLeft(
+                toTwips(
+                        pageMargins.left()
+                )
+        );
+
+        pageMargin.setRight(
+                toTwips(
+                        pageMargins.right()
+                )
+        );
+
+        pageMargin.setHeader(
+                toTwips(12f)
+        );
+
+        pageMargin.setFooter(
+                toTwips(12f)
+        );
+
+        pageMargin.setGutter(
+                BigInteger.ZERO
         );
     }
 
@@ -809,80 +1123,93 @@ public class WordWriterServiceImpl implements WordWriterService {
             boolean pageNumberFooter,
             PageMargins pageMargins
     ) {
-        boolean swapped =
-                page.getRotation() == 90
-                        || page.getRotation() == 270;
-
-        float rawWidth =
-                swapped ? page.getCropHeight() : page.getCropWidth();
-
-        float rawHeight =
-                swapped ? page.getCropWidth() : page.getCropHeight();
-
-        float widthPt = rawWidth > 0f ? rawWidth : DEFAULT_PAGE_WIDTH_POINTS;
-        float heightPt = rawHeight > 0f ? rawHeight : DEFAULT_PAGE_HEIGHT_POINTS;
-
-        CTPageSz pageSz =
-                sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
-
-        pageSz.setW(toTwips(widthPt));
-        pageSz.setH(toTwips(heightPt));
-
-        pageSz.setOrient(
-                widthPt > heightPt
-                        ? STPageOrientation.LANDSCAPE
-                        : STPageOrientation.PORTRAIT
+        applySectionGeometry(
+                sectPr,
+                page,
+                pageMargins
         );
 
-        CTPageMar pageMargin =
-                sectPr.isSetPgMar() ? sectPr.getPgMar() : sectPr.addNewPgMar();
-
-        float topMargin = Math.min(
-                pageMargins.top(),
-                MAX_FLOW_VERTICAL_MARGIN_POINTS
-        );
-        float bottomMargin = Math.min(
-                pageMargins.bottom(),
-                MAX_FLOW_VERTICAL_MARGIN_POINTS
-        );
-
-        pageMargin.setTop(toTwips(topMargin));
-        pageMargin.setBottom(toTwips(bottomMargin));
-        pageMargin.setLeft(toTwips(pageMargins.left()));
-        pageMargin.setRight(toTwips(pageMargins.right()));
-        pageMargin.setHeader(toTwips(12f));
-        pageMargin.setFooter(toTwips(12f));
-        pageMargin.setGutter(BigInteger.ZERO);
-
-        if (headerBlock != null || footerBlock != null || pageNumberFooter) {
-            XWPFHeaderFooterPolicy policy =
-                    new XWPFHeaderFooterPolicy(document, sectPr);
-
-            if (headerBlock != null) {
-                writeHeaderFooter(
-                        policy.createHeader(STHdrFtr.DEFAULT),
-                        headerBlock,
-                        false
+        XWPFHeaderFooterPolicy policy =
+                new XWPFHeaderFooterPolicy(
+                        document,
+                        sectPr
                 );
-            }
 
-            if (footerBlock != null || pageNumberFooter) {
-                writeHeaderFooter(
-                        policy.createFooter(STHdrFtr.DEFAULT),
-                        footerBlock,
-                        pageNumberFooter
-                );
-            }
+        if (headerBlock != null) {
+            writeHeaderFooter(
+                    policy.createHeader(
+                            STHdrFtr.DEFAULT
+                    ),
+                    headerBlock,
+                    false
+            );
+        } else {
+            policy.createHeader(
+                    STHdrFtr.DEFAULT
+            );
+        }
+
+        if (footerBlock != null
+                || pageNumberFooter) {
+
+            writeHeaderFooter(
+                    policy.createFooter(
+                            STHdrFtr.DEFAULT
+                    ),
+                    footerBlock,
+                    pageNumberFooter
+            );
+
+        } else {
+            policy.createFooter(
+                    STHdrFtr.DEFAULT
+            );
         }
     }
 
-    private void insertPageBreak(XWPFDocument document) {
-        XWPFParagraph paragraph = document.createParagraph();
+    private ColumnRegion findColumnRegion(
+            PageExtraction page,
+            StructuredBlock block
+    ) {
+        if (page == null
+                || block == null) {
+            return null;
+        }
+
+        float blockCenterY =
+                block.getY()
+                        + block.getHeight() / 2f;
+
+        for (ColumnRegion region :
+                page.getColumnRegions()) {
+
+            if (blockCenterY
+                    >= region.startY()
+                    && blockCenterY
+                    <= region.endY()) {
+
+                return region;
+            }
+        }
+
+        return null;
+    }
+
+    private void insertPageBreak(
+            XWPFDocument document
+    ) {
+        XWPFParagraph paragraph =
+                document.createParagraph();
+
         paragraph.setSpacingBefore(0);
         paragraph.setSpacingAfter(0);
-        XWPFRun breakRun = paragraph.createRun();
-        breakRun.setFontSize(1);
-        breakRun.addBreak(BreakType.PAGE);
+
+        XWPFRun breakRun =
+                paragraph.createRun();
+
+        breakRun.addBreak(
+                BreakType.PAGE
+        );
     }
 
     private boolean hasSamePageGeometry(
@@ -2252,7 +2579,8 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         if (previousBlock.getType() == BlockType.LIST_ITEM
                 && currentBlock.getType() == BlockType.LIST_ITEM
-                && previousBlock.getListType() == currentBlock.getListType()) {
+                && previousBlock.getListType()
+                == currentBlock.getListType()) {
             return 0;
         }
 
@@ -2260,16 +2588,27 @@ public class WordWriterServiceImpl implements WordWriterService {
                 previousBlock.getY()
                         + previousBlock.getHeight();
 
-        float gap =
+        float sourceGap =
                 currentBlock.getY()
                         - previousBottom;
 
-        if (gap <= 0f) {
+        if (sourceGap <= 0f) {
             return 0;
         }
 
+        float naturalSpacingAllowance = 4f;
+
+        float effectiveGap =
+                Math.max(
+                        0f,
+                        sourceGap
+                                - naturalSpacingAllowance
+                );
+
         int spacingTwips =
-                Math.round(gap * 20f);
+                Math.round(
+                        effectiveGap * 20f
+                );
 
         return Math.min(
                 spacingTwips,
@@ -2325,4 +2664,5 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         return coveredBlocks >= Math.ceil(blocks.size() * 0.80f);
     }
+
 }
