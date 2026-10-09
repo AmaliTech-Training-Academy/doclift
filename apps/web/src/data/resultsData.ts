@@ -1,12 +1,9 @@
 import {
     FileText,
     ListOrdered,
-    ListX,
     Heading1,
     Table2,
-    Bold,
     Image as ImageIcon,
-    Type,
     ShieldCheck,
     type LucideIcon,
 } from "lucide-react";
@@ -61,14 +58,6 @@ export const checklistData: ChecklistItem[] = [
         icon: ListOrdered,
         badge: "0 Lists",
     },
-    {
-        id: 5,
-        title: "Character Formatting Preserved",
-        description:
-            "Preserved semibold weights, true italics, sub/superscript elements, and monospaced tabular figures.",
-        icon: Bold,
-        badge: "Exact Font Weight",
-    },
 ];
 
 export const fidelityMetrics: FidelityMetric[] = [
@@ -93,19 +82,11 @@ export const fidelityMetrics: FidelityMetric[] = [
         icon: ImageIcon,
         note: "Lossless embed",
     },
-    {
-        id: 4,
-        label: "Items requiring review",
-        value: 2,
-        icon: ListX,
-        note: "Actionable",
-        highlight: true,
-    },
 ];
 
 // ── Summary Cards (bottom section) ──────────────────────────────────────────
 
-export type SummaryCardVariant = "figures" | "typography" | "session";
+export type SummaryCardVariant = "figures" | "tables" | "session" | "pages";
 
 export interface SummaryCardFile {
     name: string;
@@ -124,12 +105,9 @@ export interface SummaryCardItem {
     icon: LucideIcon;
     badge: string;
     variant: SummaryCardVariant;
-    /** figures variant — list of file chip names */
-    files?: SummaryCardFile[];
-    /** how many extra files beyond the shown chips */
-    extraFiles?: number;
-    /** typography variant — font mapping row */
-    mapping?: SummaryCardMapping;
+    /** pages variant — how many input vs output pages */
+    inputPages?: number;
+    outputPages?: number;
     /** session variant — progress bar fill 0–100 */
     progress?: number;
 }
@@ -141,33 +119,23 @@ export const summaryCards: SummaryCardItem[] = [
         description:
             "Bitmaps normalized to lossless PNGs and embedded at original resolution in the Word ZIP archive.",
         icon: ImageIcon,
-        badge: "7 Assets",
+        badge: "0 Assets",
         variant: "figures",
-        files: [
-            { name: "fig_p2_rev_trend.png" },
-            { name: "fig_p5_ebitda.png" },
-        ],
-        extraFiles: 5,
     },
     {
         id: 2,
-        title: "Typography Mapping",
+        title: "Pages Processed",
         description:
-            "Source Helvetica Neue successfully mapped to Aptos and Calibri with zero character displacement.",
-        icon: Type,
-        badge: "Zero Missing",
-        variant: "typography",
-        mapping: {
-            from: "Helvetica Neue",
-            to: "Aptos",
-            matchLabel: "Matched (100%)",
-        },
+            "Successfully paginated document retaining original reading order and section breaks.",
+        icon: FileText,
+        badge: "0 Pages",
+        variant: "pages",
     },
     {
         id: 3,
         title: "Secure Session Lifespan",
         description:
-            "Temporary server conversion cache automatically purges after 30 minutes. No lingering artifacts stored.",
+            "Temporary server conversion cache automatically purges after 30 minutes.",
         icon: ShieldCheck,
         badge: "00:00",
         variant: "session",

@@ -13,6 +13,14 @@ export interface JobMetricsResponse {
   unorderedListsDetected?: number | null;
   orderedListsReconstructed?: number | null;
   unorderedListsReconstructed?: number | null;
+  headingsDetected?: number | null;
+  h1HeadingCount?: number | null;
+  h2HeadingCount?: number | null;
+  h3HeadingCount?: number | null;
+  tablesDetected?: number | null;
+  imagesDetected?: number | null;
+  multiColumnPageCount?: number | null;
+  outputPageCount?: number | null;
 }
 
 export interface JobStatusResponse {

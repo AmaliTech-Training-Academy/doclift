@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardDescription,
 } from "@/components/ui/Card";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { SummaryCardItem } from "@/data/resultsData";
 import { formatTime } from "@/components/progress/HeaderBar";
 import { PURGE_TTL_SECONDS, usePurgeCountdown } from "@/lib/usePurgeCountdown";
@@ -58,10 +58,10 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
 
       <CardContent className="p-5 pt-0 mt-auto">
         <div className="rounded-xl bg-secondary border border-muted p-3.5 space-y-2.5 transition-colors group-hover:border-primary-background group-hover:bg-primary-background/20">
-          {/* figures variant: assets chips */}
-          {item.variant === "figures" && item.files && (
+          {/* figures variant: just shows we embedded assets */}
+          {item.variant === "figures" && (
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Embedded Assets
                 </span>
@@ -69,34 +69,19 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
                   Lossless PNG
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {item.files.map((f) => (
-                  <span
-                    key={f.name}
-                    className="text-sm bg-card border border-muted text-muted-foreground rounded-md px-2 py-1 font-mono shadow-2xs"
-                  >
-                    {f.name}
-                  </span>
-                ))}
-                {item.extraFiles && item.extraFiles > 0 && (
-                  <span className="text-sm bg-primary-background border border-primary/20 text-primary font-medium rounded-md px-2 py-1">
-                    +{item.extraFiles} more
-                  </span>
-                )}
-              </div>
             </div>
           )}
 
-          {/* typography variant: from → to mapping */}
-          {item.variant === "typography" && item.mapping && (
+          {/* pages variant: input -> output mapping */}
+          {item.variant === "pages" && (
             <div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Source Font
+                    Input Pages
                   </span>
                   <span className="text-sm font-medium text-muted-foreground">
-                    {item.mapping.from}
+                    {item.inputPages ?? "-"}
                   </span>
                 </div>
                 <div className="flex items-center justify-center size-6 rounded-full bg-primary-background text-primary border border-primary/20 shrink-0">
@@ -104,22 +89,13 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
                 </div>
                 <div className="flex flex-col items-end text-right min-w-0">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    Target Style
+                    Output Pages
                   </span>
                   <span className="text-sm font-semibold text-primary">
-                    {item.mapping.to}
+                    {item.outputPages ?? "-"}
                   </span>
                 </div>
               </div>
-
-              {item.mapping.matchLabel && (
-                <div className="pt-2 mt-2 border-t border-muted flex items-start gap-1.5 text-sm text-muted-foreground">
-                  <Check className="size-3.5 text-success shrink-0 mt-0.5" />
-                  <span className="leading-snug">
-                    {item.mapping.matchLabel}
-                  </span>
-                </div>
-              )}
             </div>
           )}
 
@@ -128,18 +104,12 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Cache Status
-                  </span>
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="text-sm font-bold tracking-wider text-muted-foreground">
                     {purgeText}
                   </span>
                 </div>
                 <div className="flex flex-col items-end text-right min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-success">
-                    Privacy Active
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums text-muted-foreground">
+                  <span className="text-sm font-bold tracking-wider text-success">
                     {badge}
                   </span>
                 </div>

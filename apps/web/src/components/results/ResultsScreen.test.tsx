@@ -64,6 +64,28 @@ describe("ResultsScreen", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows conversion duration in milliseconds when under 1 second", async () => {
+    saveConversionSession({
+      jobId: "job-ms-123",
+      fileName: "quick.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+      durationSeconds: 0.45,
+      fileSize: 2 * 1024 * 1024,
+      outputSizeBytes: 20480,
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(
+      await screen.findByText("20.0 KB • 450ms conversion time"),
+    ).toBeInTheDocument();
+  });
+
   it("renders the download button when a completed session has a jobId", async () => {
     saveConversionSession({
       jobId: "job-123",
@@ -185,5 +207,38 @@ describe("ResultsScreen", () => {
     expect(
       screen.getByText(/Reconstructed 7 of 8 list structures detected in the source PDF/i)
     ).toBeInTheDocument();
+  });
+
+  it("renders all newly exposed metrics dynamically (headings, tables, images, multi-column)", async () => {
+    saveConversionSession({
+      jobId: "job-all-metrics-999",
+      fileName: "complete_doc.pdf",
+      status: "done",
+      updatedAt: Date.now(),
+      metrics: {
+        sourceWordCount: 1500,
+        outputWordCount: 1490,
+        headingsDetected: 14,
+        h1HeadingCount: 4,
+        h2HeadingCount: 6,
+        h3HeadingCount: 4,
+        tablesDetected: 5,
+        imagesDetected: 9,
+        multiColumnPageCount: 3,
+      },
+    });
+
+    render(
+      <ConversionProvider>
+        <ResultsScreen />
+      </ConversionProvider>,
+    );
+
+    expect(await screen.findByText("14 Headings Mapped")).toBeInTheDocument();
+    expect(screen.getByText("3 Multi-Column Pages")).toBeInTheDocument();
+    expect(screen.getByText("9 Assets")).toBeInTheDocument();
+    expect(screen.getByText("14 mapped")).toBeInTheDocument();
+    expect(screen.getByText("5 grids rebuilt")).toBeInTheDocument();
+    expect(screen.getByText("9 embedded")).toBeInTheDocument();
   });
 });
