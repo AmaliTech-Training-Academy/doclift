@@ -123,26 +123,36 @@ public class ConversionWorker {
             byte[] docx =
                     wordWriterService.write(extractionResult);
 
-            int outputWordCount = sourceWordCount;
-            ListCountResult outputLists = sourceLists;
+            Integer outputWordCount = null;
+            Integer orderedListsReconstructed = null;
+            Integer unorderedListsReconstructed = null;
 
             try {
 
-                outputWordCount =
+                int measuredOutputWordCount =
                         documentMetricsService.countOutputWords(
                                 docx
                         );
 
-                outputLists =
+                ListCountResult measuredOutputLists =
                         documentMetricsService.countOutputLists(
                                 docx
                         );
+
+                outputWordCount =
+                        measuredOutputWordCount;
+
+                orderedListsReconstructed =
+                        measuredOutputLists.ordered();
+
+                unorderedListsReconstructed =
+                        measuredOutputLists.unordered();
 
             } catch (Exception e) {
 
                 log.warn(
                         "Could not calculate output metrics for job {}. "
-                                + "Using source metrics as fallback.",
+                                + "Output metrics will remain unavailable.",
                         jobId,
                         e
                 );
@@ -171,8 +181,8 @@ public class ConversionWorker {
                             outputWordCount,
                             sourceLists.ordered(),
                             sourceLists.unordered(),
-                            outputLists.ordered(),
-                            outputLists.unordered(),
+                            orderedListsReconstructed,
+                            unorderedListsReconstructed,
                             headingsDetected,
                             headingLevels.levelOne(),
                             headingLevels.levelTwo(),

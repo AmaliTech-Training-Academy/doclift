@@ -2,11 +2,11 @@ package com.amalitech.backend.service;
 
 public record ConversionMetrics(
         int sourceWordCount,
-        int outputWordCount,
+        Integer outputWordCount,
         int orderedListsDetected,
         int unorderedListsDetected,
-        int orderedListsReconstructed,
-        int unorderedListsReconstructed,
+        Integer orderedListsReconstructed,
+        Integer unorderedListsReconstructed,
         int headingsDetected,
         int h1HeadingCount,
         int h2HeadingCount,

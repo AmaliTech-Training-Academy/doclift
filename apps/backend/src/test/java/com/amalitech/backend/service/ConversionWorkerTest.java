@@ -356,4 +356,107 @@ class ConversionWorkerTest {
                         anyLong()
                 );
     }
+
+    @Test
+    void shouldLeaveOutputMetricsUnavailableWhenOutputMetricsCannotBeCalculated()
+            throws Exception {
+
+        Path sourcePath =
+                tempDir.resolve("source.pdf");
+
+        Files.write(
+                sourcePath,
+                "dummy-pdf".getBytes()
+        );
+
+        Path outputPath =
+                tempDir.resolve("output.docx");
+
+        byte[] docxContent =
+                "docx-content".getBytes();
+
+        Files.write(
+                outputPath,
+                docxContent
+        );
+
+        PdfExtractionResult extractionResult =
+                mock(PdfExtractionResult.class);
+
+        when(fileStorageService.getSourcePdfPath(JOB_ID))
+                .thenReturn(sourcePath);
+
+        when(pdfExtractionService.extract(any(InputStream.class)))
+                .thenReturn(extractionResult);
+
+        when(documentMetricsService.countSourceWords(extractionResult))
+                .thenReturn(120);
+
+        when(documentMetricsService.countSourceLists(extractionResult))
+                .thenReturn(new ListCountResult(2, 3));
+
+        when(documentMetricsService.countHeadings(extractionResult))
+                .thenReturn(4);
+
+        when(documentMetricsService.countHeadingLevels(extractionResult))
+                .thenReturn(new HeadingLevelCountResult(2, 1, 1));
+
+        when(documentMetricsService.countTables(extractionResult))
+                .thenReturn(2);
+
+        when(documentMetricsService.countImages(extractionResult))
+                .thenReturn(5);
+
+        when(documentMetricsService.countMultiColumnPages(extractionResult))
+                .thenReturn(1);
+
+        when(wordWriterService.write(extractionResult))
+                .thenReturn(docxContent);
+
+        when(documentMetricsService.countOutputWords(docxContent))
+                .thenThrow(
+                        new IllegalStateException(
+                                "Failed to read generated Word document"
+                        )
+                );
+
+        when(
+                fileStorageService.storeOutputDocx(
+                        eq(JOB_ID),
+                        same(docxContent)
+                )
+        ).thenReturn(outputPath);
+
+        conversionWorker.process(JOB_ID);
+
+        verify(jobMetricsService)
+                .saveMetrics(
+                        JOB_ID,
+                        new ConversionMetrics(
+                                120,
+                                null,
+                                2,
+                                3,
+                                null,
+                                null,
+                                4,
+                                2,
+                                1,
+                                1,
+                                2,
+                                5,
+                                1
+                        )
+                );
+
+        verify(jobService)
+                .markCompleted(
+                        JOB_ID,
+                        outputPath.toString(),
+                        docxContent.length
+                );
+
+        verify(jobService, never())
+                .markFailed(JOB_ID);
+    }
 }
