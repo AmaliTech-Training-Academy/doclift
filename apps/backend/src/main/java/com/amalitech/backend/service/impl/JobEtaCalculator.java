@@ -16,8 +16,7 @@ public class JobEtaCalculator {
     private static final Map<JobPhase, Double> PHASE_WEIGHTS =
             Map.of(
                     JobPhase.LOADING_SOURCE, 0.01,
-                    JobPhase.EXTRACTING_CONTENT, 0.63,
-                    JobPhase.RECOVERING_STRUCTURE, 0.03,
+                    JobPhase.EXTRACTING_CONTENT, 0.66,
                     JobPhase.GENERATING_DOCUMENT, 0.32,
                     JobPhase.SAVING_OUTPUT, 0.01
             );
@@ -152,14 +151,12 @@ public class JobEtaCalculator {
                     case LOADING_SOURCE ->
                             weightOf(
                                     JobPhase.EXTRACTING_CONTENT,
-                                    JobPhase.RECOVERING_STRUCTURE,
                                     JobPhase.GENERATING_DOCUMENT,
                                     JobPhase.SAVING_OUTPUT
                             );
 
                     case EXTRACTING_CONTENT ->
                             weightOf(
-                                    JobPhase.RECOVERING_STRUCTURE,
                                     JobPhase.GENERATING_DOCUMENT,
                                     JobPhase.SAVING_OUTPUT
                             );
@@ -383,15 +380,13 @@ public class JobEtaCalculator {
             case GENERATING_DOCUMENT ->
                     weightOf(
                             JobPhase.LOADING_SOURCE,
-                            JobPhase.EXTRACTING_CONTENT,
-                            JobPhase.RECOVERING_STRUCTURE
+                            JobPhase.EXTRACTING_CONTENT
                     );
 
             case SAVING_OUTPUT ->
                     weightOf(
                             JobPhase.LOADING_SOURCE,
                             JobPhase.EXTRACTING_CONTENT,
-                            JobPhase.RECOVERING_STRUCTURE,
                             JobPhase.GENERATING_DOCUMENT
                     );
 

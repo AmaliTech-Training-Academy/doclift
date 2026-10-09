@@ -1,5 +1,7 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
+import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import com.amalitech.backend.service.impl.WordWriterServiceImpl;
 import org.apache.poi.xwpf.usermodel.XWPFAbstractNum;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -11,8 +13,15 @@ import org.junit.jupiter.api.Test;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+
+import java.awt.image.BufferedImage;
+
+import javax.imageio.ImageIO;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,18 +29,25 @@ class WordWriterServiceTest {
 
     private final WordWriterService wordWriterService =
             new WordWriterServiceImpl();
+    private final PdfExtractionServiceImpl extractionService =
+            new PdfExtractionServiceImpl(
+                    new StructureRecoveryServiceImpl()
+            );
+
 
     private record NumberingInfo(
             String paragraphText,
             String numFmt,
             String levelText
-    ) {}
+    ) {
+    }
 
     private record BulletInfo(
             String paragraphText,
             String levelText,
             BigInteger numId
-    ) {}
+    ) {
+    }
 
     private NumberingInfo writeAndReadOrderedListItem(
             String sourceText
@@ -279,6 +295,7 @@ class WordWriterServiceTest {
                 List.of(span)
         );
     }
+
     @Test
     void shouldApplyHeadingStyle() throws Exception {
 
@@ -360,7 +377,7 @@ class WordWriterServiceTest {
         ) {
 
             XWPFParagraph headingParagraph =
-                    document.getParagraphs().get(0);
+                    document.getParagraphs().getFirst();
 
             assertThat(headingParagraph.getText())
                     .isEqualTo("Quarterly Results");
@@ -456,7 +473,7 @@ class WordWriterServiceTest {
                         )
         ) {
             XWPFParagraph headingParagraph =
-                    document.getParagraphs().get(0);
+                    document.getParagraphs().getFirst();
 
             assertThat(headingParagraph.getStyle())
                     .isEqualTo("Heading2");
@@ -543,7 +560,7 @@ class WordWriterServiceTest {
                         )
         ) {
             XWPFParagraph headingParagraph =
-                    document.getParagraphs().get(0);
+                    document.getParagraphs().getFirst();
 
             assertThat(headingParagraph.getStyle())
                     .isEqualTo("Heading3");
@@ -631,7 +648,7 @@ class WordWriterServiceTest {
 
             String text =
                     document.getParagraphs()
-                            .get(0)
+                            .getFirst()
                             .getText();
 
             assertThat(text)
@@ -1056,7 +1073,7 @@ class WordWriterServiceTest {
 
             assertThat(
                     document.getParagraphs()
-                            .get(0)
+                            .getFirst()
                             .getText()
             ).isEqualTo(
                     "Hello, here is some text"
@@ -1143,6 +1160,49 @@ class WordWriterServiceTest {
 
 
     @Test
+    void shouldNotAddPdfGapBetweenConsecutiveListItems() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+
+        StructuredBlock first = new StructuredBlock(
+                0,
+                BlockType.LIST_ITEM,
+                ListType.UNORDERED,
+                "- First item",
+                40,
+                100,
+                100,
+                12,
+                List.of()
+        );
+        StructuredBlock second = new StructuredBlock(
+                0,
+                BlockType.LIST_ITEM,
+                ListType.UNORDERED,
+                "- Second item",
+                40,
+                150,
+                110,
+                12,
+                List.of()
+        );
+
+        page.getStructuredBlocks().add(first);
+        page.getStructuredBlocks().add(second);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getParagraphs()).hasSize(2);
+            assertThat(document.getParagraphs().get(1).getSpacingBefore())
+                    .isZero();
+        }
+    }
+
+    @Test
     void shouldCreateValidDocxDocument() throws Exception {
 
         PdfExtractionResult extractionResult =
@@ -1159,7 +1219,7 @@ class WordWriterServiceTest {
                         100,
                         100,
                         12,
-                        "Helvetica",
+                        "ABCDEF+Helvetica",
                         12,
                         false,
                         false,
@@ -1201,11 +1261,58 @@ class WordWriterServiceTest {
             assertThat(document.getParagraphs())
                     .hasSize(1);
 
-            assertThat(
-                    document.getParagraphs()
-                            .getFirst()
-                            .getText()
-            ).isEqualTo("Hello Word");
+            XWPFParagraph paragraph = document.getParagraphs().getFirst();
+
+            assertThat(paragraph.getText()).isEqualTo("Hello Word");
+            assertThat(paragraph.getCTP().xmlText()).doesNotContain("framePr");
+            assertThat(paragraph.getRuns().getFirst().getFontFamily())
+                    .isEqualTo("Arial");
+        }
+    }
+
+    @Test
+    void shouldPreserveFractionalFontSizeAndExplicitParagraphSpacing() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        TextSpan span = new TextSpan(
+                0,
+                "Fractional text",
+                20,
+                20,
+                100,
+                12,
+                "Helvetica",
+                12.5f,
+                false,
+                false,
+                false,
+                false
+        );
+        StructuredBlock block = new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                null,
+                "Fractional text",
+                20,
+                20,
+                100,
+                12,
+                List.of(span)
+        );
+        page.getStructuredBlocks().add(block);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            XWPFParagraph paragraph = document.getParagraphs().getFirst();
+
+            assertThat(paragraph.getRuns().getFirst().getFontSizeAsDouble())
+                    .isEqualTo(12.5);
+            assertThat(paragraph.getSpacingAfter()).isZero();
+            assertThat(paragraph.getSpacingBetween()).isEqualTo(1.0);
         }
     }
 
@@ -1282,6 +1389,629 @@ class WordWriterServiceTest {
                             .isEqualTo("R" + (row + 1) + "C" + (col + 1));
                 }
             }
+        }
+    }
+
+    @Test
+    void shouldScaleWideTableColumnsProportionallyToPageContentWidth() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        StructuredBlock tableBlock = new StructuredBlock(
+                0,
+                BlockType.TABLE,
+                "wide table",
+                50,
+                100,
+                600,
+                40,
+                List.of(),
+                List.of(List.of(
+                        tableCell(0, 0, "Left"),
+                        tableCell(0, 1, "Right")
+                ))
+        );
+        tableBlock.setColumnWidths(List.of(200f, 400f));
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            var gridColumns = document.getTables().getFirst().getCTTbl()
+                    .getTblGrid().getGridColList();
+            int firstWidth = Integer.parseInt(gridColumns.get(0).getW().toString());
+            int secondWidth = Integer.parseInt(gridColumns.get(1).getW().toString());
+
+            assertThat(firstWidth).isLessThan(4000);
+            assertThat(secondWidth).isGreaterThan(firstWidth);
+            assertThat(firstWidth + secondWidth).isLessThanOrEqualTo(10520);
+            assertThat(document.getTables().getFirst().getCTTbl().getTblPr()
+                    .getTblLayout().getType().toString())
+                    .isEqualTo("fixed");
+            assertThat(document.getTables().getFirst().getCTTbl().getTblPr()
+                    .getTblW().getW().toString())
+                    .isEqualTo(String.valueOf(firstWidth + secondWidth));
+        }
+    }
+
+    @Test
+    void shouldKeepRecoveredTablesInDocumentFlow() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        StructuredBlock tableBlock = new StructuredBlock(
+                0,
+                BlockType.TABLE,
+                "table",
+                80,
+                240,
+                200,
+                30,
+                List.of(),
+                List.of(List.of(tableCell(0, 0, "Flow table")))
+        );
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getTables()).hasSize(1);
+            assertThat(document.getTables().getFirst().getCTTbl()
+                    .getTblPr().xmlText())
+                    .doesNotContain("tblpPr");
+            assertThat(document.getTables().getFirst().getCTTbl().xmlText())
+                    .doesNotContain("tblGrid");
+        }
+    }
+
+    @Test
+    void shouldDeriveStableSectionMarginsFromPageContentBounds() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+        page.getStructuredBlocks().add(new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                "Content",
+                50,
+                60,
+                400,
+                20,
+                List.of()
+        ));
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            var margins = document.getDocument().getBody().getSectPr().getPgMar();
+
+            assertThat(margins.getLeft().toString()).isEqualTo("1000");
+            assertThat(margins.getTop().toString()).isEqualTo("360");
+            assertThat(margins.getRight().toString()).isEqualTo("2880");
+            assertThat(margins.getBottom().toString()).isEqualTo("360");
+        }
+    }
+
+    @Test
+    void shouldUsePageBreaksForSourcePagesWithStableGeometry() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+            PageExtraction page = new PageExtraction(pageIndex);
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Body content " + pageIndex,
+                    50,
+                    200,
+                    200,
+                    14,
+                    List.of()
+            ));
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            String xml = document.getDocument().xmlText();
+            assertThat(xml).contains("w:type=\"page\"");
+            assertThat(document.getParagraphs())
+                    .filteredOn(p -> p.getCTP().isSetPPr()
+                            && p.getCTP().getPPr().isSetSectPr())
+                    .isEmpty();
+        }
+    }
+
+    @Test
+    void shouldPreserveEmptySourcePageBoundary() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        extractionResult.getPages().add(new PageExtraction(0));
+        extractionResult.getPages().add(new PageExtraction(1));
+        extractionResult.getPages().get(1).getStructuredBlocks().add(
+                paragraphBlock(1, "After empty page", 20, 20)
+        );
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            assertThat(pageBreakCount(document)).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void shouldPreserveFooterOnlySourcePageBoundary() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        for (int pageIndex = 0; pageIndex < 3; pageIndex++) {
+            PageExtraction page = new PageExtraction(pageIndex);
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Source footer",
+                    20,
+                    760,
+                    100,
+                    12,
+                    List.of()
+            ));
+            extractionResult.getPages().add(page);
+        }
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            assertThat(pageBreakCount(document)).isEqualTo(2);
+            assertThat(document.getFooterList()).isNotEmpty();
+            assertThat(document.getFooterList().getFirst().getText())
+                    .contains("Source footer");
+        }
+    }
+
+    @Test
+    void shouldPreserveImageOnlySourcePageBoundary() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction imagePage = new PageExtraction(0);
+        ByteArrayOutputStream imageBytes = new ByteArrayOutputStream();
+        ImageIO.write(
+                new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB),
+                "png",
+                imageBytes
+        );
+        imagePage.getImages().add(new ExtractedImage(
+                0,
+                "image-only.png",
+                20,
+                20,
+                100,
+                100,
+                10,
+                10,
+                "image/png",
+                0,
+                false,
+                imageBytes.toByteArray()
+        ));
+        extractionResult.getPages().add(imagePage);
+        extractionResult.getPages().add(new PageExtraction(1));
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            assertThat(pageBreakCount(document)).isEqualTo(1);
+            assertThat(document.getDocument().xmlText()).contains("image-only.png");
+        }
+    }
+
+    @Test
+    void shouldPreserveThreeSourcePagesAsThreeWordPages() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        for (int pageIndex = 0; pageIndex < 3; pageIndex++) {
+            extractionResult.getPages().add(new PageExtraction(pageIndex));
+        }
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            assertThat(pageBreakCount(document)).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void shouldWriteCompactIndexEntriesWithDottedRightTabLeaders() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Table of Contents..............................7",
+                        20,
+                        40
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1.1 Nested heading............................12",
+                        40,
+                        58
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "A deliberately long wrapped list entry that keeps its page number aligned"
+                                + " ..............................................................24",
+                        40,
+                        76
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        try (
+                XWPFDocument document =
+                        readDocument(
+                                wordWriterService.write(
+                                        extractionResult
+                                )
+                        )
+        ) {
+
+            assertThat(document.getParagraphs())
+                    .hasSize(3);
+
+            String xml =
+                    document.getDocument()
+                            .xmlText();
+
+            assertThat(xml)
+                    .contains(
+                            "<w:t>Table of Contents</w:t>"
+                    )
+                    .contains(
+                            "<w:t>7</w:t>"
+                    )
+                    .contains(
+                            "<w:t>1.1 Nested heading</w:t>"
+                    )
+                    .contains(
+                            "<w:t>12</w:t>"
+                    )
+                    .contains(
+                            "<w:t>A deliberately long wrapped list entry that keeps its page number aligned</w:t>"
+                    )
+                    .contains(
+                            "<w:t>24</w:t>"
+                    )
+                    .contains(
+                            "<w:tab/>"
+                    )
+                    .contains(
+                            "w:val=\"right\""
+                    )
+                    .contains(
+                            "w:leader=\"dot\""
+                    );
+
+            assertThat(xml)
+                    .doesNotContain(
+                            "Table of Contents\t7"
+                    );
+
+            assertThat(
+                    document.getParagraphs()
+            ).allSatisfy(
+                    paragraph -> {
+                        assertThat(
+                                paragraph.getSpacingBefore()
+                        ).isZero();
+
+                        assertThat(
+                                paragraph.getSpacingAfter()
+                        ).isZero();
+                    }
+            );
+        }
+    }
+
+    @Test
+    void shouldMergeSplitIndexLevelMarkerIntoOneEntryParagraph() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        page.getStructuredBlocks().add(paragraphBlock(0, "1.4.1", 20, 40));
+        page.getStructuredBlocks().add(paragraphBlock(
+                0,
+                "IEEE Standard P241, Gray Book........................10",
+                44,
+                45
+        ));
+        extractionResult.getPages().add(page);
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            assertThat(document.getParagraphs()).hasSize(1);
+            assertThat(document.getParagraphs().getFirst().getText())
+                    .isEqualTo("1.4.1 IEEE Standard P241, Gray Book\t10");
+        }
+    }
+
+    @Test
+    void shouldNotAddExtraFlowHeightForPageBreakCarrier() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        extractionResult.getPages().add(new PageExtraction(0));
+        extractionResult.getPages().add(new PageExtraction(1));
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            XWPFParagraph carrier = document.getParagraphs().getFirst();
+            assertThat(carrier.getCTP().xmlText()).doesNotContain("w:spacing");
+            assertThat(carrier.getCTP().xmlText()).contains("w:val=\"nextPage\"");
+        }
+    }
+
+    private StructuredBlock paragraphBlock(
+            int pageIndex,
+            String text,
+            float x,
+            float y
+    ) {
+        return new StructuredBlock(
+                pageIndex,
+                BlockType.PARAGRAPH,
+                text,
+                x,
+                y,
+                200,
+                14,
+                List.of()
+        );
+    }
+
+    private XWPFDocument readDocument(byte[] bytes) throws Exception {
+        return new XWPFDocument(new ByteArrayInputStream(bytes));
+    }
+
+    private long pageBreakCount(XWPFDocument document) {
+        return document.getParagraphs().stream()
+                .filter(paragraph -> paragraph.getCTP().xmlText().contains("w:type=\"page\"")
+                        || paragraph.getCTP().xmlText().contains("w:val=\"nextPage\""))
+                .count();
+    }
+
+    @Test
+    void shouldPreserveFormattingForTableCellSpans() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+
+        TextSpan span = new TextSpan(
+                0,
+                "Styled cell",
+                10,
+                10,
+                60,
+                12,
+                "Helvetica",
+                14,
+                true,
+                false,
+                false,
+                false,
+                "336699"
+        );
+
+        TableCell cell = new TableCell(
+                0,
+                0,
+                1,
+                1,
+                "Styled cell",
+                List.of(span),
+                null
+        );
+
+        StructuredBlock tableBlock = new StructuredBlock(
+                0,
+                BlockType.TABLE,
+                "table",
+                50,
+                50,
+                300,
+                30,
+                List.of(),
+                List.of(List.of(cell))
+        );
+
+        page.getStructuredBlocks().add(tableBlock);
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            XWPFRun run = document.getTables()
+                    .getFirst()
+                    .getRow(0)
+                    .getCell(0)
+                    .getParagraphs()
+                    .getFirst()
+                    .getRuns()
+                    .getFirst();
+
+            assertThat(run.getFontFamily()).isEqualTo("Arial");
+            assertThat(run.getFontSize()).isEqualTo(14);
+            assertThat(run.isBold()).isTrue();
+            assertThat(run.getColor()).isEqualTo("336699");
+        }
+    }
+
+    @Test
+    void shouldPlaceContentCoveredBackgroundImageBehindText() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        page.setCropWidth(600);
+        page.setCropHeight(800);
+        page.getStructuredBlocks().add(new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                "Overlay text",
+                120,
+                220,
+                300,
+                30,
+                List.of()
+        ));
+
+        ByteArrayOutputStream imageBytes = new ByteArrayOutputStream();
+        ImageIO.write(
+                new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB),
+                "png",
+                imageBytes
+        );
+        page.getImages().add(new ExtractedImage(
+                0,
+                "background.png",
+                40,
+                40,
+                520,
+                720,
+                10,
+                10,
+                "image/png",
+                0,
+                false,
+                imageBytes.toByteArray()
+        ));
+        extractionResult.getPages().add(page);
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getDocument().xmlText())
+                    .contains("behindDoc=\"1\"");
+        }
+    }
+
+    @Test
+    void shouldPromoteRepeatedPageEdgesToHeadersAndFooters() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+            PageExtraction page = new PageExtraction(pageIndex);
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Repeated report header",
+                    40,
+                    30,
+                    220,
+                    14,
+                    List.of()
+            ));
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Body page " + pageIndex,
+                    40,
+                    200,
+                    180,
+                    14,
+                    List.of()
+            ));
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Repeated report footer",
+                    40,
+                    740,
+                    220,
+                    14,
+                    List.of()
+            ));
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getHeaderList()).isNotEmpty();
+            assertThat(document.getFooterList()).isNotEmpty();
+            assertThat(document.getHeaderList().getFirst().getText())
+                    .contains("Repeated report header");
+            assertThat(document.getFooterList().getFirst().getText())
+                    .contains("Repeated report footer");
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .doesNotContain("Repeated report header", "Repeated report footer");
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains("Body page 0", "Body page 1");
+        }
+    }
+
+    @Test
+    void shouldWriteRepeatedNumericFooterAsDynamicPageField() throws Exception {
+
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+            PageExtraction page = new PageExtraction(pageIndex);
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    "Body",
+                    40,
+                    200,
+                    100,
+                    14,
+                    List.of()
+            ));
+            page.getStructuredBlocks().add(new StructuredBlock(
+                    pageIndex,
+                    BlockType.PARAGRAPH,
+                    Integer.toString(pageIndex + 1),
+                    290,
+                    740,
+                    20,
+                    14,
+                    List.of()
+            ));
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx = wordWriterService.write(extractionResult);
+
+        try (XWPFDocument document = new XWPFDocument(
+                new ByteArrayInputStream(docx))) {
+            assertThat(document.getFooterList()).isNotEmpty();
+            assertThat(document.getFooterList().getFirst().getParagraphs()
+                    .getFirst().getCTP().xmlText())
+                    .contains("PAGE", "fldCharType=\"begin\"");
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .doesNotContain("1", "2");
         }
     }
 
@@ -2054,6 +2784,1350 @@ class WordWriterServiceTest {
 
             assertThat(secondGlyphNumId)
                     .isNotEqualTo(firstGlyphNumId);
+        }
+    }
+
+    @Test
+    void shouldSuppressRepeatedFooterFromBodyFlow() throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            "Body content " + pageIndex,
+                            50,
+                            200
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            "MAZZETTI | Electric Circuit Data Collection",
+                            50,
+                            740
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            assertThat(document.getFooterList())
+                    .isNotEmpty();
+
+            assertThat(
+                    document.getFooterList()
+                            .getFirst()
+                            .getText()
+            ).contains(
+                    "MAZZETTI | Electric Circuit Data Collection"
+            );
+
+            assertThat(
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList()
+            ).doesNotContain(
+                    "MAZZETTI | Electric Circuit Data Collection"
+            );
+        }
+    }
+
+    @Test
+    void shouldSuppressRepeatedFooterWithMergedPageNumber()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction firstPage =
+                new PageExtraction(0);
+
+        firstPage.setCropWidth(612);
+        firstPage.setCropHeight(792);
+
+        firstPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Body content 0",
+                        50,
+                        200
+                )
+        );
+
+        firstPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "MAZZETTI | Electric Circuit Data Collection",
+                        50,
+                        740
+                )
+        );
+
+        PageExtraction secondPage =
+                new PageExtraction(1);
+
+        secondPage.setCropWidth(612);
+        secondPage.setCropHeight(792);
+
+        secondPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        1,
+                        "Body content 1",
+                        50,
+                        200
+                )
+        );
+
+        secondPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        1,
+                        "MAZZETTI | Electric Circuit Data Collection 23",
+                        50,
+                        740
+                )
+        );
+
+        extractionResult.getPages().add(firstPage);
+        extractionResult.getPages().add(secondPage);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            assertThat(document.getFooterList())
+                    .isNotEmpty();
+
+            assertThat(
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList()
+            )
+                    .doesNotContain(
+                            "MAZZETTI | Electric Circuit Data Collection"
+                    )
+                    .doesNotContain(
+                            "MAZZETTI | Electric Circuit Data Collection 23"
+                    );
+        }
+    }
+
+    @Test
+    void shouldNormalizeRepeatedFooterWhitespace()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction firstPage =
+                new PageExtraction(0);
+
+        firstPage.setCropWidth(612);
+        firstPage.setCropHeight(792);
+
+        firstPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Body content 0",
+                        50,
+                        200
+                )
+        );
+
+        firstPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "MAZZETTI | Electric Circuit Data Collection",
+                        50,
+                        740
+                )
+        );
+
+        PageExtraction secondPage =
+                new PageExtraction(1);
+
+        secondPage.setCropWidth(612);
+        secondPage.setCropHeight(792);
+
+        secondPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        1,
+                        "Body content 1",
+                        50,
+                        200
+                )
+        );
+
+        secondPage.getStructuredBlocks().add(
+                paragraphBlock(
+                        1,
+                        "MAZZETTI    |    Electric Circuit Data Collection",
+                        50,
+                        740
+                )
+        );
+
+        extractionResult.getPages().add(firstPage);
+        extractionResult.getPages().add(secondPage);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            assertThat(document.getFooterList())
+                    .isNotEmpty();
+
+            assertThat(
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList()
+            )
+                    .doesNotContain(
+                            "MAZZETTI | Electric Circuit Data Collection"
+                    )
+                    .doesNotContain(
+                            "MAZZETTI    |    Electric Circuit Data Collection"
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotSuppressSimilarTextInPageBody()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            "MAZZETTI | Electric Circuit Data Collection",
+                            50,
+                            300
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            "Repeated footer",
+                            50,
+                            740
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            assertThat(
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList()
+            ).contains(
+                    "MAZZETTI | Electric Circuit Data Collection"
+            );
+        }
+    }
+
+    @Test
+    void shouldNotMergeStandalonePageNumberIntoRepeatedFooter()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0; pageIndex < 2; pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            "Body content " + pageIndex,
+                            50,
+                            200
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            String.valueOf(pageIndex + 1),
+                            500,
+                            756
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    paragraphBlock(
+                            pageIndex,
+                            "MAZZETTI | Electric Circuit Data Collection",
+                            50,
+                            768
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            List<String> bodyParagraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(bodyParagraphs)
+                    .doesNotContain(
+                            "MAZZETTI | Electric Circuit Data Collection"
+                    );
+
+            assertThat(
+                    bodyParagraphs.stream()
+                            .noneMatch(text ->
+                                    text.contains(
+                                            "MAZZETTI | Electric Circuit Data Collection"
+                                    )
+                            )
+            ).isTrue();
+
+            assertThat(document.getFooterList())
+                    .isNotEmpty();
+
+            assertThat(
+                    document.getFooterList()
+                            .stream()
+                            .map(footer -> footer.getText())
+                            .anyMatch(text ->
+                                    text.contains(
+                                            "MAZZETTI | Electric Circuit Data Collection"
+                                    )
+                            )
+            ).isTrue();
+        }
+    }
+
+    @Test
+    void shouldWriteAdjacentTocEntriesAsSeparateParagraphs()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1",
+                        72,
+                        216
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Introduction ......................................................................... 7",
+                        96,
+                        216
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1.1",
+                        83,
+                        236
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "Types of health care plug loads ………………………………………… 7",
+                        116,
+                        236
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+            List<String> paragraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(text -> !text.isBlank())
+                            .toList();
+
+            assertThat(paragraphs)
+                    .containsExactly(
+                            "1 Introduction\t7",
+                            "1.1 Types of health care plug loads\t7"
+                    );
+        }
+    }
+
+    @Test
+    void shouldMergeWrappedTocEntryIntoSingleParagraph()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "1.4.3",
+                        96,
+                        351
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "LBNL, “Evaluation of Miscellaneous and Electronic Device Energy Use in Hospitals,”",
+                        138,
+                        351
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                paragraphBlock(
+                        0,
+                        "(2012)…….. .......................................................................... 11",
+                        96,
+                        364
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(extractionResult);
+
+        try (
+                XWPFDocument document =
+                        readDocument(docx)
+        ) {
+
+            List<String> paragraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(text -> !text.isBlank())
+                            .toList();
+
+            assertThat(paragraphs)
+                    .containsExactly(
+                            "1.4.3 LBNL, “Evaluation of Miscellaneous and Electronic Device Energy Use in Hospitals,” (2012)\t11"
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotPromoteSequentialChapterHeadingsToRunningHeader()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0;
+             pageIndex < 3;
+             pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.HEADING,
+                            "Chapter " + (pageIndex + 1),
+                            40,
+                            40,
+                            120,
+                            18,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            "Body page " + (pageIndex + 1),
+                            40,
+                            180,
+                            300,
+                            40,
+                            List.of()
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> bodyParagraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(bodyParagraphs)
+                    .contains(
+                            "Chapter 1",
+                            "Chapter 2",
+                            "Chapter 3"
+                    );
+
+            assertThat(document.getHeaderList())
+                    .allSatisfy(header ->
+                            assertThat(header.getText())
+                                    .doesNotContain(
+                                            "Chapter 1",
+                                            "Chapter 2",
+                                            "Chapter 3"
+                                    )
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotPromoteLongRepeatedBodyParagraphToRunningHeader()
+            throws Exception {
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy, "
+                        + "employing a large share of the workforce and supplying food "
+                        + "to both rural and urban markets. Smallholder farmers often "
+                        + "struggle to reach buyers quickly, which leads to spoilage "
+                        + "and price swings. Digital marketplaces aim to shorten that "
+                        + "distance by connecting growers directly with customers.";
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0;
+             pageIndex < 3;
+             pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(600);
+            page.setCropHeight(800);
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.HEADING,
+                            "Chapter " + (pageIndex + 1),
+                            40,
+                            40,
+                            120,
+                            18,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            repeatedBody,
+                            40,
+                            90,
+                            500,
+                            100,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            "Unique body page "
+                                    + (pageIndex + 1),
+                            40,
+                            240,
+                            300,
+                            40,
+                            List.of()
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> bodyParagraphs =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(
+                    bodyParagraphs.stream()
+                            .filter(repeatedBody::equals)
+                            .count()
+            )
+                    .isEqualTo(3);
+
+            assertThat(document.getHeaderList())
+                    .allSatisfy(header ->
+                            assertThat(header.getText())
+                                    .doesNotContain(
+                                            repeatedBody
+                                    )
+                    );
+        }
+    }
+
+    @Test
+    void shouldPreserveSourcePageBoundariesBetweenChapterPages()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        for (int pageIndex = 0;
+             pageIndex < 3;
+             pageIndex++) {
+
+            PageExtraction page =
+                    new PageExtraction(pageIndex);
+
+            page.setCropWidth(612);
+            page.setCropHeight(792);
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.HEADING,
+                            "Chapter " + (pageIndex + 1),
+                            72,
+                            60,
+                            120,
+                            18,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            pageIndex,
+                            BlockType.PARAGRAPH,
+                            "Body content for chapter "
+                                    + (pageIndex + 1),
+                            72,
+                            110,
+                            460,
+                            100,
+                            List.of()
+                    )
+            );
+
+            extractionResult.getPages().add(page);
+        }
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            assertThat(pageBreakCount(document))
+                    .isEqualTo(2);
+
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains(
+                            "Chapter 1",
+                            "Chapter 2",
+                            "Chapter 3"
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotAddExtraSpacingForSmallNaturalParagraphGap()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "First paragraph",
+                        72,
+                        100,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Second paragraph",
+                        72,
+                        124,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            XWPFParagraph secondParagraph =
+                    document.getParagraphs()
+                            .stream()
+                            .filter(p ->
+                                    "Second paragraph"
+                                            .equals(p.getText()))
+                            .findFirst()
+                            .orElseThrow();
+
+            assertThat(
+                    secondParagraph
+                            .getSpacingBefore()
+            )
+                    .isEqualTo(0);
+        }
+    }
+
+    @Test
+    void shouldPreserveMeaningfulParagraphGap()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "First paragraph",
+                        72,
+                        100,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Second paragraph",
+                        72,
+                        134,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            XWPFParagraph secondParagraph =
+                    document.getParagraphs()
+                            .stream()
+                            .filter(p ->
+                                    "Second paragraph"
+                                            .equals(p.getText()))
+                            .findFirst()
+                            .orElseThrow();
+
+            assertThat(
+                    secondParagraph
+                            .getSpacingBefore()
+            )
+                    .isEqualTo(200);
+        }
+    }
+
+    @Test
+    void shouldCapExcessiveParagraphSpacing()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "First paragraph",
+                        72,
+                        100,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Second paragraph",
+                        72,
+                        200,
+                        400,
+                        20,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            XWPFParagraph secondParagraph =
+                    document.getParagraphs()
+                            .stream()
+                            .filter(p ->
+                                    "Second paragraph"
+                                            .equals(p.getText()))
+                            .findFirst()
+                            .orElseThrow();
+
+            assertThat(
+                    secondParagraph
+                            .getSpacingBefore()
+            )
+                    .isEqualTo(720);
+        }
+    }
+
+    @Test
+    void shouldPreserveRepeatedBodyParagraphsWithinSamePage()
+            throws Exception {
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy.";
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.HEADING,
+                        "Headers, Footers and Footnotes",
+                        72,
+                        80,
+                        300,
+                        20,
+                        List.of()
+                )
+        );
+
+        for (int i = 0; i < 4; i++) {
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            0,
+                            BlockType.PARAGRAPH,
+                            repeatedBody,
+                            72,
+                            140 + (i * 140),
+                            420,
+                            40,
+                            List.of()
+                    )
+            );
+
+            page.getStructuredBlocks().add(
+                    new StructuredBlock(
+                            0,
+                            BlockType.PARAGRAPH,
+                            "Footnote-style note "
+                                    + (i + 1),
+                            90,
+                            190 + (i * 140),
+                            300,
+                            18,
+                            List.of()
+                    )
+            );
+        }
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            long repeatedBodyCount =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(repeatedBody::equals)
+                            .count();
+
+            assertThat(repeatedBodyCount)
+                    .isEqualTo(4);
+
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains(
+                            "Footnote-style note 1",
+                            "Footnote-style note 2",
+                            "Footnote-style note 3",
+                            "Footnote-style note 4"
+                    );
+        }
+    }
+
+    @Test
+    void shouldPreserveRepeatedBodyParagraphThatExtendsIntoFooterBand()
+            throws Exception {
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy, "
+                        + "employing a large share of the workforce and supplying "
+                        + "food to both rural and urban markets.";
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        116.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        267.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        418.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        569.5f,
+                        420,
+                        111.069f,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Page 1",
+                        500,
+                        756,
+                        50,
+                        5,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            long repeatedBodyCount =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .filter(repeatedBody::equals)
+                            .count();
+
+            assertThat(repeatedBodyCount)
+                    .isEqualTo(4);
+        }
+    }
+
+    @Test
+    void shouldPreserveHeaderFooterFootnoteSampleContent()
+            throws Exception {
+
+        byte[] pdfBytes =
+                Files.readAllBytes(
+                        Path.of(
+                                "../../test-pdfs/samples/12_header_footer_footnotes.pdf"
+                        )
+                );
+
+        PdfExtractionResult extractionResult =
+                extractionService.extract(
+                        pdfBytes
+                );
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> paragraphTexts =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            long bodyBlockCount =
+                    paragraphTexts.stream()
+                            .filter(text ->
+                                    text.startsWith(
+                                            "Agriculture remains a cornerstone"
+                                    )
+                            )
+                            .count();
+
+            assertThat(bodyBlockCount)
+                    .isEqualTo(4);
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 1: source data collected in 2025."
+                            )
+                    );
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 2: source data collected in 2025."
+                            )
+                    );
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 3: source data collected in 2025."
+                            )
+                    );
+
+            assertThat(paragraphTexts)
+                    .anyMatch(text ->
+                            text.contains(
+                                    "Footnote-style note 4: source data collected in 2025."
+                            )
+                    );
+        }
+    }
+
+    @Test
+    void shouldNotTreatFootnoteStyleMarkersAsIndexLevelMarkers()
+            throws Exception {
+
+        PdfExtractionResult extractionResult =
+                new PdfExtractionResult();
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        String repeatedBody =
+                "Agriculture remains a cornerstone of the Ghanaian economy.";
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        116.5f,
+                        420,
+                        40,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "1",
+                        72,
+                        238,
+                        10,
+                        4,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        "Footnote-style note 1: source data collected in 2025.",
+                        90,
+                        242,
+                        300,
+                        5,
+                        List.of()
+                )
+        );
+
+        page.getStructuredBlocks().add(
+                new StructuredBlock(
+                        0,
+                        BlockType.PARAGRAPH,
+                        repeatedBody,
+                        72,
+                        267.5f,
+                        420,
+                        40,
+                        List.of()
+                )
+        );
+
+        extractionResult.getPages().add(page);
+
+        byte[] docx =
+                wordWriterService.write(
+                        extractionResult
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(docx)
+                     )) {
+
+            List<String> texts =
+                    document.getParagraphs()
+                            .stream()
+                            .map(XWPFParagraph::getText)
+                            .toList();
+
+            assertThat(texts)
+                    .contains(
+                            "1",
+                            "Footnote-style note 1: source data collected in 2025."
+                    );
+
+            assertThat(
+                    texts.stream()
+                            .filter(repeatedBody::equals)
+                            .count()
+            )
+                    .isEqualTo(2);
         }
     }
 }

@@ -4,6 +4,9 @@ import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
 import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -405,4 +408,61 @@ class PdfStructureRecoveryIntegrationTest {
                     .isLessThan(firstParagraphIndex);
         }
     }
+
+    @Test
+    void debugHeaderFooterFootnoteExtraction()
+            throws Exception {
+
+        byte[] pdfBytes =
+                Files.readAllBytes(
+                        Path.of(
+                                "../../test-pdfs/samples/12_header_footer_footnotes.pdf"
+                        )
+                );
+
+        PdfExtractionResult result =
+                pdfExtractionService.extract(
+                        pdfBytes
+                );
+
+        for (PageExtraction page :
+                result.getPages()) {
+
+            System.out.println(
+                    "PAGE "
+                            + page.getPageIndex()
+            );
+
+            for (StructuredBlock block :
+                    page.getStructuredBlocks()) {
+
+                System.out.println(
+                        "BLOCK"
+                                + " type="
+                                + block.getType()
+                                + " y="
+                                + block.getY()
+                                + " h="
+                                + block.getHeight()
+                                + " text=["
+                                + block.getText()
+                                + "]"
+                );
+            }
+        }
+
+        System.out.println("FOOTNOTES:");
+
+        for (Footnote footnote :
+                result.getFootnotes()) {
+
+            System.out.println(
+                    footnote.key()
+                            + " -> "
+                            + footnote.text()
+            );
+        }
+    }
+
+
 }
