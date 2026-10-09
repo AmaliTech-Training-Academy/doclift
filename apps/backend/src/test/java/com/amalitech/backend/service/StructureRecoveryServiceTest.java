@@ -1352,4 +1352,54 @@ class StructureRecoveryServiceTest {
         assertThat(block.getListType())
                 .isNull();
     }
+
+    // =========================================================
+    // MULTI-COLUMN FLAG ACCURACY
+    // =========================================================
+
+    @Test
+    void shouldNotFlagPageAsMultiColumnWhenGutterIsFoundButNeverApplied() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                spanWithSize("LeftA", 20, 100, 75, 11, "Times-Roman"),
+                spanWithSize("RightA", 105, 100, 75, 11, "Times-Roman"),
+
+                spanWithSize("LeftB", 40, 120, 75, 11, "Times-Roman"),
+                spanWithSize("RightB", 125, 120, 75, 11, "Times-Roman"),
+
+                spanWithSize("LeftC", 41, 140, 75, 11, "Times-Roman"),
+                spanWithSize("RightC", 126, 140, 75, 11, "Times-Roman")
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.isMultiColumn()).isFalse();
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .containsExactly(
+                        "LeftARightA LeftBRightB LeftCRightC"
+                );
+    }
+
+    @Test
+    void shouldFlagPageAsMultiColumnWhenBothColumnsAreActuallyWritten() {
+        PageExtraction page = new PageExtraction(0);
+
+        page.getTextSpans().addAll(List.of(
+                span("Right one", 320, 100),
+                span("Left one", 50, 100),
+
+                span("Right two", 320, 120),
+                span("Left two", 50, 120),
+
+                span("Right three", 320, 140),
+                span("Left three", 50, 140)
+        ));
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.isMultiColumn()).isTrue();
+    }
 }

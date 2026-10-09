@@ -27,6 +27,8 @@ public class PageExtraction {
 
     private int rotation;
 
+    private boolean multiColumn;
+
     public PageExtraction(int pageIndex) {
         this.pageIndex = pageIndex;
     }

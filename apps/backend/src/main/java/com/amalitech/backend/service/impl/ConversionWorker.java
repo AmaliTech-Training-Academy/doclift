@@ -23,7 +23,6 @@ public class ConversionWorker {
     private final JobService jobService;
     private final FileStorageService fileStorageService;
     private final PdfExtractionService pdfExtractionService;
-    private final StructureRecoveryService structureRecoveryService;
     private final WordWriterService wordWriterService;
     private final DocumentMetricsService documentMetricsService;
     private final JobMetricsService jobMetricsService;
@@ -33,7 +32,6 @@ public class ConversionWorker {
             JobService jobService,
             FileStorageService fileStorageService,
             PdfExtractionService pdfExtractionService,
-            StructureRecoveryService structureRecoveryService,
             WordWriterService wordWriterService,
             DocumentMetricsService documentMetricsService,
             JobMetricsService jobMetricsService,
@@ -42,8 +40,6 @@ public class ConversionWorker {
         this.jobService = jobService;
         this.fileStorageService = fileStorageService;
         this.pdfExtractionService = pdfExtractionService;
-        this.structureRecoveryService =
-                structureRecoveryService;
         this.wordWriterService = wordWriterService;
         this.documentMetricsService = documentMetricsService;
         this.jobMetricsService = jobMetricsService;
@@ -81,10 +77,6 @@ public class ConversionWorker {
                     )
             );
 
-            for (PageExtraction page : extractionResult.getPages()) {
-                structureRecoveryService.recoverStructure(page);
-            }
-
             int sourceWordCount =
                     documentMetricsService.countSourceWords(
                             extractionResult
@@ -92,6 +84,31 @@ public class ConversionWorker {
 
             ListCountResult sourceLists =
                     documentMetricsService.countSourceLists(
+                            extractionResult
+                    );
+
+            int headingsDetected =
+                    documentMetricsService.countHeadings(
+                            extractionResult
+                    );
+
+            HeadingLevelCountResult headingLevels =
+                    documentMetricsService.countHeadingLevels(
+                            extractionResult
+                    );
+
+            int tablesDetected =
+                    documentMetricsService.countTables(
+                            extractionResult
+                    );
+
+            int imagesDetected =
+                    documentMetricsService.countImages(
+                            extractionResult
+                    );
+
+            int multiColumnPageCount =
+                    documentMetricsService.countMultiColumnPages(
                             extractionResult
                     );
 
@@ -134,12 +151,21 @@ public class ConversionWorker {
 
             jobMetricsService.saveMetrics(
                     jobId,
-                    sourceWordCount,
-                    outputWordCount,
-                    sourceLists.ordered(),
-                    sourceLists.unordered(),
-                    outputLists.ordered(),
-                    outputLists.unordered()
+                    new ConversionMetrics(
+                            sourceWordCount,
+                            outputWordCount,
+                            sourceLists.ordered(),
+                            sourceLists.unordered(),
+                            outputLists.ordered(),
+                            outputLists.unordered(),
+                            headingsDetected,
+                            headingLevels.levelOne(),
+                            headingLevels.levelTwo(),
+                            headingLevels.levelThree(),
+                            tablesDetected,
+                            imagesDetected,
+                            multiColumnPageCount
+                    )
             );
 
             jobService.markCompleted(

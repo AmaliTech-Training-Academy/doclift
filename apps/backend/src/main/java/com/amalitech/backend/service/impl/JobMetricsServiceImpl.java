@@ -5,6 +5,7 @@ import com.amalitech.backend.model.Job;
 import com.amalitech.backend.model.JobMetrics;
 import com.amalitech.backend.repository.JobMetricsRepository;
 import com.amalitech.backend.repository.JobRepository;
+import com.amalitech.backend.service.ConversionMetrics;
 import com.amalitech.backend.service.JobMetricsService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,43 +29,46 @@ public class JobMetricsServiceImpl implements JobMetricsService {
     @Override
     public JobMetrics saveMetrics(
             UUID jobId,
-            int sourceWordCount,
-            int outputWordCount,
-            int orderedListsDetected,
-            int unorderedListsDetected,
-            int orderedListsReconstructed,
-            int unorderedListsReconstructed
+            ConversionMetrics metrics
     ) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(JobNotFoundException::new);
 
-        JobMetrics metrics = job.getMetrics();
+        JobMetrics jobMetrics = job.getMetrics();
 
-        if (metrics == null) {
-            metrics = new JobMetrics();
-            metrics.setJob(job);
-            job.setMetrics(metrics);
+        if (jobMetrics == null) {
+            jobMetrics = new JobMetrics();
+            jobMetrics.setJob(job);
+            job.setMetrics(jobMetrics);
         }
 
-        metrics.setSourceWordCount(sourceWordCount);
-        metrics.setOutputWordCount(outputWordCount);
+        jobMetrics.setSourceWordCount(metrics.sourceWordCount());
+        jobMetrics.setOutputWordCount(metrics.outputWordCount());
 
-        metrics.setOrderedListsDetected(
-                orderedListsDetected
+        jobMetrics.setOrderedListsDetected(
+                metrics.orderedListsDetected()
         );
 
-        metrics.setUnorderedListsDetected(
-                unorderedListsDetected
+        jobMetrics.setUnorderedListsDetected(
+                metrics.unorderedListsDetected()
         );
 
-        metrics.setOrderedListsReconstructed(
-                orderedListsReconstructed
+        jobMetrics.setOrderedListsReconstructed(
+                metrics.orderedListsReconstructed()
         );
 
-        metrics.setUnorderedListsReconstructed(
-                unorderedListsReconstructed
+        jobMetrics.setUnorderedListsReconstructed(
+                metrics.unorderedListsReconstructed()
         );
 
-        return jobMetricsRepository.save(metrics);
+        jobMetrics.setHeadingsDetected(metrics.headingsDetected());
+        jobMetrics.setH1HeadingCount(metrics.h1HeadingCount());
+        jobMetrics.setH2HeadingCount(metrics.h2HeadingCount());
+        jobMetrics.setH3HeadingCount(metrics.h3HeadingCount());
+        jobMetrics.setTablesDetected(metrics.tablesDetected());
+        jobMetrics.setImagesDetected(metrics.imagesDetected());
+        jobMetrics.setMultiColumnPageCount(metrics.multiColumnPageCount());
+
+        return jobMetricsRepository.save(jobMetrics);
     }
 }

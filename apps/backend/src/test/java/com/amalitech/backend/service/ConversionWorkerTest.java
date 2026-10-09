@@ -20,7 +20,6 @@ class ConversionWorkerTest {
     private JobService jobService;
     private FileStorageService fileStorageService;
     private PdfExtractionService pdfExtractionService;
-    private StructureRecoveryService structureRecoveryService;
     private WordWriterService wordWriterService;
     private ConversionWorker conversionWorker;
     private DocumentMetricsService documentMetricsService;
@@ -45,9 +44,6 @@ class ConversionWorkerTest {
 
         pdfExtractionService =
                 mock(PdfExtractionService.class);
-
-        structureRecoveryService =
-                mock(StructureRecoveryService.class);
 
         wordWriterService =
                 mock(WordWriterService.class);
@@ -82,7 +78,6 @@ class ConversionWorkerTest {
                         jobService,
                         fileStorageService,
                         pdfExtractionService,
-                        structureRecoveryService,
                         wordWriterService,
                         documentMetricsService,
                         jobMetricsService,
@@ -170,6 +165,21 @@ class ConversionWorkerTest {
                 )
         );
 
+        when(documentMetricsService.countHeadings(extractionResult))
+                .thenReturn(2);
+
+        when(documentMetricsService.countHeadingLevels(extractionResult))
+                .thenReturn(new HeadingLevelCountResult(1, 1, 0));
+
+        when(documentMetricsService.countTables(extractionResult))
+                .thenReturn(1);
+
+        when(documentMetricsService.countImages(extractionResult))
+                .thenReturn(3);
+
+        when(documentMetricsService.countMultiColumnPages(extractionResult))
+                .thenReturn(0);
+
         when(
                 fileStorageService
                         .storeOutputDocx(
@@ -198,9 +208,6 @@ class ConversionWorkerTest {
                 JobPhase.RECOVERING_STRUCTURE,
                 64
         );
-
-        verify(structureRecoveryService)
-                .recoverStructure(page);
 
         verify(documentMetricsService)
                 .countSourceWords(extractionResult);
@@ -238,12 +245,21 @@ class ConversionWorkerTest {
         verify(jobMetricsService)
                 .saveMetrics(
                         JOB_ID,
-                        120,
-                        118,
-                        1,
-                        1,
-                        1,
-                        1
+                        new ConversionMetrics(
+                                120,
+                                118,
+                                1,
+                                1,
+                                1,
+                                1,
+                                2,
+                                1,
+                                1,
+                                0,
+                                1,
+                                3,
+                                0
+                        )
                 );
 
         verify(jobService)
@@ -301,7 +317,6 @@ class ConversionWorkerTest {
                 .markFailed(JOB_ID);
 
         verifyNoInteractions(
-                structureRecoveryService,
                 wordWriterService,
                 documentMetricsService,
                 jobMetricsService

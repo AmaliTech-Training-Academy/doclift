@@ -8,11 +8,6 @@ public interface JobMetricsService {
 
     JobMetrics saveMetrics(
             UUID jobId,
-            int sourceWordCount,
-            int outputWordCount,
-            int orderedListsDetected,
-            int unorderedListsDetected,
-            int orderedListsReconstructed,
-            int unorderedListsReconstructed
+            ConversionMetrics metrics
     );
 }
