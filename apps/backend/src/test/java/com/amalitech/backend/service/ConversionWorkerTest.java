@@ -61,9 +61,6 @@ class ConversionWorkerTest {
                 JobPhase.EXTRACTING_CONTENT
         )).thenReturn(1);
 
-        when(jobEtaCalculator.calculateProgressPercentForPhase(
-                JobPhase.RECOVERING_STRUCTURE
-        )).thenReturn(64);
 
         when(jobEtaCalculator.calculateProgressPercentForPhase(
                 JobPhase.GENERATING_DOCUMENT
@@ -196,12 +193,6 @@ class ConversionWorkerTest {
         verify(pdfExtractionService)
                 .extract(any(InputStream.class));
 
-        verify(jobService).updateProgress(
-                JOB_ID,
-                JobPhase.RECOVERING_STRUCTURE,
-                64
-        );
-
 
         verify(documentMetricsService)
                 .countSourceWords(extractionResult);
@@ -276,6 +267,12 @@ class ConversionWorkerTest {
                         JOB_ID,
                         outputPath.toString(),
                         docxContent.length
+                );
+        verify(jobService, never())
+                .updateProgress(
+                        eq(JOB_ID),
+                        eq(JobPhase.RECOVERING_STRUCTURE),
+                        anyInt()
                 );
 
         verify(jobService, never())

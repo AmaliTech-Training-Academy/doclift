@@ -69,13 +69,6 @@ public class ConversionWorker {
                 extractionResult = pdfExtractionService.extract(inputStream);
             }
 
-            jobService.updateProgress(
-                    jobId,
-                    JobPhase.RECOVERING_STRUCTURE,
-                    jobEtaCalculator.calculateProgressPercentForPhase(
-                            JobPhase.RECOVERING_STRUCTURE
-                    )
-            );
 
             int sourceWordCount =
                     documentMetricsService.countSourceWords(
