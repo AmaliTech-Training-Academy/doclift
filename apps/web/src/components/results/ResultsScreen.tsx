@@ -18,6 +18,7 @@ import {
 } from "@/data/resultsData";
 import { useConversion } from "@/context/ConversionContext";
 import DownloadButton from "@/components/results/DownloadButton";
+import { FidelityScoreCard } from "@/components/results/FidelityScoreCard";
 
 export default function ResultsScreen() {
   const { requestReset, session } = useConversion();
@@ -31,7 +32,7 @@ export default function ResultsScreen() {
   const conversionTimeText = (() => {
     if (durationSeconds == null) return null;
     if (durationSeconds < 1) {
-      const ms = Math.round(durationSeconds * 1000);
+      const ms = Math.round(durationSeconds * 100);
       return `${ms}ms conversion time`;
     }
     const roundedSeconds = Math.round(durationSeconds);
@@ -51,12 +52,7 @@ export default function ResultsScreen() {
       : `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
     : null;
 
-  const pageCountText =
-    session?.pageCount != null
-      ? `${session.pageCount} ${session.pageCount === 1 ? "page" : "pages"}`
-      : null;
-
-  const metadataSummary = [pageCountText, fileSizeText, conversionTimeText]
+  const metadataSummary = [fileSizeText, conversionTimeText]
     .filter(Boolean)
     .join(" • ");
 
@@ -64,30 +60,7 @@ export default function ResultsScreen() {
   const outputWords = session?.metrics?.outputWordCount;
   const wordCount = outputWords ?? sourceWords;
 
-  const compositeComparisons: number[] = [];
 
-  if (sourceWords != null && outputWords != null && sourceWords > 0) {
-    compositeComparisons.push(Math.min(100, Math.max(0, (outputWords / sourceWords) * 100)));
-  }
-
-  const inputPages = session?.pageCount;
-  const outputPages = session?.metrics?.outputPageCount;
-  if (inputPages != null && outputPages != null && inputPages > 0) {
-    compositeComparisons.push(Math.min(100, Math.max(0, (outputPages / inputPages) * 100)));
-  }
-
-  if (session?.metrics) {
-    const detectedLists = (session.metrics.orderedListsDetected ?? 0) + (session.metrics.unorderedListsDetected ?? 0);
-    const reconstructedLists = (session.metrics.orderedListsReconstructed ?? 0) + (session.metrics.unorderedListsReconstructed ?? 0);
-    if (detectedLists > 0) {
-      compositeComparisons.push(Math.min(100, Math.max(0, (reconstructedLists / detectedLists) * 100)));
-    }
-  }
-
-  const compositeFidelityPercent =
-    compositeComparisons.length > 0
-      ? Number((compositeComparisons.reduce((a, b) => a + b, 0) / compositeComparisons.length).toFixed(1))
-      : 'N/A';
 
   const dynamicChecklistData = checklistData.map((item) => {
     if (item.id === 1 && wordCount != null) {
@@ -200,15 +173,37 @@ export default function ResultsScreen() {
       };
     }
     if (item.id === 2) {
-      const input = session?.pageCount;
-      const output = session?.metrics?.outputPageCount;
-      if (input != null || output != null) {
-        const pageCount = output ?? input;
+      if (session?.metrics) {
+        const {
+          orderedListsDetected,
+          unorderedListsDetected,
+          orderedListsReconstructed,
+          unorderedListsReconstructed,
+        } = session.metrics;
+
+        const ordDet = orderedListsDetected ?? 0;
+        const unordDet = unorderedListsDetected ?? 0;
+        const ordRec = orderedListsReconstructed ?? 0;
+        const unordRec = unorderedListsReconstructed ?? 0;
+
+        const detectedTotal = ordDet + unordDet;
+        const reconstructedTotal = ordRec + unordRec;
+
+        const formatBreakdown = (ordered: number, unordered: number) => {
+          if (ordered === 0 && unordered === 0) return "0 lists";
+          const parts: string[] = [];
+          if (ordered > 0) parts.push(`${ordered} ordered`);
+          if (unordered > 0) parts.push(`${unordered} unordered`);
+          return parts.join(" & ");
+        };
+
         return {
           ...item,
-          badge: `${pageCount} ${pageCount === 1 ? "Page" : "Pages"}`,
-          inputPages: input ?? undefined,
-          outputPages: output ?? undefined,
+          badge: `${reconstructedTotal} ${reconstructedTotal === 1 ? "List" : "Lists"}`,
+          detectedLists: detectedTotal,
+          reconstructedLists: reconstructedTotal,
+          detectedListsDetail: formatBreakdown(ordDet, unordDet),
+          reconstructedListsDetail: formatBreakdown(ordRec, unordRec),
         };
       }
     }
@@ -224,7 +219,7 @@ export default function ResultsScreen() {
             <div className="w-fit flex flex-col text-sm sm:flex-row gap-2 bg-primary-background p-1.5 rounded-lg sm:items-center">
               <div className="text-primary flex items-center gap-2">
                 <CircleCheck className="size-3" />
-                <p className="text-xs">Conversion Complete</p>
+                <p className="text-xs">Conversion Completed</p>
               </div>
             </div>
             <span className="text-xs text-muted-foreground">
@@ -269,7 +264,7 @@ export default function ResultsScreen() {
               <h2 className="font-semibold text-2xl">Conversion Checklist</h2>
             </div>
             <span className="text-sm text-muted-foreground">
-              Deterministic AST Validation
+              Deterministic Validation
             </span>
           </div>
           {dynamicChecklistData.map((item) => (
@@ -291,44 +286,8 @@ export default function ResultsScreen() {
             </span>
           </div>
 
-          {/* Composite Fidelity Score donut */}
-          <div className="flex flex-row items-center gap-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-            <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
-              <svg className="w-20 h-20 -rotate-90" viewBox="0 0 36 36">
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15.9"
-                  fill="none"
-                  stroke="#e5e7eb"
-                  strokeWidth="3"
-                />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15.9"
-                  fill="none"
-                  stroke="#2563eb"
-                  strokeWidth="3"
-                  strokeDasharray={`${compositeFidelityPercent} 100`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center leading-none">
-                <span className="text-lg font-bold">{compositeFidelityPercent}%</span>
-                <span className="text-[9px] text-gray-400 mt-0.5">
-                  Fidelity
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <p className="font-semibold text-sm">Composite Fidelity Score</p>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Calculated by aggregating available structural like words, tables, and lists
-                between the source PDF and output Word document.
-              </p>
-            </div>
-          </div>
+          {/* Composite Fidelity Score Card with interactive breakdown dropdown */}
+          <FidelityScoreCard session={session} />
 
           {dynamicFidelityMetrics.map((item) => (
             <FidelityMetricCard key={item.id} item={item} />

@@ -33,7 +33,7 @@ describe("resultsData", () => {
       expect(typeof item.title).toBe("string");
       expect(typeof item.description).toBe("string");
       expect(item.icon).toBeDefined();
-      expect(["figures", "tables", "session", "pages"]).toContain(item.variant);
+      expect(["figures", "session", "lists"]).toContain(item.variant);
     });
   });
 });

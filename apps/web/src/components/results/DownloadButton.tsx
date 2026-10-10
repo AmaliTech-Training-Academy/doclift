@@ -31,7 +31,7 @@ export default function DownloadButton({ jobId }: { jobId: string }) {
         variant="primary"
         onClick={handleClick}
         disabled={status === "downloading"}
-        className="w-full sm:w-auto"
+        className="w-full"
       >
         <Download className="size-4" />
         {status === "downloading" ? "Downloading..." : "Download"}
