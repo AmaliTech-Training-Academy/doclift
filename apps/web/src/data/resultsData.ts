@@ -86,7 +86,7 @@ export const fidelityMetrics: FidelityMetric[] = [
 
 // ── Summary Cards (bottom section) ──────────────────────────────────────────
 
-export type SummaryCardVariant = "figures" | "tables" | "session" | "pages";
+export type SummaryCardVariant = "figures" | "session" | "lists";
 
 export interface SummaryCardFile {
     name: string;
@@ -105,10 +105,10 @@ export interface SummaryCardItem {
     icon: LucideIcon;
     badge: string;
     variant: SummaryCardVariant;
-    /** pages variant — how many input vs output pages */
-    inputPages?: number;
-    outputPages?: number;
-    /** session variant — progress bar fill 0–100 */
+    detectedLists?: number;
+    reconstructedLists?: number;
+    detectedListsDetail?: string;
+    reconstructedListsDetail?: string;
     progress?: number;
 }
 
@@ -124,12 +124,12 @@ export const summaryCards: SummaryCardItem[] = [
     },
     {
         id: 2,
-        title: "Pages Processed",
+        title: "List Reconstruction",
         description:
-            "Successfully paginated document retaining original reading order and section breaks.",
-        icon: FileText,
-        badge: "0 Pages",
-        variant: "pages",
+            "Converted floating bullet and numeric characters into native Word list structures.",
+        icon: ListOrdered,
+        badge: "0 Lists",
+        variant: "lists",
     },
     {
         id: 3,

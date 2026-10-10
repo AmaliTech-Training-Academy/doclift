@@ -72,16 +72,16 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
             </div>
           )}
 
-          {/* pages variant: input -> output mapping */}
-          {item.variant === "pages" && (
+          {/* lists variant: detected -> reconstructed mapping */}
+          {item.variant === "lists" && (
             <div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Input Pages
+                    Detected Lists
                   </span>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {item.inputPages ?? "-"}
+                  <span className="text-xs sm:text-sm font-medium text-foreground">
+                    {item.detectedListsDetail || (item.detectedLists != null ? String(item.detectedLists) : "-")}
                   </span>
                 </div>
                 <div className="flex items-center justify-center size-6 rounded-full bg-primary-background text-primary border border-primary/20 shrink-0">
@@ -89,10 +89,10 @@ export function SummaryCard({ item, completedAt }: SummaryCardProps) {
                 </div>
                 <div className="flex flex-col items-end text-right min-w-0">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                    Output Pages
+                    Reconstructed
                   </span>
-                  <span className="text-sm font-semibold text-primary">
-                    {item.outputPages ?? "-"}
+                  <span className="text-xs sm:text-sm font-semibold text-primary">
+                    {item.reconstructedListsDetail || (item.reconstructedLists != null ? String(item.reconstructedLists) : "-")}
                   </span>
                 </div>
               </div>
