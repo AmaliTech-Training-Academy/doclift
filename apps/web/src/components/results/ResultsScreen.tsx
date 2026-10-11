@@ -21,17 +21,17 @@ import DownloadButton from "@/components/results/DownloadButton";
 import { FidelityScoreCard } from "@/components/results/FidelityScoreCard";
 
 export default function ResultsScreen() {
-  const { requestReset, session } = useConversion();
+  const { requestReset, session, timeElapsed } = useConversion();
   const docxTitle =
     session?.output?.filename ||
     (session?.fileName
       ? session.fileName.replace(/\.[^./]+$/, ".docx")
       : "Word Document.docx");
 
-  const durationSeconds = session?.durationSeconds;
+  const durationSeconds = timeElapsed > 0 ? timeElapsed : (session?.durationSeconds ?? timeElapsed);
   const conversionTimeText = (() => {
     if (durationSeconds == null) return null;
-    if (durationSeconds < 1) {
+    if (durationSeconds > 0 && durationSeconds < 1) {
       const ms = Math.round(durationSeconds * 100);
       return `${ms}ms conversion time`;
     }
