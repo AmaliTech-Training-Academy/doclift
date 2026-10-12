@@ -147,8 +147,7 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
      * table-area spans out of paragraph joining, so detection must happen
      * first - merging the detected tables into {@link StructuredBlock}s
      * happens separately, after structure recovery, via
-     * {@link #mergeBorderedTables}. Horizontal strokes from the same pass
-     * are then matched to text so underlines can be written in Word.
+     * {@link #mergeBorderedTables}.
      */
     private List<DetectedTable> detectBorderedTables(
             int pageIndex,
@@ -180,12 +179,6 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     )
             );
         }
-
-        UnderlineDetector.mark(
-                textSpans,
-                lineEngine.getHorizontalLines(),
-                pageExtraction.getCandidateTableRegions()
-        );
 
         return tables;
     }
@@ -1469,24 +1462,27 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
     /**
      * Visual size in points. {@code getFontSizeInPt()} is an integer truncation
-     * of the horizontal text-matrix scale, so 14.5 is reported as 14 and a
-     * font sized through the text matrix loses its fraction. The vertical
-     * scale is the size Word should use.
+     * of the horizontal text-matrix scale, so 14.5 is reported as 14. The
+     * vertical scale keeps that fraction. A vertical scale several times the
+     * declared size is a doubled text matrix, and the declared size is used.
      *
      * @param position glyph position from PDFBox
      * @return size in points, rounded to the nearest half point
      */
     private float renderedFontSize(TextPosition position) {
+        float declared = position.getFontSizeInPt();
         float rendered = Math.abs(position.getYScale());
-        if (rendered >= 0.5f && rendered <= 400f) {
+        // A text matrix that is scaled again on top of the font size reports
+        // a huge Y scale. That size blows the line apart and spills the page.
+        if (declared > 0f && (rendered <= 0f || rendered > declared * 1.75f)) {
+            return declared;
+        }
+        if (rendered >= 1f && rendered <= 96f) {
             return Math.round(rendered * 2f) / 2f;
         }
-
-        float declared = position.getFontSizeInPt();
         if (declared > 0f) {
             return declared;
         }
-
         return Math.max(0f, position.getFontSize());
     }
 
@@ -2150,10 +2146,11 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                         current.getWidthOfSpace()
                 );
 
-        return gap > Math.max(
-                1f,
-                spaceWidth * 0.5f
-        );
+        if (spaceWidth <= 0f || spaceWidth > 12f) {
+            spaceWidth = 3f;
+        }
+
+        return gap > Math.max(0.8f, spaceWidth * 0.3f);
     }
 
 

@@ -1703,6 +1703,50 @@ class WordWriterServiceTest {
     }
 
     @Test
+    void shouldKeepPdfPageBoundariesBetweenSeparateParagraphs() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+
+        PageExtraction firstPage = new PageExtraction(0);
+        firstPage.setCropWidth(612);
+        firstPage.setCropHeight(792);
+        firstPage.getStructuredBlocks().add(paragraphBlock(
+                0,
+                "The report covers the",
+                72,
+                500
+        ));
+
+        PageExtraction secondPage = new PageExtraction(1);
+        secondPage.setCropWidth(612);
+        secondPage.setCropHeight(792);
+        secondPage.getStructuredBlocks().add(paragraphBlock(
+                1,
+                "entire region in detail.",
+                72,
+                80
+        ));
+        secondPage.getStructuredBlocks().add(paragraphBlock(
+                1,
+                "The next section starts here.",
+                72,
+                120
+        ));
+
+        extractionResult.getPages().add(firstPage);
+        extractionResult.getPages().add(secondPage);
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            assertThat(document.getParagraphs())
+                    .extracting(XWPFParagraph::getText)
+                    .contains(
+                            "The report covers the",
+                            "entire region in detail."
+                    )
+                    .doesNotContain("The report covers the entire region in detail.");
+        }
+    }
+
+    @Test
     void shouldWriteCompactIndexEntriesWithDottedRightTabLeaders() throws Exception {
 
         PdfExtractionResult extractionResult =

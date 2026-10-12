@@ -401,6 +401,7 @@ public class WordWriterServiceImpl implements WordWriterService {
         boolean firstContentWritten = false;
 
         String previousText = null;
+        TextSpan previousSpan = null;
 
         List<TextSpan> spans =
                 block.getSpans();
@@ -450,18 +451,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                 continue;
             }
 
-            if (span.isWordSeparatorBefore()
-                    && previousText != null
-                    && !previousText.isEmpty()
-                    && !Character.isWhitespace(
-                    previousText.charAt(
-                            previousText.length() - 1
-                    )
-            )
-                    && !Character.isWhitespace(
-                    text.charAt(0)
-            )) {
-
+            if (needsRunSpace(previousSpan, previousText, span, text)) {
                 text = " " + text;
             }
 
@@ -473,6 +463,7 @@ public class WordWriterServiceImpl implements WordWriterService {
             applyFormatting(run, span);
 
             previousText = text;
+            previousSpan = span;
             firstContentWritten = true;
         }
     }
@@ -702,13 +693,15 @@ public class WordWriterServiceImpl implements WordWriterService {
                                         null;
                             }
 
-                            insertContinuousColumnSectionBreak(
-                                    document,
-                                    page,
-                                    pageMargins,
-                                    1,
-                                    null
-                            );
+                            if (!document.getParagraphs().isEmpty()) {
+                                insertContinuousColumnSectionBreak(
+                                        document,
+                                        page,
+                                        pageMargins,
+                                        1,
+                                        null
+                                );
+                            }
 
                             activeColumnRegion =
                                     blockColumnRegion;
@@ -809,6 +802,20 @@ public class WordWriterServiceImpl implements WordWriterService {
                     }
 
 
+                    float blockWidth = activeColumnRegion == null
+                            ? pageContentWidth(pageMargins, page)
+                            : columnContentWidth(
+                            pageMargins,
+                            page,
+                            activeColumnRegion,
+                            writingRightColumn
+                    );
+                    float blockLeft = flowContentLeft(
+                            pageMargins,
+                            activeColumnRegion,
+                            writingRightColumn
+                    );
+
                     int spacingBefore =
                             calculateSpacingBefore(
                                     previousBlock,
@@ -829,12 +836,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 bodyFontSize,
                                 footnotesByKey,
                                 spacingBefore,
-                                pageContentWidth(pageMargins, page),
-                                flowContentLeft(
-                                        pageMargins,
-                                        activeColumnRegion,
-                                        writingRightColumn
-                                )
+                                blockWidth,
+                                blockLeft
                         );
 
 
@@ -926,12 +929,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                             bodyFontSize,
                             footnotesByKey,
                             spacingBefore,
-                            pageContentWidth(pageMargins, page),
-                            flowContentLeft(
-                                    pageMargins,
-                                    activeColumnRegion,
-                                    writingRightColumn
-                            )
+                            blockWidth,
+                            blockLeft
                     );
 
                     previousBlock = block;
@@ -1067,19 +1066,10 @@ public class WordWriterServiceImpl implements WordWriterService {
                         ? body.getSectPr()
                         : body.addNewSectPr();
 
-        if (page.getColumnRegions() != null
-                && !page.getColumnRegions().isEmpty()) {
-            if (sectPr.isSetType()) {
-                sectPr.getType()
-                        .setVal(
-                                STSectionMark.CONTINUOUS
-                        );
-            } else {
-                sectPr.addNewType()
-                        .setVal(
-                                STSectionMark.CONTINUOUS
-                        );
-            }
+        if (sectPr.isSetType()) {
+            sectPr.getType().setVal(STSectionMark.CONTINUOUS);
+        } else {
+            sectPr.addNewType().setVal(STSectionMark.CONTINUOUS);
         }
 
         setPageSize(
@@ -1101,6 +1091,7 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         paragraph.setSpacingBefore(0);
         paragraph.setSpacingAfter(0);
+        paragraph.setSpacingBetween(0.0, LineSpacingRule.EXACT);
 
         XWPFRun run =
                 paragraph.createRun();
@@ -1122,6 +1113,7 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         paragraph.setSpacingBefore(0);
         paragraph.setSpacingAfter(0);
+        paragraph.setSpacingBetween(0.0, LineSpacingRule.EXACT);
 
         CTPPr pPr =
                 paragraph.getCTP().isSetPPr()
@@ -1460,6 +1452,7 @@ public class WordWriterServiceImpl implements WordWriterService {
 
         paragraph.setSpacingBefore(0);
         paragraph.setSpacingAfter(0);
+        paragraph.setSpacingBetween(0.0, LineSpacingRule.EXACT);
 
         XWPFRun run =
                 paragraph.createRun();
@@ -1535,15 +1528,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                         );
 
         if (hasBackgroundImage) {
-            return true;
-        }
-
-        boolean hasColumnRegions =
-                page.getColumnRegions() != null
-                        && !page.getColumnRegions().isEmpty();
-
-        if (!hasColumnRegions
-                && !page.getImages().isEmpty()) {
             return true;
         }
 
@@ -1929,17 +1913,18 @@ public class WordWriterServiceImpl implements WordWriterService {
     ) {
         float pageWidth = pageContentWidth(pageMargins, page);
         float splitX = region.splitX();
+        float halfGap = determineColumnGap(page, region) / 2f;
 
         if (rightColumn) {
             return Math.max(
                     1f,
-                    pageWidth - (splitX - pageMargins.left())
+                    pageWidth - (splitX - pageMargins.left()) - halfGap
             );
         }
 
         return Math.max(
                 1f,
-                splitX - pageMargins.left()
+                splitX - pageMargins.left() - halfGap
         );
     }
 
@@ -2671,8 +2656,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                 paragraph.setNumILvl(BigInteger.ZERO);
             }
 
-            applyBlockOffset(paragraph, block, contentLeft);
             writeListRuns(paragraph, block);
+            pinParagraphFont(paragraph, block);
 
             return;
         }
@@ -2702,11 +2687,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             return;
         }
 
-        applyBlockOffset(paragraph, block, contentLeft);
         writeRuns(paragraph, block);
-        if (block.getType() == BlockType.HEADING) {
-            pinParagraphFont(paragraph, block);
-        }
+        pinParagraphFont(paragraph, block);
     }
 
     private IndexEntry parseIndexEntry(StructuredBlock block) {
@@ -2798,33 +2780,6 @@ public class WordWriterServiceImpl implements WordWriterService {
             case JUSTIFY -> ParagraphAlignment.BOTH;
             case LEFT -> ParagraphAlignment.LEFT;
         };
-    }
-
-    /**
-     * Shifts a paragraph so its left edge matches the PDF. List items keep a
-     * hanging marker so the bullet stays at that edge and the text starts
-     * after it. Direct paragraph indent replaces the numbering indent.
-     *
-     * @param paragraph paragraph just created for the block
-     * @param block source block
-     * @param contentLeft left edge of the current column or body, in points
-     */
-    private void applyBlockOffset(
-            XWPFParagraph paragraph,
-            StructuredBlock block,
-            float contentLeft
-    ) {
-        float offset = block.getX() - contentLeft;
-        if (block.getType() == BlockType.LIST_ITEM) {
-            float hanging = 18f;
-            float left = Math.max(hanging, offset + hanging);
-            paragraph.setIndentationLeft(Math.round(left * TWIPS_PER_POINT));
-            paragraph.setIndentationHanging(Math.round(hanging * TWIPS_PER_POINT));
-            return;
-        }
-        if (offset > 2f) {
-            paragraph.setIndentationLeft(Math.round(offset * TWIPS_PER_POINT));
-        }
     }
 
     /**
@@ -3249,15 +3204,52 @@ public class WordWriterServiceImpl implements WordWriterService {
             return;
         }
 
+        String previousText = null;
+        TextSpan previousSpan = null;
+
         for (TextSpan span : spans) {
             if (span.getText() == null || span.getText().isEmpty()) {
                 continue;
             }
 
+            String spanText = span.getText();
+            if (needsRunSpace(previousSpan, previousText, span, spanText)) {
+                spanText = " " + spanText;
+            }
+
             XWPFRun run = cellParagraph.createRun();
-            run.setText(span.getText());
+            run.setText(spanText);
             applyFormatting(run, span);
+            previousText = spanText;
+            previousSpan = span;
         }
+    }
+
+    private boolean needsRunSpace(
+            TextSpan previousSpan,
+            String previousText,
+            TextSpan span,
+            String text
+    ) {
+        if (previousText == null
+                || previousText.isEmpty()
+                || text == null
+                || text.isEmpty()
+                || Character.isWhitespace(previousText.charAt(previousText.length() - 1))
+                || Character.isWhitespace(text.charAt(0))) {
+            return false;
+        }
+
+        if (span.isWordSeparatorBefore()) {
+            return true;
+        }
+
+        if (previousSpan == null) {
+            return false;
+        }
+
+        float gap = span.getX() - (previousSpan.getX() + previousSpan.getWidth());
+        return gap > 1.2f;
     }
 
 
@@ -3318,6 +3310,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                         .toList();
 
         String previousText = null;
+        TextSpan previousSpan = null;
 
         for (int i = 0; i < spans.size(); i++) {
 
@@ -3339,18 +3332,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                 continue;
             }
 
-            if (span.isWordSeparatorBefore()
-                    && previousText != null
-                    && !previousText.isEmpty()
-                    && !Character.isWhitespace(
-                    previousText.charAt(
-                            previousText.length() - 1
-                    )
-            )
-                    && !Character.isWhitespace(
-                    text.charAt(0)
-            )) {
-
+            if (needsRunSpace(previousSpan, previousText, span, text)) {
                 text = " " + text;
             }
 
@@ -3362,6 +3344,7 @@ public class WordWriterServiceImpl implements WordWriterService {
             applyFormatting(run, span);
 
             previousText = text;
+            previousSpan = span;
         }
     }
 
@@ -3511,7 +3494,16 @@ public class WordWriterServiceImpl implements WordWriterService {
             return 0;
         }
 
-        float naturalSpacingAllowance = 4f;
+        float lineHeight = Math.max(
+                previousBlock.getHeight(),
+                currentBlock.getHeight()
+        );
+        float baselineDelta = currentBlock.getY() - previousBlock.getY();
+        if (baselineDelta > 0f
+                && baselineDelta <= Math.max(16f, lineHeight * 2.2f)) {
+            return 0;
+        }
+        float naturalSpacingAllowance = Math.max(4f, lineHeight * 0.85f);
 
         float effectiveGap =
                 Math.max(

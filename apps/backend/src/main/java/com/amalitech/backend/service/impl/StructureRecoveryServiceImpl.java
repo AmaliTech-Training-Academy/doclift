@@ -14,7 +14,6 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float MIN_LINE_TOLERANCE = 2.0f;
     private static final float COLUMN_SPLIT_TOLERANCE = 20f;
     private static final float LINE_TOLERANCE_FACTOR = 0.5f;
-    private static final float PARAGRAPH_GAP_FACTOR = 1.2f;
     private static final float INDENT_TOLERANCE = 20f;
     private static final float MAX_FIRST_LINE_INDENT = 48f;
     private static final float HEADING_FONT_RATIO = 1.25f;
@@ -64,6 +63,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
     private static final float MAX_CENTERED_WIDTH_RATIO = 0.7f;
     private static final float JUSTIFY_LINE_TOLERANCE = 5f;
     private static final float LINE_SPACING_CLUSTER_TOLERANCE = 1.5f;
+    private static final float LINE_SPACING_JOIN_TOLERANCE = 4f;
     private static final int MIN_LINE_SPACING_SUPPORT = 3;
     private static final float MAX_LINE_SPACING_TO_FONT_RATIO = 1.8f;
     private static final float PAGE_EDGE_START_RATIO = 0.94f;
@@ -396,7 +396,15 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
         boolean isCentered = leftGap > CENTER_ALIGNMENT_TOLERANCE
                 && Math.abs(leftGap - rightGap) <= CENTER_ALIGNMENT_TOLERANCE;
 
-        return isCentered ? BlockAlignment.CENTER : BlockAlignment.LEFT;
+        if (isCentered) {
+            return BlockAlignment.CENTER;
+        }
+
+        boolean isRight = line.getWidth() < pageWidth * 0.35f
+                && rightGap <= 72f
+                && leftGap > rightGap + 48f;
+
+        return isRight ? BlockAlignment.RIGHT : BlockAlignment.LEFT;
     }
 
 
@@ -410,6 +418,18 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                     paragraphLines.getFirst(),
                     pageWidth
             );
+        }
+
+        boolean everyLineCentered = paragraphLines.stream()
+                .allMatch(line -> detectSingleLineAlignment(line, pageWidth) == BlockAlignment.CENTER);
+        if (everyLineCentered) {
+            return BlockAlignment.CENTER;
+        }
+
+        boolean everyLineRight = paragraphLines.stream()
+                .allMatch(line -> detectSingleLineAlignment(line, pageWidth) == BlockAlignment.RIGHT);
+        if (everyLineRight) {
+            return BlockAlignment.RIGHT;
         }
 
         if (bodyRightMargin == null) {
@@ -458,30 +478,27 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
         boolean closeVertically;
 
+        float baselineDelta = current.getY() - previous.getY();
+
         if (dominantLineSpacing != null) {
-
-            float baselineDelta = current.getY() - previous.getY();
-
             closeVertically =
                     Math.abs(baselineDelta - dominantLineSpacing)
-                            <= LINE_SPACING_CLUSTER_TOLERANCE;
+                            <= LINE_SPACING_JOIN_TOLERANCE;
         } else {
-            float previousBottom =
-                    previous.getY() + previous.getHeight();
-
-            float verticalGap =
-                    current.getY() - previousBottom;
-
-            float referenceHeight = Math.max(
+            float glyphHeight = Math.max(
                     previous.getAverageHeight(),
                     current.getAverageHeight()
             );
+            float fontSize = Math.max(
+                    previous.getMinFontSize(),
+                    current.getMinFontSize()
+            );
+            float lineStep = Math.max(
+                    glyphHeight * 2.2f,
+                    fontSize > 0f ? fontSize * 1.45f : 0f
+            );
 
-            float allowedGap =
-                    referenceHeight * PARAGRAPH_GAP_FACTOR;
-
-            closeVertically =
-                    verticalGap <= allowedGap;
+            closeVertically = baselineDelta > 0f && baselineDelta <= lineStep;
         }
 
         float indentDelta = current.getX() - previous.getX();
@@ -1871,6 +1888,7 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
             boolean previousEndedWithWhitespace =
                     false;
+            TextSpan previousSpan = null;
 
             for (TextSpan span : spans) {
 
@@ -1897,8 +1915,13 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
                 String cleaned =
                         text.strip();
 
+                float gapBefore = previousSpan == null
+                        ? 0f
+                        : span.getX() - (previousSpan.getX() + previousSpan.getWidth());
+
                 if (!builder.isEmpty()
                         && (span.isWordSeparatorBefore()
+                        || gapBefore > 1.2f
                         || previousEndedWithWhitespace
                         || startsWithWhitespace)
                         && !Character.isWhitespace(
@@ -1914,11 +1937,13 @@ public class StructureRecoveryServiceImpl implements StructureRecoveryService {
 
                 previousEndedWithWhitespace =
                         endsWithWhitespace;
+                previousSpan = span;
             }
 
             return builder.toString();
         }
     }
+
     private boolean crossesBottomPageEdgeBoundary(
             LogicalLine previous,
             LogicalLine current,
