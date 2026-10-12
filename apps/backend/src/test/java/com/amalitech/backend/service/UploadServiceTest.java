@@ -199,6 +199,35 @@ class UploadServiceTest {
     }
 
     @Test
+    void shouldAcceptPdfWhenContentTypeIsGeneric() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "sample.pdf",
+                "application/octet-stream",
+                "dummy".getBytes()
+        );
+
+        Path tempPath = Path.of("/tmp/upload-test.pdf");
+
+        Job job = new Job();
+        job.setId(JOB_ID);
+
+        when(fileStorageService.storeTemporaryFile(file))
+                .thenReturn(tempPath);
+
+        when(pdfValidationService.validateAndGetPageCount(tempPath))
+                .thenReturn(1);
+
+        when(jobService.createJob("sample.pdf", 1))
+                .thenReturn(job);
+
+        Job result = uploadService.handleUpload(file);
+
+        assertEquals(JOB_ID, result.getId());
+        verify(pdfValidationService).validateAndGetPageCount(tempPath);
+    }
+
+    @Test
     void shouldMarkJobFailedWhenFinalStorageFails() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",

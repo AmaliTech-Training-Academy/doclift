@@ -20,6 +20,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGrid;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGridCol;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
@@ -27,6 +28,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STNumberFormat;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STSectionMark;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHdrFtr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHeightRule;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STFldCharType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTabTlc;
@@ -81,24 +83,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                     "^(.+?)(?:\\s*[.…]{2,}[.…\\s]*|\\s{3,})(\\d{1,3})$"
             );
 
-    private static final Pattern FONT_SUBSET_PREFIX =
-            Pattern.compile("^[A-Z]{6}\\+");
-
-    private static final Map<String, String> FONT_FAMILY_ALIASES = Map.ofEntries(
-            Map.entry("helvetica", "Arial"),
-            Map.entry("helvetica-bold", "Arial"),
-            Map.entry("helvetica-oblique", "Arial"),
-            Map.entry("helvetica-boldoblique", "Arial"),
-            Map.entry("times-roman", "Times New Roman"),
-            Map.entry("times-bold", "Times New Roman"),
-            Map.entry("times-italic", "Times New Roman"),
-            Map.entry("times-bolditalic", "Times New Roman"),
-            Map.entry("courier", "Courier New"),
-            Map.entry("courier-bold", "Courier New"),
-            Map.entry("courier-oblique", "Courier New"),
-            Map.entry("courier-boldoblique", "Courier New")
-    );
-
     private void applyFormatting(
             XWPFRun run,
             TextSpan span
@@ -107,18 +91,9 @@ public class WordWriterServiceImpl implements WordWriterService {
         run.setBold(span.isBold());
         run.setItalic(span.isItalic());
 
-        if (span.getFontName() != null
-                && !span.getFontName().isBlank()) {
-            String normalizedFont = FONT_SUBSET_PREFIX
-                    .matcher(span.getFontName())
-                    .replaceFirst("");
-            String fontFamily = FONT_FAMILY_ALIASES.getOrDefault(
-                    normalizedFont.toLowerCase(),
-                    normalizedFont
-            );
-            run.setFontFamily(
-                    fontFamily
-            );
+        String fontFamily = FontFamilyResolver.resolve(span.getFontName());
+        if (fontFamily != null) {
+            run.setFontFamily(fontFamily);
         }
 
         run.setUnderline(
@@ -200,7 +175,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             STNumberFormat.Enum format,
             String levelText,
             BigInteger start,
-            float markerFontSize
+            float markerFontSize,
+            String markerFontFamily
     ) {
         XWPFNumbering numbering =
                 document.getNumbering();
@@ -234,14 +210,18 @@ public class WordWriterServiceImpl implements WordWriterService {
         level.addNewLvlJc()
                 .setVal(STJc.LEFT);
 
-        if (markerFontSize > 0f) {
-            level.addNewRPr()
-                    .addNewSz()
-                    .setVal(
-                            BigInteger.valueOf(
-                                    Math.round(markerFontSize * 2)
-                            )
-                    );
+        if (markerFontSize > 0f || markerFontFamily != null) {
+            var markerProperties = level.addNewRPr();
+            if (markerFontSize > 0f) {
+                markerProperties.addNewSz()
+                        .setVal(BigInteger.valueOf(Math.round(markerFontSize * 2)));
+            }
+            if (markerFontFamily != null) {
+                var markerFont = markerProperties.addNewRFonts();
+                markerFont.setAscii(markerFontFamily);
+                markerFont.setHAnsi(markerFontFamily);
+                markerFont.setCs(markerFontFamily);
+            }
         }
 
         var pPr = level.addNewPPr();
@@ -270,7 +250,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             XWPFDocument document,
             BigInteger abstractNumId,
             String bulletGlyph,
-            float markerFontSize
+            float markerFontSize,
+            String markerFontFamily
     ) {
         return createNumbering(
                 document,
@@ -278,7 +259,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                 STNumberFormat.BULLET,
                 bulletGlyph,
                 null,
-                markerFontSize
+                markerFontSize,
+                markerFontFamily
         );
     }
 
@@ -357,7 +339,8 @@ public class WordWriterServiceImpl implements WordWriterService {
             XWPFDocument document,
             BigInteger abstractNumId,
             String firstItemText,
-            float markerFontSize
+            float markerFontSize,
+            String markerFontFamily
     ) {
         return createNumbering(
                 document,
@@ -369,8 +352,29 @@ public class WordWriterServiceImpl implements WordWriterService {
                         firstItemText
                 ),
                 BigInteger.ONE,
-                markerFontSize
+                markerFontSize,
+                markerFontFamily
         );
+    }
+
+    /**
+     * Word family of the first span on a block. List markers and heading
+     * styles use it so they do not fall back to the document theme font.
+     *
+     * @param block block being written
+     * @return resolved family, or null when the block has no font
+     */
+    private String blockFontFamily(StructuredBlock block) {
+        if (block == null || block.getSpans() == null) {
+            return null;
+        }
+        for (TextSpan span : block.getSpans()) {
+            String family = FontFamilyResolver.resolve(span.getFontName());
+            if (family != null) {
+                return family;
+            }
+        }
+        return null;
     }
 
 
@@ -671,7 +675,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                                         );
 
                                 float imageY =
-                                        getImageFlowY(
+                                        imageAnchorY(
                                                 page,
                                                 imageRow.getFirst()
                                         );
@@ -683,7 +687,9 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                                 writeFlowImageRow(
                                         document,
+                                        page,
                                         imageRow,
+                                        pageMargins.left(),
                                         pageContentWidth(
                                                 pageMargins,
                                                 page
@@ -746,7 +752,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 );
 
                         float imageY =
-                                getImageFlowY(
+                                imageAnchorY(
                                         page,
                                         imageRow.getFirst()
                                 );
@@ -786,7 +792,13 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                         writeFlowImageRow(
                                 document,
+                                page,
                                 imageRow,
+                                flowContentLeft(
+                                        pageMargins,
+                                        currentColumnRegion,
+                                        currentRightColumn
+                                ),
                                 availableWidth
                         );
 
@@ -817,7 +829,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                                 bodyFontSize,
                                 footnotesByKey,
                                 spacingBefore,
-                                pageContentWidth(pageMargins, page)
+                                pageContentWidth(pageMargins, page),
+                                flowContentLeft(
+                                        pageMargins,
+                                        activeColumnRegion,
+                                        writingRightColumn
+                                )
                         );
 
 
@@ -848,7 +865,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                                             document,
                                             abstractNumId,
                                             block.getText(),
-                                            markerFontSize
+                                            markerFontSize,
+                                            blockFontFamily(block)
                                     );
                         }
 
@@ -888,7 +906,8 @@ public class WordWriterServiceImpl implements WordWriterService {
                                             document,
                                             abstractNumId,
                                             currentBulletGlyph,
-                                            markerFontSize
+                                            markerFontSize,
+                                            blockFontFamily(block)
                                     );
                         }
 
@@ -907,7 +926,12 @@ public class WordWriterServiceImpl implements WordWriterService {
                             bodyFontSize,
                             footnotesByKey,
                             spacingBefore,
-                            pageContentWidth(pageMargins, page)
+                            pageContentWidth(pageMargins, page),
+                            flowContentLeft(
+                                    pageMargins,
+                                    activeColumnRegion,
+                                    writingRightColumn
+                            )
                     );
 
                     previousBlock = block;
@@ -932,9 +956,11 @@ public class WordWriterServiceImpl implements WordWriterService {
 
                     writeFlowImageRow(
                             document,
+                            page,
                             imageRows.get(
                                     nextImageRowIndex
                             ),
+                            pageMargins.left(),
                             pageContentWidth(
                                     pageMargins,
                                     page
@@ -1928,7 +1954,7 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         float imageY =
-                getImageFlowY(
+                imageAnchorY(
                         page,
                         image
                 );
@@ -1948,7 +1974,9 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private void writeFlowImageRow(
             XWPFDocument document,
+            PageExtraction page,
             List<ExtractedImage> images,
+            float contentLeft,
             float availableWidth
     ) {
         if (images == null
@@ -1957,71 +1985,55 @@ public class WordWriterServiceImpl implements WordWriterService {
         }
 
         if (images.size() == 1) {
-
             writeSingleFlowImage(
                     document,
+                    page,
                     images.getFirst(),
+                    contentLeft,
                     availableWidth
             );
-
             return;
         }
 
         writeSideBySideImages(
                 document,
+                page,
                 images,
+                contentLeft,
                 availableWidth
         );
     }
 
     private void writeSingleFlowImage(
             XWPFDocument document,
+            PageExtraction page,
             ExtractedImage image,
+            float contentLeft,
             float availableWidth
     ) {
-        XWPFParagraph paragraph =
-                document.createParagraph();
+        float indent = imageIndent(page, image, contentLeft, availableWidth);
+        float room = Math.max(1f, availableWidth - indent);
+        float scale = image.getWidth() > room ? room / image.getWidth() : 1f;
 
+        XWPFParagraph paragraph = document.createParagraph();
         paragraph.setSpacingBefore(0);
         paragraph.setSpacingAfter(0);
+        paragraph.setAlignment(ParagraphAlignment.LEFT);
+        paragraph.setIndentationLeft(Math.round(indent * TWIPS_PER_POINT));
 
-        paragraph.setAlignment(
-                ParagraphAlignment.CENTER
-        );
-
-        XWPFRun run =
-                paragraph.createRun();
-
-        float scale =
-                image.getWidth() > availableWidth
-                        ? availableWidth
-                        / image.getWidth()
-                        : 1f;
-
-        float width =
-                image.getWidth() * scale;
-
-        float height =
-                image.getHeight() * scale;
+        XWPFRun run = paragraph.createRun();
 
         try {
             run.addPicture(
-                    new java.io.ByteArrayInputStream(
-                            image.getData()
-                    ),
+                    new ByteArrayInputStream(image.getData()),
                     pictureType(image),
-                    image.getImageName() == null
-                            ? "image"
-                            : image.getImageName(),
-                    Units.toEMU(width),
-                    Units.toEMU(height)
+                    image.getImageName() == null ? "image" : image.getImageName(),
+                    Units.toEMU(image.getWidth() * scale),
+                    Units.toEMU(image.getHeight() * scale)
             );
-
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Failed to insert image '"
-                            + image.getImageName()
-                            + "'.",
+                    "Failed to insert image '" + image.getImageName() + "'.",
                     e
             );
         }
@@ -2048,115 +2060,90 @@ public class WordWriterServiceImpl implements WordWriterService {
 
     private void writeSideBySideImages(
             XWPFDocument document,
+            PageExtraction page,
             List<ExtractedImage> images,
+            float contentLeft,
             float availableWidth
     ) {
-        int count =
-                images.size();
+        List<ExtractedImage> slots = new ArrayList<>();
+        List<Float> slotWidths = new ArrayList<>();
+        float cursor = imageLeft(page, images.getFirst());
 
-        XWPFTable table =
-                document.createTable(
-                        1,
-                        count
-                );
+        for (int i = 0; i < images.size(); i++) {
+            ExtractedImage image = images.get(i);
+            float left = imageLeft(page, image);
+            float gap = left - cursor;
+            if (i > 0 && gap > 1f) {
+                slots.add(null);
+                slotWidths.add(gap);
+            }
+            slots.add(image);
+            slotWidths.add(Math.max(1f, image.getWidth()));
+            cursor = Math.max(cursor, left + image.getWidth());
+        }
 
-        table.setWidthType(
-                TableWidthType.DXA
-        );
+        float total = 0f;
+        for (float width : slotWidths) {
+            total += width;
+        }
 
-        table.setWidth(
-                toTwips(
-                        availableWidth
-                ).toString()
-        );
+        float indent = imageIndent(page, images.getFirst(), contentLeft, availableWidth);
+        float room = Math.max(1f, availableWidth - indent);
+        float scale = total > room ? room / total : 1f;
 
-        float cellWidth =
-                availableWidth
-                        / count;
+        XWPFTable table = document.createTable(1, slots.size());
+        table.setWidthType(TableWidthType.DXA);
+        table.setWidth(toTwips(total * scale).toString());
 
-        XWPFTableRow row =
-                table.getRow(0);
+        CTTblPr tblPr = table.getCTTbl().getTblPr();
+        if (tblPr == null) {
+            tblPr = table.getCTTbl().addNewTblPr();
+        }
+        var layout = tblPr.isSetTblLayout() ? tblPr.getTblLayout() : tblPr.addNewTblLayout();
+        layout.setType(STTblLayoutType.FIXED);
+        var tableIndent = tblPr.isSetTblInd() ? tblPr.getTblInd() : tblPr.addNewTblInd();
+        tableIndent.setType(STTblWidth.DXA);
+        tableIndent.setW(toTwips(indent));
+        var cellMar = tblPr.isSetTblCellMar() ? tblPr.getTblCellMar() : tblPr.addNewTblCellMar();
+        zeroTableEdge(cellMar.isSetLeft() ? cellMar.getLeft() : cellMar.addNewLeft());
+        zeroTableEdge(cellMar.isSetRight() ? cellMar.getRight() : cellMar.addNewRight());
+        zeroTableEdge(cellMar.isSetTop() ? cellMar.getTop() : cellMar.addNewTop());
+        zeroTableEdge(cellMar.isSetBottom() ? cellMar.getBottom() : cellMar.addNewBottom());
 
-        for (int i = 0;
-             i < count;
-             i++) {
+        XWPFTableRow row = table.getRow(0);
+        for (int i = 0; i < slots.size(); i++) {
+            float cellWidth = slotWidths.get(i) * scale;
+            XWPFTableCell cell = row.getCell(i);
+            cell.setWidthType(TableWidthType.DXA);
+            cell.setWidth(toTwips(cellWidth).toString());
 
-            ExtractedImage image =
-                    images.get(i);
+            ExtractedImage image = slots.get(i);
+            if (image == null) {
+                continue;
+            }
 
-            XWPFTableCell cell =
-                    row.getCell(i);
-
-            cell.setWidthType(
-                    TableWidthType.DXA
-            );
-
-            cell.setWidth(
-                    toTwips(
-                            cellWidth
-                    ).toString()
-            );
-
-            XWPFParagraph paragraph =
-                    cell.getParagraphArray(0);
-
+            XWPFParagraph paragraph = cell.getParagraphArray(0);
             paragraph.setSpacingBefore(0);
             paragraph.setSpacingAfter(0);
-
-            paragraph.setAlignment(
-                    ParagraphAlignment.CENTER
-            );
-
-            XWPFRun run =
-                    paragraph.createRun();
-
-            float usableWidth =
-                    Math.max(
-                            1f,
-                            cellWidth - 6f
-                    );
-
-            float scale =
-                    image.getWidth()
-                            > usableWidth
-                            ? usableWidth
-                            / image.getWidth()
-                            : 1f;
-
-            float width =
-                    image.getWidth()
-                            * scale;
-
-            float height =
-                    image.getHeight()
-                            * scale;
+            paragraph.setAlignment(ParagraphAlignment.LEFT);
 
             try {
-                run.addPicture(
-                        new ByteArrayInputStream(
-                                image.getData()
-                        ),
+                paragraph.createRun().addPicture(
+                        new ByteArrayInputStream(image.getData()),
                         pictureType(image),
-                        image.getImageName() == null
-                                ? "image-" + i
-                                : image.getImageName(),
-                        Units.toEMU(width),
-                        Units.toEMU(height)
+                        image.getImageName() == null ? "image-" + i : image.getImageName(),
+                        Units.toEMU(image.getWidth() * scale),
+                        Units.toEMU(image.getHeight() * scale)
                 );
-
             } catch (Exception e) {
                 throw new IllegalStateException(
-                        "Failed to insert image '"
-                                + image.getImageName()
-                                + "'.",
+                        "Failed to insert image '" + image.getImageName() + "'.",
                         e
                 );
             }
         }
 
-        removeTableBorders(
-                table
-        );
+        removeTableBorders(table);
     }
 
     private void removeTableBorders(
@@ -2631,11 +2618,12 @@ public class WordWriterServiceImpl implements WordWriterService {
             float bodyFontSize,
             Map<String, XWPFFootnote> footnotesByKey,
             int spacingBefore,
-            float availableWidth
+            float availableWidth,
+            float contentLeft
     ) {
 
         if (block.getType() == BlockType.TABLE) {
-            writeTable(document, block, footnotesByKey, availableWidth);
+            writeTable(document, block, footnotesByKey, availableWidth, contentLeft);
             return;
         }
 
@@ -2683,6 +2671,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                 paragraph.setNumILvl(BigInteger.ZERO);
             }
 
+            applyBlockOffset(paragraph, block, contentLeft);
             writeListRuns(paragraph, block);
 
             return;
@@ -2713,7 +2702,11 @@ public class WordWriterServiceImpl implements WordWriterService {
             return;
         }
 
+        applyBlockOffset(paragraph, block, contentLeft);
         writeRuns(paragraph, block);
+        if (block.getType() == BlockType.HEADING) {
+            pinParagraphFont(paragraph, block);
+        }
     }
 
     private IndexEntry parseIndexEntry(StructuredBlock block) {
@@ -2807,11 +2800,150 @@ public class WordWriterServiceImpl implements WordWriterService {
         };
     }
 
+    /**
+     * Shifts a paragraph so its left edge matches the PDF. List items keep a
+     * hanging marker so the bullet stays at that edge and the text starts
+     * after it. Direct paragraph indent replaces the numbering indent.
+     *
+     * @param paragraph paragraph just created for the block
+     * @param block source block
+     * @param contentLeft left edge of the current column or body, in points
+     */
+    private void applyBlockOffset(
+            XWPFParagraph paragraph,
+            StructuredBlock block,
+            float contentLeft
+    ) {
+        float offset = block.getX() - contentLeft;
+        if (block.getType() == BlockType.LIST_ITEM) {
+            float hanging = 18f;
+            float left = Math.max(hanging, offset + hanging);
+            paragraph.setIndentationLeft(Math.round(left * TWIPS_PER_POINT));
+            paragraph.setIndentationHanging(Math.round(hanging * TWIPS_PER_POINT));
+            return;
+        }
+        if (offset > 2f) {
+            paragraph.setIndentationLeft(Math.round(offset * TWIPS_PER_POINT));
+        }
+    }
+
+    /**
+     * Copies the source font onto the paragraph mark. A Heading style would
+     * otherwise replace it with the theme heading face and size.
+     *
+     * @param paragraph heading paragraph whose runs already carry the source font
+     * @param block heading block
+     */
+    private void pinParagraphFont(
+            XWPFParagraph paragraph,
+            StructuredBlock block
+    ) {
+        String family = blockFontFamily(block);
+        float size = 0f;
+        if (block.getSpans() != null) {
+            for (TextSpan span : block.getSpans()) {
+                if (span.getFontSize() > size) {
+                    size = span.getFontSize();
+                }
+            }
+        }
+        if (family == null && size <= 0f) {
+            return;
+        }
+
+        CTPPr properties = paragraph.getCTP().isSetPPr()
+                ? paragraph.getCTP().getPPr()
+                : paragraph.getCTP().addNewPPr();
+        var runProperties = properties.isSetRPr()
+                ? properties.getRPr()
+                : properties.addNewRPr();
+        if (family != null) {
+            var fonts = runProperties.sizeOfRFontsArray() == 0
+                    ? runProperties.addNewRFonts()
+                    : runProperties.getRFontsArray(0);
+            fonts.setAscii(family);
+            fonts.setHAnsi(family);
+            fonts.setCs(family);
+        }
+        if (size > 0f) {
+            var fontSize = runProperties.sizeOfSzArray() == 0
+                    ? runProperties.addNewSz()
+                    : runProperties.getSzArray(0);
+            fontSize.setVal(BigInteger.valueOf(Math.round(size * 2f)));
+        }
+    }
+
+    /**
+     * How far a component sits to the right of the current content edge.
+     * A negative value pulls it into the page margin, never past the page edge.
+     *
+     * @param componentLeft left edge of the component in page points
+     * @param contentLeft left edge of the current column or body
+     * @param availableWidth width of that content area
+     * @return indent in points
+     */
+    private float componentOffset(
+            float componentLeft,
+            float contentLeft,
+            float availableWidth
+    ) {
+        float indent = componentLeft - contentLeft;
+        float minIndent = -Math.max(0f, contentLeft);
+        float maxIndent = Math.max(minIndent, availableWidth - 1f);
+        return Math.clamp(indent, minIndent, maxIndent);
+    }
+
+    private void applyTableIndent(XWPFTable table, float indentPoints) {
+        if (Math.abs(indentPoints) < 1f) {
+            return;
+        }
+        CTTblPr properties = table.getCTTbl().getTblPr();
+        if (properties == null) {
+            properties = table.getCTTbl().addNewTblPr();
+        }
+        var indent = properties.isSetTblInd() ? properties.getTblInd() : properties.addNewTblInd();
+        indent.setType(STTblWidth.DXA);
+        indent.setW(toTwips(indentPoints));
+    }
+
+    private void clearTableCellMargins(XWPFTable table) {
+        CTTblPr properties = table.getCTTbl().getTblPr();
+        if (properties == null) {
+            properties = table.getCTTbl().addNewTblPr();
+        }
+        var cellMar = properties.isSetTblCellMar()
+                ? properties.getTblCellMar()
+                : properties.addNewTblCellMar();
+        zeroTableEdge(cellMar.isSetLeft() ? cellMar.getLeft() : cellMar.addNewLeft());
+        zeroTableEdge(cellMar.isSetRight() ? cellMar.getRight() : cellMar.addNewRight());
+        zeroTableEdge(cellMar.isSetTop() ? cellMar.getTop() : cellMar.addNewTop());
+        zeroTableEdge(cellMar.isSetBottom() ? cellMar.getBottom() : cellMar.addNewBottom());
+    }
+
+    /**
+     * Keeps a PDF row at least as tall as the source, and lets the row grow
+     * when the font needs more room than an exact height would allow.
+     *
+     * @param tableRow row being sized
+     * @param heightPoints source row height in points
+     */
+    private void setRowHeightAtLeast(XWPFTableRow tableRow, float heightPoints) {
+        var rowProperties = tableRow.getCtRow().isSetTrPr()
+                ? tableRow.getCtRow().getTrPr()
+                : tableRow.getCtRow().addNewTrPr();
+        var rowHeight = rowProperties.sizeOfTrHeightArray() == 0
+                ? rowProperties.addNewTrHeight()
+                : rowProperties.getTrHeightArray(0);
+        rowHeight.setVal(toTwips(Math.max(1f, heightPoints)));
+        rowHeight.setHRule(STHeightRule.AT_LEAST);
+    }
+
     private void writeTable(
             XWPFDocument document,
             StructuredBlock block,
             Map<String, XWPFFootnote> footnotesByKey,
-            float availableWidth
+            float availableWidth,
+            float contentLeft
     ) {
 
         List<List<TableCell>> rows =
@@ -2827,17 +2959,22 @@ public class WordWriterServiceImpl implements WordWriterService {
             return;
         }
 
+        float indent = componentOffset(block.getX(), contentLeft, availableWidth);
+        float room = Math.max(1f, availableWidth - indent);
+
         XWPFTable table =
                 document.createTable(rows.size(), columnCount);
 
         List<Float> columnWidths = scaleTableColumnWidths(
                 block.getColumnWidths(),
-                availableWidth
+                room
         );
         List<Float> rowHeights = block.getRowHeights();
 
         applyTableGrid(table, columnWidths, columnCount);
         configureFixedTableLayout(table, columnWidths);
+        applyTableIndent(table, indent);
+        clearTableCellMargins(table);
 
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
 
@@ -2845,9 +2982,7 @@ public class WordWriterServiceImpl implements WordWriterService {
                     table.getRow(rowIndex);
 
             if (rowHeights != null && rowIndex < rowHeights.size()) {
-                tableRow.setHeight(
-                        toTwips(rowHeights.get(rowIndex)).intValueExact()
-                );
+                setRowHeightAtLeast(tableRow, rowHeights.get(rowIndex));
             }
 
             List<TableCell> row =
@@ -3100,6 +3235,9 @@ public class WordWriterServiceImpl implements WordWriterService {
                         ? tableCell.getParagraphArray(0)
                         : tableCell.addParagraph();
 
+        cellParagraph.setSpacingBefore(0);
+        cellParagraph.setSpacingAfter(0);
+        cellParagraph.setSpacingBetween(1.0, LineSpacingRule.AUTO);
 
         if (footnoteKey != null) {
             writeFootnoteReference(cellParagraph, footnoteKey, footnotesByKey);
@@ -3391,6 +3529,89 @@ public class WordWriterServiceImpl implements WordWriterService {
                 spacingTwips,
                 720
         );
+    }
+
+    /**
+     * Page X where the current column or body text starts. Image indents are
+     * measured from this edge so a picture keeps its PDF horizontal position.
+     *
+     * @param pageMargins margins of the Word section
+     * @param region active column region, or null on a single-column stretch
+     * @param rightColumn true when the cursor is in the right column
+     * @return left edge in PDF points
+     */
+    private float flowContentLeft(
+            PageMargins pageMargins,
+            ColumnRegion region,
+            boolean rightColumn
+    ) {
+        if (region == null || !rightColumn) {
+            return pageMargins.left();
+        }
+        return region.splitX();
+    }
+
+    /**
+     * Distance from the content edge to the image's left edge, clamped so the
+     * picture still fits in the column.
+     *
+     * @param page page that owns the image
+     * @param image image being placed
+     * @param contentLeft left edge of the current content area
+     * @param availableWidth width of that content area
+     * @return left indent in points
+     */
+    private float imageIndent(
+            PageExtraction page,
+            ExtractedImage image,
+            float contentLeft,
+            float availableWidth
+    ) {
+        float indent = imageLeft(page, image) - contentLeft;
+        float minIndent = -Math.max(0f, contentLeft);
+        float maxIndent = Math.max(minIndent, availableWidth - 1f);
+        return Math.clamp(indent, minIndent, maxIndent);
+    }
+
+    /**
+     * Left edge of the image in top-down page points, matching text X.
+     *
+     * @param page page that owns the image
+     * @param image image being measured
+     * @return left edge in points
+     */
+    private float imageLeft(
+            PageExtraction page,
+            ExtractedImage image
+    ) {
+        return (float) (
+                ImagePositionMapper.map(image, page).offsetXEmu()
+                        / EMU_PER_POINT
+        );
+    }
+
+    /**
+     * Vertical center of the image in the same top-down space as text
+     * baselines. Ordering on the center keeps a figure with the paragraph it
+     * sits beside, instead of inserting it a full image-height too early.
+     *
+     * @param page page that owns the image
+     * @param image image being measured
+     * @return vertical center in points from the top of the page
+     */
+    private float imageAnchorY(
+            PageExtraction page,
+            ExtractedImage image
+    ) {
+        return getImageFlowY(page, image)
+                + Math.max(0f, image.getHeight()) / 2f;
+    }
+
+    private void zeroTableEdge(
+            org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth edge
+    ) {
+        edge.setType(STTblWidth.DXA);
+        edge.setW(BigInteger.ZERO);
     }
 
     private float getImageFlowY(

@@ -94,4 +94,28 @@ class PdfValidationServiceTest {
 
         Files.deleteIfExists(tempFile);
     }
+
+    @Test
+    void shouldRejectPdfThatExceedsThePageLimit() throws Exception {
+        PdfValidationServiceImpl limited =
+                new PdfValidationServiceImpl(10 * 1024 * 1024, 2);
+
+        Path tempFile = Files.createTempFile("too-many-pages-", ".pdf");
+
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            document.addPage(new PDPage());
+            document.addPage(new PDPage());
+            document.save(tempFile.toFile());
+        }
+
+        InvalidPdfException error = assertThrows(
+                InvalidPdfException.class,
+                () -> limited.validateAndGetPageCount(tempFile)
+        );
+
+        assertTrue(error.getMessage().contains("exceeds the maximum of 2 pages"));
+
+        Files.deleteIfExists(tempFile);
+    }
 }

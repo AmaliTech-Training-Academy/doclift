@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Path;
+import java.util.Locale;
 
 @Service
 public class UploadServiceImpl implements UploadService {
@@ -57,9 +58,7 @@ public class UploadServiceImpl implements UploadService {
             );
         }
 
-        if (!"application/pdf".equalsIgnoreCase(
-                file.getContentType()
-        )) {
+        if (!isPdfUpload(file)) {
             throw new InvalidPdfException(
                     "Only PDF files are supported."
             );
@@ -122,5 +121,23 @@ public class UploadServiceImpl implements UploadService {
 
             throw e;
         }
+    }
+
+    /**
+     * Accepts a part whose content type is {@code application/pdf}, or whose
+     * filename ends in {@code .pdf} when the client sends a generic type.
+     * A non-PDF that only has a {@code .pdf} name is still rejected later
+     * when the file is parsed.
+     *
+     * @param file uploaded part that already has a filename
+     * @return true when the part should continue into PDF validation
+     */
+    private boolean isPdfUpload(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (contentType != null && "application/pdf".equalsIgnoreCase(contentType)) {
+            return true;
+        }
+        String filename = file.getOriginalFilename();
+        return filename != null && filename.toLowerCase(Locale.ROOT).endsWith(".pdf");
     }
 }

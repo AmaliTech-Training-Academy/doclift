@@ -3,6 +3,7 @@ package com.amalitech.backend.service;
 import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
 import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import com.amalitech.backend.service.impl.WordWriterServiceImpl;
+import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFAbstractNum;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
@@ -1313,6 +1314,82 @@ class WordWriterServiceTest {
                     .isEqualTo(12.5);
             assertThat(paragraph.getSpacingAfter()).isZero();
             assertThat(paragraph.getSpacingBetween()).isEqualTo(1.0);
+        }
+    }
+
+    @Test
+    void shouldMapEmbeddedFontNamesOntoWordFamilies() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        TextSpan span = new TextSpan(
+                0,
+                "Contract",
+                72,
+                90,
+                120,
+                16,
+                "ABCDEF+TimesNewRomanPS-BoldMT",
+                14.5f,
+                true,
+                false,
+                false,
+                false
+        );
+        page.getStructuredBlocks().add(new StructuredBlock(
+                0,
+                BlockType.PARAGRAPH,
+                null,
+                "Contract",
+                72,
+                90,
+                120,
+                16,
+                List.of(span)
+        ));
+        extractionResult.getPages().add(page);
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            XWPFRun run = document.getParagraphs().getFirst().getRuns().getFirst();
+            assertThat(run.getFontFamily()).isEqualTo("Times New Roman");
+            assertThat(run.getFontSizeAsDouble()).isEqualTo(14.5);
+            assertThat(run.isBold()).isTrue();
+        }
+    }
+
+    @Test
+    void shouldKeepAFlowImageAtItsPdfHorizontalPosition() throws Exception {
+        PdfExtractionResult extractionResult = new PdfExtractionResult();
+        PageExtraction page = new PageExtraction(0);
+        page.setCropWidth(612);
+        page.setCropHeight(792);
+
+        ByteArrayOutputStream imageBytes = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "png", imageBytes);
+        page.getImages().add(new ExtractedImage(
+                0,
+                "left-figure.png",
+                100,
+                400,
+                80,
+                60,
+                8,
+                8,
+                "image/png",
+                0,
+                false,
+                imageBytes.toByteArray()
+        ));
+        extractionResult.getPages().add(page);
+
+        try (XWPFDocument document = readDocument(wordWriterService.write(extractionResult))) {
+            XWPFParagraph imageParagraph = document.getParagraphs().stream()
+                    .filter(paragraph -> paragraph.getRuns().stream()
+                            .anyMatch(run -> !run.getEmbeddedPictures().isEmpty()))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(imageParagraph.getAlignment()).isEqualTo(ParagraphAlignment.LEFT);
+            assertThat(imageParagraph.getIndentationLeft()).isEqualTo(Math.round((100 - 36) * 20));
         }
     }
 

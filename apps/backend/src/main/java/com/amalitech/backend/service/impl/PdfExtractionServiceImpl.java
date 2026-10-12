@@ -147,7 +147,8 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
      * table-area spans out of paragraph joining, so detection must happen
      * first - merging the detected tables into {@link StructuredBlock}s
      * happens separately, after structure recovery, via
-     * {@link #mergeBorderedTables}.
+     * {@link #mergeBorderedTables}. Horizontal strokes from the same pass
+     * are then matched to text so underlines can be written in Word.
      */
     private List<DetectedTable> detectBorderedTables(
             int pageIndex,
@@ -179,6 +180,12 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                     )
             );
         }
+
+        UnderlineDetector.mark(
+                textSpans,
+                lineEngine.getHorizontalLines(),
+                pageExtraction.getCandidateTableRegions()
+        );
 
         return tables;
     }
@@ -1453,11 +1460,34 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
 
         boolean sameSize =
                 Math.abs(
-                        first.getFontSizeInPt()
-                                - second.getFontSizeInPt()
+                        renderedFontSize(first)
+                                - renderedFontSize(second)
                 ) < 0.01f;
 
         return sameFont && sameSize;
+    }
+
+    /**
+     * Visual size in points. {@code getFontSizeInPt()} is an integer truncation
+     * of the horizontal text-matrix scale, so 14.5 is reported as 14 and a
+     * font sized through the text matrix loses its fraction. The vertical
+     * scale is the size Word should use.
+     *
+     * @param position glyph position from PDFBox
+     * @return size in points, rounded to the nearest half point
+     */
+    private float renderedFontSize(TextPosition position) {
+        float rendered = Math.abs(position.getYScale());
+        if (rendered >= 0.5f && rendered <= 400f) {
+            return Math.round(rendered * 2f) / 2f;
+        }
+
+        float declared = position.getFontSizeInPt();
+        if (declared > 0f) {
+            return declared;
+        }
+
+        return Math.max(0f, position.getFontSize());
     }
 
     private String getFontName(TextPosition position) {
@@ -1569,11 +1599,9 @@ public class PdfExtractionServiceImpl implements PdfExtractionService {
                                 maxY - minY
                         ),
                         getFontName(first),
-                        first.getFontSizeInPt(),
+                        renderedFontSize(first),
                         isBold(first),
                         isItalic(first),
-
-                        // TODO: Implement underline detection and recovery
                         false,
                         wordSeparatorBefore,
                         textColors.get(first)

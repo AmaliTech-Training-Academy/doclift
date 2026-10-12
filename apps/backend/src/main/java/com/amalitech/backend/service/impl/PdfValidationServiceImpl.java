@@ -18,12 +18,34 @@ import java.nio.file.Path;
 public class PdfValidationServiceImpl implements PdfValidationService {
 
     private final long maxSizeBytes;
+    private final int maxPages;
 
+    /**
+     * Creates the validator with a size limit and the default page cap.
+     * Tests that only exercise file size use this constructor.
+     *
+     * @param maxSizeBytes maximum accepted upload size in bytes
+     */
+    public PdfValidationServiceImpl(long maxSizeBytes) {
+        this(maxSizeBytes, 50);
+    }
+
+    /**
+     * Creates the validator with the configured upload size and page limits.
+     *
+     * @param maxSizeBytes maximum accepted upload size in bytes
+     * @param maxPages maximum accepted page count; must be at least 1
+     */
     @Autowired
     public PdfValidationServiceImpl(
-            @Value("${app.upload.max-size-bytes:15728640}") long maxSizeBytes
+            @Value("${app.upload.max-size-bytes:15728640}") long maxSizeBytes,
+            @Value("${app.upload.max-pages:50}") int maxPages
     ) {
+        if (maxPages < 1) {
+            throw new IllegalArgumentException("app.upload.max-pages must be at least 1");
+        }
         this.maxSizeBytes = maxSizeBytes;
+        this.maxPages = maxPages;
     }
 
     @Override
@@ -53,6 +75,13 @@ public class PdfValidationServiceImpl implements PdfValidationService {
             if (pageCount == 0) {
                 throw new InvalidPdfException(
                         "The uploaded PDF contains no pages."
+                );
+            }
+
+            if (pageCount > maxPages) {
+                throw new InvalidPdfException(
+                        "The uploaded PDF has " + pageCount
+                                + " pages, which exceeds the maximum of " + maxPages + " pages."
                 );
             }
 
