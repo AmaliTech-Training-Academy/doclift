@@ -661,6 +661,41 @@ public class WordWriterServiceImpl implements WordWriterService {
                         }
 
                         if (blockColumnRegion != null) {
+
+                            while (nextImageRowIndex
+                                    < imageRows.size()) {
+
+                                List<ExtractedImage> imageRow =
+                                        imageRows.get(
+                                                nextImageRowIndex
+                                        );
+
+                                float imageY =
+                                        getImageFlowY(
+                                                page,
+                                                imageRow.getFirst()
+                                        );
+
+                                if (imageY
+                                        >= blockColumnRegion.startY()) {
+                                    break;
+                                }
+
+                                writeFlowImageRow(
+                                        document,
+                                        imageRow,
+                                        pageContentWidth(
+                                                pageMargins,
+                                                page
+                                        )
+                                );
+
+                                nextImageRowIndex++;
+
+                                previousBlock =
+                                        null;
+                            }
+
                             insertContinuousColumnSectionBreak(
                                     document,
                                     page,
@@ -878,6 +913,20 @@ public class WordWriterServiceImpl implements WordWriterService {
                     previousBlock = block;
                 }
 
+                if (activeColumnRegion != null) {
+
+                    insertContinuousColumnSectionBreak(
+                            document,
+                            page,
+                            pageMargins,
+                            activeColumnRegion.columnCount(),
+                            activeColumnRegion
+                    );
+
+                    activeColumnRegion =
+                            null;
+                }
+
                 while (nextImageRowIndex
                         < imageRows.size()) {
 
@@ -893,20 +942,6 @@ public class WordWriterServiceImpl implements WordWriterService {
                     );
 
                     nextImageRowIndex++;
-                }
-
-                if (activeColumnRegion != null) {
-
-                    insertContinuousColumnSectionBreak(
-                            document,
-                            page,
-                            pageMargins,
-                            activeColumnRegion.columnCount(),
-                            activeColumnRegion
-                    );
-
-                    activeColumnRegion =
-                            null;
                 }
 
                 List<ExtractedImage> backgroundImages =
@@ -1892,9 +1927,23 @@ public class WordWriterServiceImpl implements WordWriterService {
             return true;
         }
 
+        float imageY =
+                getImageFlowY(
+                        page,
+                        image
+                );
+
+        if (imageY < region.startY()
+                || imageY > region.endY()) {
+            return false;
+        }
+
+        float centerX =
+                image.getX() + image.getWidth() / 2f;
+
         return rightColumn
-                ? image.getX() >= region.splitX()
-                : image.getX() < region.splitX();
+                ? centerX > region.splitX()
+                : centerX <= region.splitX();
     }
 
     private void writeFlowImageRow(
