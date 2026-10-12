@@ -41,7 +41,6 @@ export async function uploadFile(
         parsed.title,
         parsed.description,
         response.status,
-        parsed.code,
       );
     }
 
@@ -59,8 +58,6 @@ export async function uploadFile(
         throw new UploadApiError(
           "Connection Failed",
           "Could not reach the conversion service. Please check your internet connection.",
-          undefined,
-          "NETWORK_ERROR",
         );
       }
       throw err;

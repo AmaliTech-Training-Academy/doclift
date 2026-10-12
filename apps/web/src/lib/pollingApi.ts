@@ -2,12 +2,9 @@ import type { JobStatusResponse } from "./jobApi";
 
 export type {
   BackendJobStatus,
-  JobStatus,
   JobPhase,
   JobOutputResponse,
-  JobOutput,
   JobMetricsResponse,
-  JobMetrics,
   JobStatusResponse,
 } from "./jobApi";
 

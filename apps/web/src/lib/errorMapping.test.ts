@@ -3,13 +3,12 @@ import { parseUploadError, UploadApiError } from "./errorMapping";
 
 describe("errorMapping", () => {
   describe("UploadApiError", () => {
-    it("constructs with title, description, status, and code", () => {
-      const err = new UploadApiError("Test Title", "Test Description", 400, "TEST_CODE");
+    it("constructs with title, description, and status", () => {
+      const err = new UploadApiError("Test Title", "Test Description", 400);
       expect(err.name).toBe("UploadApiError");
       expect(err.title).toBe("Test Title");
       expect(err.description).toBe("Test Description");
       expect(err.status).toBe(400);
-      expect(err.code).toBe("TEST_CODE");
       expect(err.message).toBe("Test Description");
     });
   });
@@ -19,12 +18,11 @@ describe("errorMapping", () => {
       const result = parseUploadError(413, null);
       expect(result.title).toBe("File Exceeds Size Limit");
       expect(result.description).toContain("Please upload a PDF smaller than 10MB");
-      expect(result.code).toBe("FILE_TOO_LARGE");
     });
 
     it("maps FILE_TOO_LARGE code with custom message", () => {
       const result = parseUploadError(413, {
-        code: "FILE_TOO_LARGE",
+        error: "FILE_TOO_LARGE",
         message: "The uploaded PDF exceeds the maximum allowed size.",
       });
       expect(result.title).toBe("File Exceeds Size Limit");

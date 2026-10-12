@@ -39,7 +39,7 @@ describe("uploadApi", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
-      json: async () => ({ code: "INVALID_PDF", message: "Only PDF files are supported." }),
+      json: async () => ({ error: "INVALID_PDF", message: "Only PDF files are supported." }),
     } as unknown as Response);
 
     await expect(uploadFile(mockFile)).rejects.toThrow("Only PDF files are supported.");
@@ -51,7 +51,7 @@ describe("uploadApi", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 413,
-      json: async () => ({ code: "FILE_TOO_LARGE", message: "The uploaded PDF exceeds the maximum allowed size." }),
+      json: async () => ({ error: "FILE_TOO_LARGE", message: "The uploaded PDF exceeds the maximum allowed size." }),
     } as unknown as Response);
 
     await expect(uploadFile(mockFile)).rejects.toThrow(

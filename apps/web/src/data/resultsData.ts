@@ -88,16 +88,6 @@ export const fidelityMetrics: FidelityMetric[] = [
 
 export type SummaryCardVariant = "figures" | "session" | "lists";
 
-export interface SummaryCardFile {
-    name: string;
-}
-
-export interface SummaryCardMapping {
-    from: string;
-    to: string;
-    matchLabel: string;
-}
-
 export interface SummaryCardItem {
     id: number;
     title: string;

@@ -6,22 +6,19 @@ export interface ApiErrorResponse {
 export interface ParsedAppError {
   title: string;
   description: string;
-  code?: string;
 }
 
 export class UploadApiError extends Error {
   public readonly title: string;
   public readonly description: string;
   public readonly status?: number;
-  public readonly code?: string;
 
-  constructor(title: string, description: string, status?: number, code?: string) {
+  constructor(title: string, description: string, status?: number) {
     super(description || title);
     this.name = "UploadApiError";
     this.title = title;
     this.description = description;
     this.status = status;
-    this.code = code;
   }
 }
 
@@ -36,7 +33,6 @@ export function parseUploadError(
     return {
       title: "File Exceeds Size Limit",
       description: rawMsg || "File is too large. Please upload a PDF smaller than 10MB.",
-      code: "FILE_TOO_LARGE",
     };
   }
 
@@ -44,7 +40,6 @@ export function parseUploadError(
     return {
       title: "Password-Protected PDF",
       description: "Password-protected or encrypted PDFs cannot be converted. Please unlock the file and try again.",
-      code: "ENCRYPTED_PDF",
     };
   }
 
@@ -52,7 +47,6 @@ export function parseUploadError(
     return {
       title: "No File Selected",
       description: "Please select a valid PDF file to begin conversion.",
-      code: "MISSING_FILE",
     };
   }
 
@@ -61,27 +55,23 @@ export function parseUploadError(
       return {
         title: "Empty PDF",
         description: rawMsg || "The uploaded PDF contains no pages or content.",
-        code: "INVALID_PDF",
       };
     }
     if (/only pdf/i.test(rawMsg)) {
       return {
         title: "Unsupported Format",
         description: rawMsg || "Only PDF files are supported.",
-        code: "INVALID_PDF",
       };
     }
     if (/filename/i.test(rawMsg)) {
       return {
         title: "Missing Filename",
         description: rawMsg || "The uploaded file must have a valid filename.",
-        code: "INVALID_PDF",
       };
     }
     return {
       title: "Invalid PDF File",
       description: rawMsg || "The uploaded file is not a valid PDF document.",
-      code: "INVALID_PDF",
     };
   }
 
@@ -89,7 +79,6 @@ export function parseUploadError(
     return {
       title: "Temporary Storage Issue",
       description: "Could not save the uploaded file on the server. Please try again in a moment.",
-      code: "STORAGE_ERROR",
     };
   }
 
@@ -97,7 +86,6 @@ export function parseUploadError(
     return {
       title: "Server Temporarily Unavailable",
       description: "The conversion server is currently busy or unreachable. Please try again shortly.",
-      code: "SERVICE_UNAVAILABLE",
     };
   }
 
@@ -105,7 +93,6 @@ export function parseUploadError(
     return {
       title: "Conversion Service Error",
       description: rawMsg || "The conversion server encountered an unexpected error. Please try again shortly.",
-      code: rawCode || "INTERNAL_ERROR",
     };
   }
 
@@ -113,13 +100,11 @@ export function parseUploadError(
     return {
       title: "Service Not Found",
       description: "The conversion endpoint could not be found. Please refresh and try again.",
-      code: "NOT_FOUND",
     };
   }
 
   return {
     title: "Upload Failed",
     description: rawMsg || "Could not start conversion. Please verify your document and try again.",
-    code: rawCode || undefined,
   };
 }

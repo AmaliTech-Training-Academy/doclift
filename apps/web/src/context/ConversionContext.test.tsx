@@ -157,7 +157,7 @@ describe("useConversion", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
-      json: async () => ({ code: "INVALID_PDF", message: "Only PDF files are supported." }),
+      json: async () => ({ error: "INVALID_PDF", message: "Only PDF files are supported." }),
     } as unknown as Response);
 
     const { result } = renderHook(() => useConversion(), { wrapper });
