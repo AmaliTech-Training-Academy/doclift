@@ -1,9 +1,12 @@
 package com.amalitech.backend.service;
 
+import com.amalitech.backend.service.impl.PdfExtractionServiceImpl;
 import com.amalitech.backend.service.impl.StructureRecoveryServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,10 +15,57 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class StructureRecoveryServiceTest {
 
     private StructureRecoveryService structureRecoveryService;
+    private final PdfExtractionServiceImpl extractionService =
+            new PdfExtractionServiceImpl(
+                    new StructureRecoveryServiceImpl()
+            );
 
     @BeforeEach
     void setUp() {
         structureRecoveryService = new StructureRecoveryServiceImpl();
+    }
+
+    private int indexOfBlockContaining(
+            List<StructuredBlock> blocks,
+            String text
+    ) {
+        for (int i = 0;
+             i < blocks.size();
+             i++) {
+
+            if (blocks.get(i)
+                    .getText()
+                    .contains(text)) {
+
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private TextSpan textSpan(
+            int pageIndex,
+            String text,
+            float x,
+            float y,
+            float width,
+            float height
+    ) {
+        return new TextSpan(
+                pageIndex,
+                text,
+                x,
+                y,
+                width,
+                height,
+                "Helvetica",
+                height,
+                false,
+                false,
+                false,
+                true
+        );
     }
 
     // =========================================================
@@ -1351,6 +1401,353 @@ class StructureRecoveryServiceTest {
 
         assertThat(block.getListType())
                 .isNull();
+    }
+
+    @Test
+    void shouldNotMergeBottomPageEdgeTextIntoBodyParagraph() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageWidth(612);
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "This is body text.",
+                        50,
+                        700,
+                        300,
+                        12
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "More body text.",
+                        50,
+                        712,
+                        300,
+                        12
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "23",
+                        50,
+                        756,
+                        20,
+                        10
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "MAZZETTI | Electric Circuit Data Collection",
+                        90,
+                        768,
+                        350,
+                        8
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .extracting(StructuredBlock::getText)
+                .contains(
+                        "This is body text. More body text.",
+                        "23",
+                        "MAZZETTI | Electric Circuit Data Collection"
+                );
+
+        assertThat(page.getStructuredBlocks())
+                .noneMatch(block ->
+                        block.getText().contains("More body text.")
+                                && block.getText().contains("MAZZETTI")
+                );
+    }
+
+    @Test
+    void shouldStillMergeNormalParagraphLinesAboveBottomEdge() {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageWidth(612);
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "First line of paragraph",
+                        50,
+                        700,
+                        300,
+                        12
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "second line of paragraph",
+                        50,
+                        712,
+                        300,
+                        12
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        assertThat(page.getStructuredBlocks())
+                .hasSize(1);
+
+        assertThat(
+                page.getStructuredBlocks()
+                        .getFirst()
+                        .getText()
+        ).isEqualTo(
+                "First line of paragraph second line of paragraph"
+        );
+    }
+
+    @Test
+    void shouldSplitFigureIndexEntriesButKeepWrappedContinuationWithEntry()
+            throws Exception {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Figure 1: Comparison of panel-level calculated and actual load values",
+                        72f,
+                        100f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "at West Coast hospital 1 ........................................ 26",
+                        72f,
+                        114f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Figure 2: Cumulative calculated vs. metered load",
+                        72f,
+                        128f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "at the circuit level for general receptacles ................ 28",
+                        72f,
+                        142f,
+                        420f,
+                        12f
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        List<StructuredBlock> paragraphs =
+                page.getStructuredBlocks()
+                        .stream()
+                        .filter(block ->
+                                block.getType() == BlockType.PARAGRAPH
+                        )
+                        .toList();
+
+        assertThat(paragraphs)
+                .hasSize(2);
+
+        assertThat(paragraphs.get(0).getText())
+                .isEqualTo(
+                        "Figure 1: Comparison of panel-level calculated and actual load values "
+                                + "at West Coast hospital 1 ........................................ 26"
+                );
+
+        assertThat(paragraphs.get(1).getText())
+                .isEqualTo(
+                        "Figure 2: Cumulative calculated vs. metered load "
+                                + "at the circuit level for general receptacles ................ 28"
+                );
+    }
+
+    @Test
+    void shouldSplitTableIndexEntriesButKeepWrappedContinuationWithEntry()
+            throws Exception {
+
+        PageExtraction page =
+                new PageExtraction(0);
+
+        page.setPageHeight(792);
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Table 1: Approximate beds, square footage, and description of studied hospitals",
+                        72f,
+                        100f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "............................................................ 18",
+                        72f,
+                        114f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "Table 2: Data collection period, panels metered, and information available",
+                        72f,
+                        128f,
+                        420f,
+                        12f
+                )
+        );
+
+        page.getTextSpans().add(
+                textSpan(
+                        0,
+                        "for studied hospitals ...................................... 18",
+                        72f,
+                        142f,
+                        420f,
+                        12f
+                )
+        );
+
+        structureRecoveryService.recoverStructure(page);
+
+        List<StructuredBlock> paragraphs =
+                page.getStructuredBlocks()
+                        .stream()
+                        .filter(block ->
+                                block.getType() == BlockType.PARAGRAPH
+                        )
+                        .toList();
+
+        assertThat(paragraphs)
+                .hasSize(2);
+
+        assertThat(paragraphs.get(0).getText())
+                .isEqualTo(
+                        "Table 1: Approximate beds, square footage, and description of studied hospitals "
+                                + "............................................................ 18"
+                );
+
+        assertThat(paragraphs.get(1).getText())
+                .isEqualTo(
+                        "Table 2: Data collection period, panels metered, and information available "
+                                + "for studied hospitals ...................................... 18"
+                );
+    }
+
+    @Test
+    void shouldRecoverTwoColumnArticleColumnByColumn()
+            throws Exception {
+
+        byte[] pdfBytes =
+                Files.readAllBytes(
+                        Path.of(
+                                "../../test-pdfs/samples/02_two_column_article.pdf"
+                        )
+                );
+
+        PdfExtractionResult result =
+                extractionService.extract(
+                        pdfBytes
+                );
+
+        PageExtraction firstPage =
+                result.getPages().getFirst();
+
+        List<StructuredBlock> blocks =
+                firstPage.getStructuredBlocks();
+
+        int section1Index =
+                indexOfBlockContaining(
+                        blocks,
+                        "Section 1"
+                );
+
+        int section3Index =
+                indexOfBlockContaining(
+                        blocks,
+                        "Section 3"
+                );
+
+        assertThat(section1Index)
+                .isGreaterThanOrEqualTo(0);
+
+        assertThat(section3Index)
+                .isGreaterThan(section1Index);
+
+        List<StructuredBlock> between =
+                blocks.subList(
+                        section1Index + 1,
+                        section3Index
+                );
+
+        boolean returnedToLeftAfterRight =
+                false;
+
+        boolean seenRightColumn =
+                false;
+
+        for (StructuredBlock block :
+                between) {
+
+            if (block.getX() >= 300f) {
+                seenRightColumn = true;
+            }
+
+            if (seenRightColumn
+                    && block.getX() < 300f) {
+
+                returnedToLeftAfterRight =
+                        true;
+
+                break;
+            }
+        }
+
+        assertThat(
+                returnedToLeftAfterRight
+        ).isFalse();
     }
 
     // =========================================================

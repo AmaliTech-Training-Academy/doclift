@@ -20,6 +20,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -33,6 +34,114 @@ class ImageRecoveryIntegrationTest {
             new PdfExtractionServiceImpl(new StructureRecoveryServiceImpl());
 
     private final WordWriterServiceImpl wordWriterService = new WordWriterServiceImpl();
+
+    private byte[] buildPdfWithImageBeforeFollowingText()
+            throws IOException {
+
+        try (PDDocument document =
+                     new PDDocument()) {
+
+            PDPage page =
+                    new PDPage(
+                            PDRectangle.A4
+                    );
+
+            document.addPage(
+                    page
+            );
+
+            try (PDPageContentStream content =
+                         new PDPageContentStream(
+                                 document,
+                                 page
+                         )) {
+
+                content.drawImage(
+                        sampleImage(
+                                document,
+                                200,
+                                100
+                        ),
+                        80,
+                        500,
+                        200,
+                        100
+                );
+
+                PDType1Font font =
+                        new PDType1Font(
+                                Standard14Fonts.FontName.HELVETICA
+                        );
+
+                content.beginText();
+
+                content.setFont(
+                        font,
+                        12
+                );
+
+                content.newLineAtOffset(
+                        80,
+                        460
+                );
+
+                content.showText(
+                        "Text below image"
+                );
+
+                content.endText();
+            }
+
+            ByteArrayOutputStream out =
+                    new ByteArrayOutputStream();
+
+            document.save(
+                    out
+            );
+
+            return out.toByteArray();
+        }
+    }
+
+    private int countInlinePictures(
+            String xml
+    ) {
+        java.util.regex.Matcher matcher =
+                java.util.regex.Pattern
+                        .compile("<wp:inline[ >]")
+                        .matcher(xml);
+
+        int count = 0;
+
+        while (matcher.find()) {
+            count++;
+        }
+
+        return count;
+    }
+
+    private int countImagePlacements(
+            XWPFDocument document
+    ) {
+        String xml =
+                document.getDocument()
+                        .xmlText();
+
+        java.util.regex.Matcher matcher =
+                java.util.regex.Pattern
+                        .compile(
+                                "<wp:(?:inline|anchor)[ >]"
+                        )
+                        .matcher(xml);
+
+        int count = 0;
+
+        while (matcher.find()) {
+            count++;
+        }
+
+        return count;
+    }
 
     // --- CTM decomposition correctness (extraction layer) -----------------------------
 
@@ -107,36 +216,77 @@ class ImageRecoveryIntegrationTest {
     // --- Writer: images become absolutely-positioned, page-anchored drawings ----------
 
     @Test
-    void writesSingleImageAsPageAnchoredFloatingPicture() throws Exception {
-        byte[] pdfBytes = buildPdfWithMatrixPlacedImage(
-                400, 800,
-                new Matrix(100, 0, 0, 50, 50, 700)
-        );
+    void writesSingleNormalImageAsInlineFlowPicture()
+            throws Exception {
 
-        byte[] docx = convertToDocx(pdfBytes);
+        byte[] pdfBytes =
+                buildPdfWithMatrixPlacedImage(
+                        400,
+                        800,
+                        new Matrix(
+                                100,
+                                0,
+                                0,
+                                50,
+                                50,
+                                700
+                        )
+                );
 
-        try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertThat(document.getAllPictures()).hasSize(1);
+        byte[] docx =
+                convertToDocx(pdfBytes);
 
-            String xml = document.getDocument().xmlText();
-            assertThat(xml).contains("wp:anchor");
-            assertThat(xml).contains("relativeFrom=\"page\"");
-            assertThat(xml).contains("<wp:wrapNone/>");
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(
+                                     docx
+                             )
+                     )) {
+
+            assertThat(
+                    document.getAllPictures()
+            ).hasSize(1);
+
+            String xml =
+                    document.getDocument()
+                            .xmlText();
+
+            assertThat(xml)
+                    .contains("wp:inline");
+
+            assertThat(xml)
+                    .doesNotContain("wp:anchor");
         }
     }
 
     @Test
-    void writesMultipleImagesAtDistinctRelativePositions() throws Exception {
-        byte[] pdfBytes = buildPdfWithTwoImages();
+    void writesMultipleNormalImagesToDocx()
+            throws Exception {
 
-        byte[] docx = convertToDocx(pdfBytes);
+        byte[] pdfBytes =
+                buildPdfWithTwoImages();
 
-        try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertThat(document.getAllPictures()).hasSize(2);
+        byte[] docx =
+                convertToDocx(pdfBytes);
 
-            List<Long> offsetsX = extractPosOffsetsX(document);
-            assertThat(offsetsX).hasSize(2);
-            assertThat(offsetsX.get(0)).isNotEqualTo(offsetsX.get(1));
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(
+                                     docx
+                             )
+                     )) {
+
+            assertThat(
+                    document.getAllPictures()
+            ).hasSize(2);
+
+            String xml =
+                    document.getDocument()
+                            .xmlText();
+
+            assertThat(
+                    countInlinePictures(xml)
+            ).isEqualTo(2);
         }
     }
 
@@ -158,18 +308,35 @@ class ImageRecoveryIntegrationTest {
     }
 
     @Test
-    void insertsSectionBreakBetweenMultiPagePdfPages() throws Exception {
+    void insertsPageBreakBetweenMultiPagePdfPages() throws Exception {
         byte[] pdfBytes = buildTwoPagePdfEachWithAnImage();
 
         byte[] docx = convertToDocx(pdfBytes);
 
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertThat(countAnchors(document)).isEqualTo(2);
+            assertThat(
+                    document.getAllPictures()
+            ).hasSize(2);
 
-            boolean hasSectionBreak = document.getParagraphs().stream()
-                    .anyMatch(p -> p.getCTP().isSetPPr() && p.getCTP().getPPr().isSetSectPr());
+            List<org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr> sections =
+                document.getParagraphs().stream()
+                    .filter(p -> p.getCTP().isSetPPr()
+                        && p.getCTP().getPPr().isSetSectPr())
+                    .map(p -> p.getCTP().getPPr().getSectPr())
+                    .toList();
 
-            assertThat(hasSectionBreak).isTrue();
+            assertThat(sections)
+                .as("one source-page boundary between the two image pages")
+                .hasSize(1);
+            assertThat(sections.getFirst().getType().getVal().toString())
+                .isEqualTo("nextPage");
+
+                    assertThat(sections.getFirst().getPgSz().getW()).isEqualTo(BigInteger.valueOf(11906));
+                    assertThat(sections.getFirst().getPgSz().getH()).isEqualTo(BigInteger.valueOf(16838));
+                assertThat(document.getDocument().getBody().getSectPr().getPgSz().getW())
+                        .isEqualTo(BigInteger.valueOf(11906));
+                assertThat(document.getDocument().getBody().getSectPr().getPgSz().getH())
+                        .isEqualTo(BigInteger.valueOf(16838));
         }
     }
 
@@ -223,7 +390,17 @@ class ImageRecoveryIntegrationTest {
         byte[] docx = wordWriterService.write(result);
 
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertThat(countAnchors(document)).isEqualTo(totalImages);
+            assertThat(
+                    countImagePlacements(
+                            document
+                    )
+            )
+                    .as(
+                            "image placement count"
+                    )
+                    .isEqualTo(
+                            totalImages
+                    );
         }
     }
 
@@ -260,9 +437,18 @@ class ImageRecoveryIntegrationTest {
                 byte[] docx = wordWriterService.write(result);
 
                 try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(docx))) {
-                    assertThat(countAnchors(document))
-                            .as("anchored image count for %s", pdfPath)
-                            .isEqualTo(totalImages);
+                    assertThat(
+                            countImagePlacements(
+                                    document
+                            )
+                    )
+                            .as(
+                                    "image placement count for %s",
+                                    pdfPath
+                            )
+                            .isEqualTo(
+                                    totalImages
+                            );
                 }
 
             } catch (Exception e) {
@@ -423,6 +609,92 @@ class ImageRecoveryIntegrationTest {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             document.save(out);
             return out.toByteArray();
+        }
+    }
+
+    @Test
+    void keepsPageCoveringImageAsFloatingBackground()
+            throws Exception {
+
+        byte[] pdfBytes =
+                buildPdfWithMatrixPlacedImage(
+                        400,
+                        800,
+                        new Matrix(
+                                380,
+                                0,
+                                0,
+                                760,
+                                10,
+                                20
+                        )
+                );
+
+        byte[] docx =
+                convertToDocx(pdfBytes);
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(
+                                     docx
+                             )
+                     )) {
+
+            assertThat(
+                    document.getAllPictures()
+            ).hasSize(1);
+
+            assertThat(
+                    countAnchors(document)
+            ).isEqualTo(1);
+
+            String xml =
+                    document.getDocument()
+                            .xmlText();
+
+            assertThat(xml)
+                    .contains("behindDoc=\"1\"");
+        }
+    }
+
+    @Test
+    void writesFlowImageBeforeTextThatAppearsBelowIt()
+            throws Exception {
+
+        byte[] pdfBytes =
+                buildPdfWithImageBeforeFollowingText();
+
+        byte[] docx =
+                convertToDocx(
+                        pdfBytes
+                );
+
+        try (XWPFDocument document =
+                     new XWPFDocument(
+                             new ByteArrayInputStream(
+                                     docx
+                             )
+                     )) {
+
+            String xml =
+                    document.getDocument()
+                            .xmlText();
+
+            int imageIndex =
+                    xml.indexOf(
+                            "<wp:inline"
+                    );
+
+            int textIndex =
+                    xml.indexOf(
+                            "Text below image"
+                    );
+
+            assertThat(imageIndex)
+                    .isGreaterThanOrEqualTo(0);
+
+            assertThat(textIndex)
+                    .isGreaterThan(imageIndex);
         }
     }
 }

@@ -48,6 +48,13 @@ public class JobServiceImpl implements JobService {
             job.setStartedAt(now);
         }
 
+        logPhaseTransition(
+                job,
+                JobPhase.LOADING_SOURCE,
+                0,
+                now
+        );
+
         job.setPhase(JobPhase.LOADING_SOURCE);
         job.setProgressPercent(0);
         job.setPhaseStartedAt(now);
@@ -99,7 +106,7 @@ public class JobServiceImpl implements JobService {
         Instant now = Instant.now();
 
         job.setStatus(JobStatus.FAILED);
-        job.setCompletedAt(Instant.now());
+        job.setCompletedAt(now);
         return job;
     }
 
