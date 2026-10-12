@@ -1,4 +1,15 @@
+import type { ApiErrorResponse } from "./errorMapping";
+
 export type BackendJobStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
+
+export type JobPhase =
+  | "QUEUED"
+  | "LOADING_SOURCE"
+  | "EXTRACTING_CONTENT"
+  | "RECOVERING_STRUCTURE"
+  | "GENERATING_DOCUMENT"
+  | "SAVING_OUTPUT"
+  | "COMPLETED";
 
 export interface JobOutputResponse {
   filename: string;
@@ -26,20 +37,22 @@ export interface JobMetricsResponse {
 export interface JobStatusResponse {
   jobId: string;
   status: BackendJobStatus;
-  sourceFilename: string;
+  sourceFilename: string | null;
   pageCount: number | null;
-  createdAt: string;
+  createdAt: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
+  phase?: JobPhase | null;
+  progressPercent?: number | null;
   durationSeconds?: number | null;
+  estimatedRemainingSeconds?: number | null;
+  estimatedTotalSeconds?: number | null;
+  currentPhaseEstimatedRemainingSeconds?: number | null;
   output?: JobOutputResponse | null;
   metrics?: JobMetricsResponse | null;
 }
 
-export interface ApiErrorResponse {
-  error?: string;
-  message?: string;
-}
+export type { ApiErrorResponse };
 
 async function extractErrorMessage(response: Response): Promise<string | null> {
   try {

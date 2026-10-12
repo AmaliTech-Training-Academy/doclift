@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { uploadFile } from "./uploadApi";
+import { UploadApiError } from "./errorMapping";
 
 describe("uploadApi", () => {
   const originalFetch = globalThis.fetch;
@@ -38,7 +39,7 @@ describe("uploadApi", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
-      json: async () => ({ code: "INVALID_PDF", message: "Only PDF files are supported." }),
+      json: async () => ({ error: "INVALID_PDF", message: "Only PDF files are supported." }),
     } as unknown as Response);
 
     await expect(uploadFile(mockFile)).rejects.toThrow("Only PDF files are supported.");
@@ -50,7 +51,7 @@ describe("uploadApi", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 413,
-      json: async () => ({ code: "FILE_TOO_LARGE", message: "The uploaded PDF exceeds the maximum allowed size." }),
+      json: async () => ({ error: "FILE_TOO_LARGE", message: "The uploaded PDF exceeds the maximum allowed size." }),
     } as unknown as Response);
 
     await expect(uploadFile(mockFile)).rejects.toThrow(
@@ -74,7 +75,7 @@ describe("uploadApi", () => {
     );
   });
 
-  it("handles API error responses when JSON error payload fails to parse", async () => {
+  it("handles 500 error responses with user-friendly error instead of raw status codes", async () => {
     const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
 
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -85,14 +86,73 @@ describe("uploadApi", () => {
       },
     } as unknown as Response);
 
-    await expect(uploadFile(mockFile)).rejects.toThrow("Upload failed with status code 500.");
+    try {
+      await uploadFile(mockFile);
+      expect.unreachable("Should have thrown UploadApiError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UploadApiError);
+      const apiErr = err as UploadApiError;
+      expect(apiErr.title).toBe("Conversion Service Error");
+      expect(apiErr.description).toContain("The conversion server encountered an unexpected error.");
+      expect(apiErr.message).not.toContain("status code 500");
+    }
   });
 
-  it("handles network connection failures", async () => {
+  it("handles encrypted PDF error with clear instructions", async () => {
+    const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "ENCRYPTED_PDF", message: "Encrypted PDFs are not supported." }),
+    } as unknown as Response);
+
+    try {
+      await uploadFile(mockFile);
+      expect.unreachable("Should have thrown UploadApiError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UploadApiError);
+      const apiErr = err as UploadApiError;
+      expect(apiErr.title).toBe("Password-Protected PDF");
+      expect(apiErr.description).toContain("Password-protected or encrypted PDFs cannot be converted.");
+    }
+  });
+
+  it("handles gateway 502/503 errors gracefully", async () => {
+    const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error("HTML Bad Gateway");
+      },
+    } as unknown as Response);
+
+    try {
+      await uploadFile(mockFile);
+      expect.unreachable("Should have thrown UploadApiError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UploadApiError);
+      const apiErr = err as UploadApiError;
+      expect(apiErr.title).toBe("Server Temporarily Unavailable");
+      expect(apiErr.description).toContain("unreachable");
+    }
+  });
+
+  it("handles network connection failures with connection guidance", async () => {
     const mockFile = new File(["dummy content"], "test.pdf", { type: "application/pdf" });
 
     globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
-    await expect(uploadFile(mockFile)).rejects.toThrow("Failed to fetch");
+    try {
+      await uploadFile(mockFile);
+      expect.unreachable("Should have thrown UploadApiError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UploadApiError);
+      const apiErr = err as UploadApiError;
+      expect(apiErr.title).toBe("Connection Failed");
+      expect(apiErr.description).toContain("internet connection");
+    }
   });
 });

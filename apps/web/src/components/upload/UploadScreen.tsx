@@ -105,7 +105,7 @@ export default function UploadScreen() {
                         Drag & drop your PDF here
                     </h3>
                     <p className="text-sm sm:text-md text-muted-foreground mt-1 max-w-sm">
-                        Support for digital text layer PDFs with full layout preservation
+                        Best results with PDFs containing selectable text and clear layouts.
                     </p>
                 </DropZone>
 
@@ -224,11 +224,14 @@ export default function UploadScreen() {
                             What DocLift Preserves
                         </h2>
                         <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
-                            Unlike generic OCR or naive converters that dump arbitrary text frames, DocLift reconstructs the logical semantic tree of your document.
+                            DocLift preserves your document&apos;s structure, organizing text, headings, lists, and tables into an editable Word document.
                         </p>
                     </div>
 
-                    <div className="shrink-0 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-success text-xs sm:text-sm font-semibold self-start sm:self-center">
+                    <div
+                        title="Converted document's formatting closely matches the original PDF."
+                        className="shrink-0 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-success text-xs sm:text-sm font-semibold self-start sm:self-center cursor-help"
+                    >
                         <CheckCircle className="size-4 text-success shrink-0" />
                         <span>99.8% Word Style Parity</span>
                     </div>

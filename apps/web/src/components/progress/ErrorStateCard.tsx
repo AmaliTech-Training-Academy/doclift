@@ -29,8 +29,7 @@ const ErrorStateCard = ({
 
   const errorMessage =
     error ??
-    "To guarantee 100% editable accuracy, DocLift halts execution rather than generating corrupted or uneditable characters in your destination Word document.";
-
+    "To guarantee 100% editable accuracy, DocLift stops the conversion to protect your document from corrupted or uneditable content.";
   const fileName = file?.name ?? "document.pdf";
 
   return (
@@ -120,7 +119,7 @@ const ErrorStateCard = ({
                   Try a Different PDF
                 </h4>
                 <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Try converting a different PDF.
+                  Try a PDF with simpler layouts or fewer complex elements.
                 </p>
               </div>
             </div>

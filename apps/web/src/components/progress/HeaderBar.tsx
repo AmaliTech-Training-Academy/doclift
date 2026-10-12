@@ -1,5 +1,6 @@
 import { Card, CardContent } from "../ui/Card";
 import { FileInput, ArrowRight, FileTypeCorner, Timer } from "lucide-react";
+import { Spinner } from "../ui/Spinner";
 import FileInfoCard from "./FileInfoCard";
 import { useConversion } from "@/context/ConversionContext";
 import { JobStatusResponse } from "@/lib/pollingApi";
@@ -95,7 +96,7 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
                 <p className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                   Time Elapsed
                 </p>
-                <p className="text-sm sm:text-base font-medium whitespace-nowrap">{formatTime(timeElapsed)} elapsed</p>
+                <p className="text-sm sm:text-base font-medium whitespace-nowrap">{formatTime(timeElapsed)}</p>
               </div>
               {/* Divider */}
               <div className="border-l border-muted-foreground h-8 mx-1 sm:mx-2"></div>
@@ -106,11 +107,16 @@ const HeaderBar = ({ file, timeElapsed, timeRemaining }: HeaderBarProps) => {
                 </p>
                 <div className="flex gap-2 items-center justify-center whitespace-nowrap">
                   <Timer className="size-4 sm:size-5 text-muted-foreground shrink-0" />
-                  <p className="text-sm sm:text-base font-medium">
-                    {timeRemaining == null
-                      ? "Calculating..."
-                      : `~${formatTime(Math.ceil(timeRemaining))} remaining`}
-                  </p>
+                  {timeRemaining == null ? (
+                    <span className="flex items-center gap-1.5 text-sm sm:text-base font-medium text-muted-foreground">
+                      <Spinner className="w-3.5 h-3.5 text-muted-foreground" />
+                      Estimating...
+                    </span>
+                  ) : (
+                    <p className="text-sm sm:text-base font-medium">
+                      About {formatTime(Math.ceil(timeRemaining))}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

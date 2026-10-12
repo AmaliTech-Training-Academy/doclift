@@ -264,7 +264,7 @@ export default function ResultsScreen() {
               <h2 className="font-semibold text-2xl">Conversion Checklist</h2>
             </div>
             <span className="text-sm text-muted-foreground">
-              Deterministic Validation
+              Reliable Validation
             </span>
           </div>
           {dynamicChecklistData.map((item) => (
@@ -282,7 +282,7 @@ export default function ResultsScreen() {
               </h2>
             </div>
             <span className="text-sm text-muted-foreground">
-              Target: Exact DOCX
+              Output: Word Document
             </span>
           </div>
 

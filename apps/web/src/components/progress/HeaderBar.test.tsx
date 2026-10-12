@@ -36,8 +36,8 @@ describe("HeaderBar", () => {
       <HeaderBar file={null} timeElapsed={65} timeRemaining={90} />,
     );
 
-    expect(screen.getByText("1:05 elapsed")).toBeInTheDocument();
-    expect(screen.getByText("~1:30 remaining")).toBeInTheDocument();
+    expect(screen.getByText("1:05")).toBeInTheDocument();
+    expect(screen.getByText("About 1:30")).toBeInTheDocument();
   });
 
   it("rounds fractional seconds up", () => {
@@ -45,15 +45,15 @@ describe("HeaderBar", () => {
       <HeaderBar file={null} timeElapsed={0} timeRemaining={12.2} />,
     );
 
-    expect(screen.getByText("~0:13 remaining")).toBeInTheDocument();
+    expect(screen.getByText("About 0:13")).toBeInTheDocument();
   });
 
-  it("shows a calculating state while there is no estimate yet", () => {
+  it("shows an estimating state while there is no estimate yet", () => {
     renderWithProvider(
       <HeaderBar file={null} timeElapsed={5} timeRemaining={null} />,
     );
 
-    expect(screen.getByText("Calculating...")).toBeInTheDocument();
+    expect(screen.getByText("Estimating...")).toBeInTheDocument();
   });
 
   it("disables the target file button until conversion is done", async () => {
