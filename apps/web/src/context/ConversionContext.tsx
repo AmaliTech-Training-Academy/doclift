@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession, getConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
-import { uploadFile } from "@/lib/uploadApi";
+import { uploadFile, UploadApiError } from "@/lib/uploadApi";
 import { useJobPolling } from "@/lib/useJobPolling";
 import { usePurgeCountdown } from "@/lib/usePurgeCountdown";
 import { JobStatusResponse } from "@/lib/jobApi";
@@ -218,9 +218,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         try {
             const res = await uploadFile(targetFile, controller.signal);
 
-            // If reset() was called while the request was in flight, bail out.
             if (controller.signal.aborted) return null;
-
             setTimeElapsed(0);
             const now = Date.now();
             const realJobId = String(res.jobId);
@@ -246,9 +244,19 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         } catch (err: unknown) {
             if (err instanceof Error && err.name === "AbortError") return null;
 
-            const errorMessage = err instanceof Error ? err.message : "Upload failed";
-            if (typeof toast?.error === "function") {
-                toast.error(errorMessage);
+            if (err instanceof UploadApiError) {
+                if (typeof toast?.error === "function") {
+                    toast.error(err.title, {
+                        description: err.description,
+                    });
+                }
+            } else {
+                const errorMessage = err instanceof Error ? err.message : "Upload failed";
+                if (typeof toast?.error === "function") {
+                    toast.error("Upload Failed", {
+                        description: errorMessage !== "Upload failed" ? errorMessage : "Could not upload the file. Please try again.",
+                    });
+                }
             }
             return null;
         } finally {
@@ -302,7 +310,9 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         onFailed: (err) => {
             updateStatus("failed");
             if (typeof toast?.error === "function") {
-                toast.error(err?.message || "Conversion failed");
+                toast.error("Conversion failed", {
+                    description: err?.message || "An issue occurred while converting your document. Please try again.",
+                });
             }
         },
     });
@@ -313,7 +323,6 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        // Purge expired toast and automatic reset after 2 seconds
         if (purgeTimeRemaining === 0 && !hasExpiredRef.current) {
             hasExpiredRef.current = true;
             if (typeof toast?.error === "function") {

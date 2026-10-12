@@ -157,7 +157,7 @@ describe("useConversion", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
-      json: async () => ({ message: "Only PDF files are supported." }),
+      json: async () => ({ code: "INVALID_PDF", message: "Only PDF files are supported." }),
     } as unknown as Response);
 
     const { result } = renderHook(() => useConversion(), { wrapper });
@@ -173,6 +173,9 @@ describe("useConversion", () => {
     expect(result.current.activeView).toBe("upload");
     expect(result.current.isUploading).toBe(false);
     expect(result.current.isConverting).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith("Unsupported Format", {
+      description: "Only PDF files are supported.",
+    });
   });
 
   it("correctly distinguishes isUploading and isConverting flags", async () => {

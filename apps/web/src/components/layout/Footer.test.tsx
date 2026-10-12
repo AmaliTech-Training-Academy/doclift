@@ -11,7 +11,7 @@ describe("Footer", () => {
     it("displays the output format notice", () => {
         render(<Footer />);
         expect(
-            screen.getByText("Output strictly Microsoft Word (.docx)"),
+            screen.getByText("Editable Microsoft Word (.docx) format"),
         ).toBeInTheDocument();
     });
 });

@@ -39,7 +39,7 @@ describe("ErrorStateCard", () => {
       screen.getByText(/Try uploading the PDF again\. Temporary processing issues can occasionally interrupt a conversion\./i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Try converting a different PDF\./i),
+      screen.getByText(/Try a PDF with simpler layouts or fewer complex elements\./i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Re-save or Re-download the PDF and try uploading the new copy\./i),
