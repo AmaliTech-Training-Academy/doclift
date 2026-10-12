@@ -12,12 +12,14 @@ import java.util.List;
  */
 final class UnderlineDetector {
 
-    private static final float MIN_OVERLAP_RATIO = 0.60f;
-    private static final float MAX_LINE_LENGTH_RATIO = 1.5f;
+    private static final float MIN_OVERLAP_RATIO = 0.85f;
+    private static final float MAX_LINE_LENGTH_RATIO = 1.35f;
     private static final float MAX_LINE_LENGTH_SLACK = 4f;
-    private static final float ABOVE_BASELINE_TOLERANCE = 1f;
-    private static final float MIN_BELOW_SPAN = 2.5f;
-    private static final float BELOW_SPAN_HEIGHT_RATIO = 0.4f;
+    private static final float MAX_SIDE_OVERHANG = 6f;
+    private static final float ABOVE_BASELINE_TOLERANCE = 0.6f;
+    private static final float MIN_BELOW_BASELINE = 2f;
+    private static final float MAX_BELOW_BASELINE = 3f;
+    private static final float BELOW_BASELINE_FONT_RATIO = 0.2f;
 
     private UnderlineDetector() {
     }
@@ -72,8 +74,14 @@ final class UnderlineDetector {
     private static boolean hasUnderlineStroke(TextSpan span, List<HorizontalLine> lines) {
         float spanLeft = span.getX();
         float spanRight = span.getX() + span.getWidth();
-        float spanBottom = span.getY() + span.getHeight();
-        float maxBelow = Math.max(MIN_BELOW_SPAN, span.getHeight() * BELOW_SPAN_HEIGHT_RATIO);
+        // Span y is the baseline. The glyph box hangs below it, so a rule
+        // under the next line is not an underline of this word.
+        float baseline = span.getY();
+        float fontSize = span.getFontSize() > 0f ? span.getFontSize() : span.getHeight();
+        float maxBelow = Math.max(
+                MIN_BELOW_BASELINE,
+                Math.min(MAX_BELOW_BASELINE, fontSize * BELOW_BASELINE_FONT_RATIO)
+        );
         float maxLineLength = (span.getWidth() * MAX_LINE_LENGTH_RATIO) + MAX_LINE_LENGTH_SLACK;
 
         for (HorizontalLine line : lines) {
@@ -84,24 +92,19 @@ final class UnderlineDetector {
             if (lineLength <= 0f || lineLength > maxLineLength) {
                 continue;
             }
-            float below = line.y() - spanBottom;
+            float below = line.y() - baseline;
             if (below < -ABOVE_BASELINE_TOLERANCE || below > maxBelow) {
                 continue;
             }
-            float overlap = Math.min(spanRight, line.xEnd()) - Math.max(spanLeft, line.xStart());
-            if (overlap < span.getWidth() * MIN_OVERLAP_RATIO) {
+            float overhangLeft = spanLeft - line.xStart();
+            float overhangRight = line.xEnd() - spanRight;
+            if (overhangLeft > MAX_SIDE_OVERHANG && overhangRight > MAX_SIDE_OVERHANG) {
                 continue;
             }
-            // A stroke under a whole line is longer than one word. Accept it
-            // when it covers this word. A long stroke that only clips the
-            // edge is a table rule or a neighbour, so leave the word alone.
-            if (lineLength > maxLineLength) {
-                boolean coversSpan = line.xStart() <= spanLeft + 1f && line.xEnd() >= spanRight - 1f;
-                if (!coversSpan) {
-                    continue;
-                }
+            float overlap = Math.min(spanRight, line.xEnd()) - Math.max(spanLeft, line.xStart());
+            if (overlap >= span.getWidth() * MIN_OVERLAP_RATIO) {
+                return true;
             }
-            return true;
         }
         return false;
     }

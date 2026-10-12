@@ -14,7 +14,7 @@ class UnderlineDetectorTest {
     @Test
     void marksASpanWhenAStrokeSitsUnderIt() {
         TextSpan span = span("Signed", 40f, 100f, 60f, 12f);
-        HorizontalLine stroke = new HorizontalLine(113f, 40f, 100f);
+        HorizontalLine stroke = new HorizontalLine(102f, 40f, 100f);
 
         UnderlineDetector.mark(List.of(span), List.of(stroke), List.of());
 
@@ -24,7 +24,7 @@ class UnderlineDetectorTest {
     @Test
     void leavesASpanUnmarkedWhenTheStrokeIsATableRule() {
         TextSpan span = span("Amount", 40f, 100f, 60f, 12f);
-        HorizontalLine tableRule = new HorizontalLine(113f, 10f, 400f);
+        HorizontalLine tableRule = new HorizontalLine(102f, 40f, 100f);
         TableRegion table = new TableRegion(0, 10f, 80f, 400f, 80f, 2, 2);
 
         UnderlineDetector.mark(List.of(span), List.of(tableRule), List.of(table));
@@ -33,19 +33,29 @@ class UnderlineDetectorTest {
     }
 
     @Test
-    void marksAWordCoveredByAStrokeThatContinuesPastIt() {
+    void leavesAWordUnmarkedWhenALongRuleRunsUnderTheLine() {
         TextSpan span = span("signed", 80f, 100f, 40f, 12f);
-        HorizontalLine stroke = new HorizontalLine(113f, 40f, 220f);
+        HorizontalLine stroke = new HorizontalLine(102f, 40f, 220f);
 
         UnderlineDetector.mark(List.of(span), List.of(stroke), List.of());
 
-        assertTrue(span.isUnderline());
+        assertFalse(span.isUnderline());
+    }
+
+    @Test
+    void leavesAWordUnmarkedWhenTheStrokeIsALineBelow() {
+        TextSpan span = span("Title", 40f, 100f, 60f, 12f);
+        HorizontalLine stroke = new HorizontalLine(113f, 40f, 100f);
+
+        UnderlineDetector.mark(List.of(span), List.of(stroke), List.of());
+
+        assertFalse(span.isUnderline());
     }
 
     @Test
     void leavesAWordUnmarkedWhenALongStrokeOnlyClipsIt() {
         TextSpan span = span("signed", 40f, 100f, 40f, 12f);
-        HorizontalLine stroke = new HorizontalLine(113f, 50f, 300f);
+        HorizontalLine stroke = new HorizontalLine(102f, 50f, 300f);
 
         UnderlineDetector.mark(List.of(span), List.of(stroke), List.of());
 
