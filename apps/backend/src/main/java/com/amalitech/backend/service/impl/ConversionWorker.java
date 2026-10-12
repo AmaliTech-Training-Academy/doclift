@@ -69,13 +69,6 @@ public class ConversionWorker {
                 extractionResult = pdfExtractionService.extract(inputStream);
             }
 
-            jobService.updateProgress(
-                    jobId,
-                    JobPhase.RECOVERING_STRUCTURE,
-                    jobEtaCalculator.calculateProgressPercentForPhase(
-                            JobPhase.RECOVERING_STRUCTURE
-                    )
-            );
 
             int sourceWordCount =
                     documentMetricsService.countSourceWords(
@@ -123,15 +116,40 @@ public class ConversionWorker {
             byte[] docx =
                     wordWriterService.write(extractionResult);
 
-            int outputWordCount =
-                    documentMetricsService.countOutputWords(
-                            docx
-                    );
+            Integer outputWordCount = null;
+            Integer orderedListsReconstructed = null;
+            Integer unorderedListsReconstructed = null;
 
-            ListCountResult outputLists =
-                    documentMetricsService.countOutputLists(
-                            docx
-                    );
+            try {
+
+                int measuredOutputWordCount =
+                        documentMetricsService.countOutputWords(
+                                docx
+                        );
+
+                ListCountResult measuredOutputLists =
+                        documentMetricsService.countOutputLists(
+                                docx
+                        );
+
+                outputWordCount =
+                        measuredOutputWordCount;
+
+                orderedListsReconstructed =
+                        measuredOutputLists.ordered();
+
+                unorderedListsReconstructed =
+                        measuredOutputLists.unordered();
+
+            } catch (Exception e) {
+
+                log.warn(
+                        "Could not calculate output metrics for job {}. "
+                                + "Output metrics will remain unavailable.",
+                        jobId,
+                        e
+                );
+            }
 
             jobService.updateProgress(
                     jobId,
@@ -156,8 +174,8 @@ public class ConversionWorker {
                             outputWordCount,
                             sourceLists.ordered(),
                             sourceLists.unordered(),
-                            outputLists.ordered(),
-                            outputLists.unordered(),
+                            orderedListsReconstructed,
+                            unorderedListsReconstructed,
                             headingsDetected,
                             headingLevels.levelOne(),
                             headingLevels.levelTwo(),

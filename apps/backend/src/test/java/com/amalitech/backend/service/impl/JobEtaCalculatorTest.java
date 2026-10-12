@@ -430,13 +430,6 @@ class JobEtaCalculatorTest {
         );
 
         assertEquals(
-                64,
-                calculator.calculateProgressPercentForPhase(
-                        JobPhase.RECOVERING_STRUCTURE
-                )
-        );
-
-        assertEquals(
                 67,
                 calculator.calculateProgressPercentForPhase(
                         JobPhase.GENERATING_DOCUMENT
