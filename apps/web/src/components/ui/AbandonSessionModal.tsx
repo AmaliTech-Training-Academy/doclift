@@ -27,7 +27,7 @@ export function getAbandonModalContent(session: ConversionSession | null) {
     if (status === "done") {
         return {
             title: "Converted File Available",
-            description: `You have a converted file ("${fileName}") that you haven't downloaded yet. Starting a new conversion will abandon this file.`,
+            description: `You have a converted file ("${fileName}"), make sure you have downloaded it before starting a new conversion. Proceeding will abandon this converted file.`,
             confirmText: "Abandon & Start New",
         };
     }

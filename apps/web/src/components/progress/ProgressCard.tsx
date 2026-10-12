@@ -32,20 +32,19 @@ const ProgressCard = ({ job, notFound }: ProgressCardProps) => {
   }, [updateStatus]);
 
   const jobStatus = job?.status;
-  const durationSeconds = job?.durationSeconds ?? undefined;
   const outputSizeBytes = job?.output?.sizeBytes ?? undefined;
 
   useEffect(() => {
     if (!isActive) return;
     if (jobStatus === "DONE") {
-      updateStatusRef.current("done", durationSeconds, outputSizeBytes);
+      updateStatusRef.current("done", outputSizeBytes);
     } else if (jobStatus === "FAILED") {
       updateStatusRef.current("failed");
       toast.error("Conversion failed");
     } else if (jobStatus === "PROCESSING" && session?.status === "queued") {
       updateStatusRef.current("processing");
     }
-  }, [isActive, jobStatus, durationSeconds, outputSizeBytes, session?.status]);
+  }, [isActive, jobStatus, outputSizeBytes, session?.status]);
 
   useEffect(() => {
     if (notFound && isActive) {

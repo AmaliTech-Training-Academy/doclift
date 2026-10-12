@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { SummaryCard } from "./SummaryCard";
-import { Image as ImageIcon, ShieldCheck, FileText } from "lucide-react";
+import { Image as ImageIcon, ShieldCheck, ListOrdered } from "lucide-react";
 import type { SummaryCardItem } from "@/data/resultsData";
 
 describe("SummaryCard", () => {
@@ -43,24 +43,25 @@ describe("SummaryCard", () => {
         expect(screen.getByText("Lossless PNG")).toBeInTheDocument();
     });
 
-    it("renders pages variant with input and output pages", () => {
+    it("renders lists variant with detected and reconstructed lists breakdown", () => {
         const item: SummaryCardItem = {
-            id: 3,
-            title: "Pages Processed",
-            description: "Document paginated.",
-            icon: FileText,
-            badge: "10 Pages",
-            variant: "pages",
-            inputPages: 5,
-            outputPages: 10,
+            id: 6,
+            title: "List Reconstruction",
+            description: "Lists reconstructed.",
+            icon: ListOrdered,
+            badge: "3 Lists",
+            variant: "lists",
+            detectedLists: 3,
+            reconstructedLists: 3,
+            detectedListsDetail: "1 ordered & 2 unordered",
+            reconstructedListsDetail: "1 ordered & 2 unordered",
         };
 
         render(<SummaryCard item={item} />);
 
-        expect(screen.getByText("Input Pages")).toBeInTheDocument();
-        expect(screen.getByText("5")).toBeInTheDocument();
-        expect(screen.getByText("Output Pages")).toBeInTheDocument();
-        expect(screen.getByText("10")).toBeInTheDocument();
+        expect(screen.getByText("Detected Lists")).toBeInTheDocument();
+        expect(screen.getByText("Reconstructed")).toBeInTheDocument();
+        expect(screen.getAllByText("1 ordered & 2 unordered")).toHaveLength(2);
     });
 
     it("renders session variant with progress bar width percentage", () => {

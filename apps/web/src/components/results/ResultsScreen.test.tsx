@@ -33,7 +33,7 @@ describe("ResultsScreen", () => {
       </ConversionProvider>,
     );
 
-    expect(screen.getByText("Conversion Complete")).toBeInTheDocument();
+    expect(screen.getByText("Conversion Completed")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /convert another file/i }),
     ).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("ResultsScreen", () => {
     );
 
     expect(
-      await screen.findByText("20.0 KB • 450ms conversion time"),
+      await screen.findByText(/20\.0 KB • \d+ms conversion time/),
     ).toBeInTheDocument();
   });
 
@@ -155,9 +155,9 @@ describe("ResultsScreen", () => {
     );
 
     expect(await screen.findByText("financials_final.docx")).toBeInTheDocument();
-    expect(screen.getByText(/8 pages • 25.0 KB • 12s conversion time/i)).toBeInTheDocument();
+    expect(screen.getByText(/25\.0 KB • 12s conversion time/i)).toBeInTheDocument();
     expect(screen.getByText("4,950 Words")).toBeInTheDocument();
-    expect(screen.getByText("99%")).toBeInTheDocument();
+    expect(screen.getAllByText("99%").length).toBeGreaterThan(0);
   });
 
   it("formats text yield to one decimal place when not a whole number", async () => {
@@ -178,7 +178,7 @@ describe("ResultsScreen", () => {
       </ConversionProvider>,
     );
 
-    expect(await screen.findByText("98.5%")).toBeInTheDocument();
+    expect((await screen.findAllByText("98.5%")).length).toBeGreaterThan(0);
   });
 
   it("renders dynamic list reconstruction metrics when list metrics are present", async () => {

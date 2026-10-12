@@ -28,7 +28,9 @@ describe("getAbandonModalContent helper", () => {
         };
         const content = getAbandonModalContent(session);
         expect(content.title).toBe("Converted File Available");
-        expect(content.description).toContain('converted file ("invoice.pdf") that you haven\'t downloaded yet');
+        expect(content.description).toContain(
+            'converted file ("invoice.pdf"), make sure you have downloaded it before starting a new conversion'
+        );
         expect(content.confirmText).toBe("Abandon & Start New");
     });
 

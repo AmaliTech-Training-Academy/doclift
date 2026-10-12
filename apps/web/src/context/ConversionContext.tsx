@@ -30,10 +30,11 @@ interface ConversionContextValue {
     isUploading: boolean;
     isConverting: boolean;
     isInitialized: boolean;
+    timeElapsed: number;
     startConversion: (fileOverride?: File | null) => Promise<ConversionSession | null>;
     updateStatus: (
         status: ConversionStatus,
-        durationOverride?: number,
+        durationOrJobData?: number | JobStatusResponse,
         jobData?: JobStatusResponse | number
     ) => void;
 }
@@ -48,12 +49,22 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const [isUploading, setIsUploading] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
     const [isAbandonModalOpen, setIsAbandonModalOpen] = useState(false);
+    const [timeElapsed, setTimeElapsed] = useState(0);
     const abortControllerRef = useRef<AbortController | null>(null);
     const isUploadingRef = useRef(false);
     const initialPurgeToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purgeExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hasWarned30MinRef = useRef(false);
     const hasExpiredRef = useRef(false);
+
+    useEffect(() => {
+        if (session?.status === "processing" || session?.status === "queued") {
+            const interval = setInterval(() => {
+                setTimeElapsed((prev) => prev + 1);
+            }, 1000);
+            return () => clearInterval(interval);
+        }
+    }, [session?.status]);
 
     const isConverting = Boolean(
         session && (session.status === "processing" || session.status === "queued")
@@ -87,27 +98,39 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
 
     const updateStatus = useCallback((
         status: ConversionStatus,
-        durationOverride?: number,
+        durationOrJobData?: number | JobStatusResponse,
         jobData?: JobStatusResponse | number
     ) => {
         setSession((prevSession) => {
             if (!prevSession) return null;
             const now = Date.now();
             const createdAt = prevSession.createdAt || prevSession.updatedAt;
-            const calculatedDuration = Math.max(0, (now - createdAt) / 1000);
-            const completedJobData =
-                typeof jobData === "number" ? undefined : jobData;
-            const outputSizeBytes =
-                typeof jobData === "number"
-                    ? jobData
-                    : completedJobData?.output?.sizeBytes ?? prevSession.outputSizeBytes;
+            const calculatedDuration = Math.max(0, Math.floor((now - createdAt) / 1000));
+
+            let durationOverride: number | undefined;
+            let completedJobData: JobStatusResponse | undefined;
+            let outputSizeBytes: number | undefined;
+
+            if (typeof durationOrJobData === "number" && typeof jobData === "number") {
+                durationOverride = durationOrJobData;
+                outputSizeBytes = jobData;
+            } else if (typeof durationOrJobData === "number") {
+                outputSizeBytes = durationOrJobData;
+            } else if (typeof durationOrJobData === "object" && durationOrJobData !== null) {
+                completedJobData = durationOrJobData;
+                outputSizeBytes = completedJobData?.output?.sizeBytes ?? prevSession.outputSizeBytes;
+            } else if (typeof jobData === "object" && jobData !== null) {
+                completedJobData = jobData;
+                outputSizeBytes = completedJobData?.output?.sizeBytes ?? prevSession.outputSizeBytes;
+            } else {
+                outputSizeBytes = prevSession.outputSizeBytes;
+            }
+
             const durationSeconds =
-                completedJobData?.durationSeconds !== undefined && completedJobData?.durationSeconds !== null
-                    ? completedJobData.durationSeconds
-                    : durationOverride !== undefined
+                durationOverride !== undefined
                     ? durationOverride
                     : status === "done"
-                    ? (prevSession.durationSeconds ?? calculatedDuration)
+                    ? (prevSession.durationSeconds ?? (timeElapsed > 0 ? timeElapsed : calculatedDuration))
                     : prevSession.durationSeconds;
 
             const completedAtMs = completedJobData?.completedAt
@@ -131,7 +154,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             saveConversionSession(updatedSession);
             return updatedSession;
         });
-    }, []);
+    }, [timeElapsed]);
 
     const reset = useCallback(() => {
         if (initialPurgeToastTimerRef.current) {
@@ -151,6 +174,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         setIsUploading(false);
         setFile(null);
         setSession(null);
+        setTimeElapsed(0);
         clearConversionSession();
         setResetKey((k) => k + 1);
         setActiveView("upload");
@@ -171,6 +195,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         isUploadingRef.current = false;
         setIsUploading(false);
         setSession(null);
+        setTimeElapsed(0);
         clearConversionSession();
         setResetKey((k) => k + 1);
         setActiveView("upload");
@@ -192,6 +217,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             // If reset() was called while the request was in flight, bail out.
             if (controller.signal.aborted) return null;
 
+            setTimeElapsed(0);
             const now = Date.now();
             const realJobId = String(res.jobId);
             const newSession: ConversionSession = {
@@ -251,7 +277,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         jobId: session?.jobId,
         enabled: isConverting,
         onComplete: (data) => {
-            updateStatus("done", undefined, data);
+            updateStatus("done", data);
             setActiveView("result");
             if (typeof toast?.success === "function") {
                 toast.success("Conversion complete!", {
@@ -312,6 +338,11 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             const storedSession = getConversionSession();
             if (storedSession && isMounted) {
                 setSession(storedSession);
+                if (storedSession.durationSeconds != null) {
+                    setTimeElapsed(Math.round(storedSession.durationSeconds));
+                } else if (storedSession.createdAt) {
+                    setTimeElapsed(Math.max(0, Math.floor((Date.now() - storedSession.createdAt) / 1000)));
+                }
                 if (storedSession.status === "processing" || storedSession.status === "queued" || storedSession.status === "failed") {
                     setActiveView("progress");
                 } else if (storedSession.status === "done") {
@@ -367,6 +398,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 isUploading,
                 isConverting,
                 isInitialized,
+                timeElapsed,
                 startConversion,
                 updateStatus,
             }}
