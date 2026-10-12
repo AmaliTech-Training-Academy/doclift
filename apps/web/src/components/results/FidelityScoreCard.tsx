@@ -282,7 +282,7 @@ export function FidelityScoreCard({ session }: FidelityScoreCardProps) {
         )}
 
         <div className="pt-2.5 mt-3 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
-          <span>Source vs DOCX AST Alignment</span>
+          <span>Document Structure Match</span>
           <span className="font-semibold text-gray-500">DocLift Audit</span>
         </div>
       </div>
