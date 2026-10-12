@@ -268,6 +268,52 @@ describe("useConversion", () => {
     expect(result.current.session?.outputSizeBytes).toBe(48213);
   });
 
+  it("preserves metrics, output, and pageCount when job object is passed to updateStatus without using backend duration", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ jobId: 999 }),
+    } as unknown as Response);
+
+    const { result } = renderHook(() => useConversion(), { wrapper });
+    const file = new File(["pdf"], "doc.pdf", { type: "application/pdf" });
+
+    await act(async () => {
+      await result.current.startConversion(file);
+    });
+
+    act(() => {
+      result.current.updateStatus("done", {
+        jobId: "999",
+        status: "DONE",
+        sourceFilename: "doc.pdf",
+        pageCount: 738,
+        createdAt: "2026-10-12T10:00:00Z",
+        durationSeconds: 99.26,
+        output: {
+          filename: "doc.docx",
+          sizeBytes: 12706600,
+          downloadUrl: "/download",
+        },
+        metrics: {
+          sourceWordCount: 277822,
+          outputWordCount: 277826,
+          headingsDetected: 742,
+          tablesDetected: 146,
+        },
+      });
+    });
+
+    expect(result.current.session?.status).toBe("done");
+    expect(result.current.session?.pageCount).toBe(738);
+    expect(result.current.session?.output?.filename).toBe("doc.docx");
+    expect(result.current.session?.output?.sizeBytes).toBe(12706600);
+    expect(result.current.session?.metrics?.sourceWordCount).toBe(277822);
+    expect(result.current.session?.metrics?.headingsDetected).toBe(742);
+    // Does not use backend's 99.26 durationSeconds
+    expect(result.current.session?.durationSeconds).not.toBe(99.26);
+  });
+
   it("shows success and auto-purge warning toasts on completion", () => {
     vi.useFakeTimers();
     renderHook(() => useConversion(), { wrapper });

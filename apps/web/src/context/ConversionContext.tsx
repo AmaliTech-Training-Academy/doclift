@@ -114,6 +114,10 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
             if (typeof durationOrJobData === "number" && typeof jobData === "number") {
                 durationOverride = durationOrJobData;
                 outputSizeBytes = jobData;
+            } else if (typeof durationOrJobData === "number" && typeof jobData === "object" && jobData !== null) {
+                durationOverride = durationOrJobData;
+                completedJobData = jobData;
+                outputSizeBytes = completedJobData?.output?.sizeBytes ?? prevSession.outputSizeBytes;
             } else if (typeof durationOrJobData === "number") {
                 outputSizeBytes = durationOrJobData;
             } else if (typeof durationOrJobData === "object" && durationOrJobData !== null) {

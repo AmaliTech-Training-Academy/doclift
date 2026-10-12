@@ -1,10 +1,21 @@
 export type BackendJobStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
+export type JobStatus = BackendJobStatus;
+
+export type JobPhase =
+  | "QUEUED"
+  | "LOADING_SOURCE"
+  | "EXTRACTING_CONTENT"
+  | "RECOVERING_STRUCTURE"
+  | "GENERATING_DOCUMENT"
+  | "SAVING_OUTPUT"
+  | "COMPLETED";
 
 export interface JobOutputResponse {
   filename: string;
   sizeBytes: number | null;
   downloadUrl: string;
 }
+export type JobOutput = JobOutputResponse;
 
 export interface JobMetricsResponse {
   sourceWordCount: number | null;
@@ -22,16 +33,22 @@ export interface JobMetricsResponse {
   multiColumnPageCount?: number | null;
   outputPageCount?: number | null;
 }
+export type JobMetrics = JobMetricsResponse;
 
 export interface JobStatusResponse {
   jobId: string;
   status: BackendJobStatus;
-  sourceFilename: string;
+  sourceFilename: string | null;
   pageCount: number | null;
-  createdAt: string;
+  createdAt: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
+  phase?: JobPhase | null;
+  progressPercent?: number | null;
   durationSeconds?: number | null;
+  estimatedRemainingSeconds?: number | null;
+  estimatedTotalSeconds?: number | null;
+  currentPhaseEstimatedRemainingSeconds?: number | null;
   output?: JobOutputResponse | null;
   metrics?: JobMetricsResponse | null;
 }
