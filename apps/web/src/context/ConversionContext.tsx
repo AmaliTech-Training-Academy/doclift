@@ -4,7 +4,6 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, Re
 import { ConversionSession, ConversionStatus, saveConversionSession, clearConversionSession, getConversionSession } from "@/lib/conversionSession";
 import { saveDraftFile, getDraftFile, clearDraftFile } from "@/lib/fileStorage";
 import { uploadFile, UploadApiError } from "@/lib/uploadApi";
-import { useJobPolling } from "@/lib/useJobPolling";
 import { usePurgeCountdown } from "@/lib/usePurgeCountdown";
 import { JobStatusResponse } from "@/lib/jobApi";
 import AbandonSessionModal from "@/components/ui/AbandonSessionModal";
@@ -56,6 +55,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     const purgeExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hasWarned30MinRef = useRef(false);
     const hasExpiredRef = useRef(false);
+    const hasNotifiedDoneRef = useRef(false);
 
     useEffect(() => {
         if (session?.status === "processing" || session?.status === "queued") {
@@ -155,12 +155,36 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 output: completedJobData?.output ?? prevSession.output,
                 metrics: completedJobData?.metrics ?? prevSession.metrics,
             };
-            saveConversionSession(updatedSession);
+            if (status !== "failed") {
+                saveConversionSession(updatedSession);
+            } else {
+                clearConversionSession();
+            }
             return updatedSession;
         });
+
+        if (status === "done" && !hasNotifiedDoneRef.current) {
+            hasNotifiedDoneRef.current = true;
+            if (typeof toast?.success === "function") {
+                toast.success("Conversion complete!", {
+                    description: "Your file has been converted successfully and is ready for download.",
+                });
+            }
+            if (initialPurgeToastTimerRef.current) {
+                clearTimeout(initialPurgeToastTimerRef.current);
+            }
+            initialPurgeToastTimerRef.current = setTimeout(() => {
+                if (typeof toast?.warning === "function") {
+                    toast.warning("Auto-Purge Warning", {
+                        description: "Your file will be purged in 30 minutes. Please download your Word document soon.",
+                    });
+                }
+            }, 3000);
+        }
     }, [timeElapsed]);
 
     const reset = useCallback(() => {
+        hasNotifiedDoneRef.current = false;
         if (initialPurgeToastTimerRef.current) {
             clearTimeout(initialPurgeToastTimerRef.current);
             initialPurgeToastTimerRef.current = null;
@@ -186,6 +210,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     }, [setFile]);
 
     const resetKeepFile = useCallback(() => {
+        hasNotifiedDoneRef.current = false;
         if (initialPurgeToastTimerRef.current) {
             clearTimeout(initialPurgeToastTimerRef.current);
             initialPurgeToastTimerRef.current = null;
@@ -210,6 +235,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         const targetFile = fileOverride !== undefined ? fileOverride : file;
         if (!targetFile || isUploadingRef.current || isConverting) return null;
 
+        hasNotifiedDoneRef.current = false;
         isUploadingRef.current = true;
         const controller = new AbortController();
         abortControllerRef.current = controller;
@@ -267,7 +293,9 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     };
 
     const requestReset = () => {
-        if (session || isUploading) {
+        if (session?.status === "failed") {
+            resetKeepFile();
+        } else if (session || isUploading) {
             setIsAbandonModalOpen(true);
         } else {
             reset();
@@ -275,47 +303,12 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     };
 
     const handleConfirmAbandon = () => {
-        if (session?.status === "failed") {
-            resetKeepFile();
-        } else {
-            reset();
-        }
+        reset();
     };
 
     const openAbandonModal = useCallback(() => setIsAbandonModalOpen(true), []);
     const closeAbandonModal = useCallback(() => setIsAbandonModalOpen(false), []);
 
-    useJobPolling({
-        jobId: session?.jobId,
-        enabled: isConverting,
-        onComplete: (data) => {
-            updateStatus("done", data);
-            setActiveView("result");
-            if (typeof toast?.success === "function") {
-                toast.success("Conversion complete!", {
-                    description: "Your file has been converted successfully and is ready for download.",
-                });
-            }
-            if (initialPurgeToastTimerRef.current) {
-                clearTimeout(initialPurgeToastTimerRef.current);
-            }
-            initialPurgeToastTimerRef.current = setTimeout(() => {
-                if (typeof toast?.warning === "function") {
-                    toast.warning("Auto-Purge Warning", {
-                        description: "Your file will be purged in 30 minutes. Please download your Word document soon.",
-                    });
-                }
-            }, 3000);
-        },
-        onFailed: (err) => {
-            updateStatus("failed");
-            if (typeof toast?.error === "function") {
-                toast.error("Conversion failed", {
-                    description: err?.message || "An issue occurred while converting your document. Please try again.",
-                });
-            }
-        },
-    });
 
     useEffect(() => {
         if (purgeTimeRemaining === null || session?.status !== "done") {
@@ -356,11 +349,11 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
                 } else if (storedSession.createdAt) {
                     setTimeElapsed(Math.max(0, Math.floor((Date.now() - storedSession.createdAt) / 1000)));
                 }
-                if (storedSession.status === "processing" || storedSession.status === "queued" || storedSession.status === "failed") {
+                if (storedSession.status === "processing" || storedSession.status === "queued") {
                     setActiveView("progress");
                 } else if (storedSession.status === "done") {
                     setActiveView("result");
-                } else if (storedSession.status === "expired") {
+                } else if (storedSession.status === "failed" || storedSession.status === "expired") {
                     clearConversionSession();
                     setSession(null);
                     setActiveView("upload");
